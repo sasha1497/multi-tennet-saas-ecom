@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "RetailOS NestJS",
+  "extends": "./base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "isolatedModules": false,
+    "strictPropertyInitialization": false,
+    "strictBindCallApply": false,
+    "noFallthroughCasesInSwitch": false,
+    "removeComments": true
+  }
+}

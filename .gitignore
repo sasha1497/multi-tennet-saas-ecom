@@ -1,0 +1,56 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+.turbo/
+
+# generated prisma clients
+database/**/generated/
+packages/**/generated/
+apps/api/prisma/generated/
+
+# env / secrets  (NEVER commit real secrets)
+.env
+.env.*
+!.env.example
+!.env.test.example
+*.pem
+*.key
+secrets/
+
+# testing
+coverage/
+.nyc_output/
+junit.xml
+
+# logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# docker local volumes
+.docker-data/
+
+# mobile
+apps/mobile/.expo/
+apps/mobile/android/
+apps/mobile/ios/
+*.jks
+*.keystore
+
+# local uploads (STORAGE_DRIVER=local)
+.storage/

@@ -1,0 +1,43 @@
+{
+  "name": "retailos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RetailOS — Multi-Tenant Local Retail E-Commerce SaaS platform",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20.11.0",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:e2e": "pnpm --filter @retailos/api test:e2e",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "prisma:generate": "pnpm --filter @retailos/api prisma:generate",
+    "db:migrate": "pnpm --filter @retailos/api db:migrate",
+    "db:migrate:deploy": "pnpm --filter @retailos/api db:migrate:deploy",
+    "db:tenant:migrate": "pnpm --filter @retailos/api db:tenant:migrate",
+    "db:seed": "pnpm --filter @retailos/api db:seed",
+    "db:reset": "pnpm --filter @retailos/api db:reset",
+    "docker:up": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d",
+    "docker:up:infra": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres mysql redis minio mailpit adminer",
+    "docker:down": "docker compose -f docker-compose.yml -f docker-compose.dev.yml down",
+    "docker:down:volumes": "docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v",
+    "docker:logs": "docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f --tail=200",
+    "docker:build": "docker compose -f docker-compose.yml -f docker-compose.dev.yml build",
+    "docker:prod": "docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d",
+    "bootstrap": "bash infrastructure/scripts/bootstrap.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "prettier": "^3.3.3",
+    "turbo": "^2.1.3",
+    "typescript": "^5.5.4"
+  }
+}

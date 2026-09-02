@@ -1,0 +1,846 @@
+// ---------------------------------------------------------------------------
+// TENANT DATABASE — one physical PostgreSQL database per merchant.
+//
+// This schema is instantiated once per tenant. Because a tenant's data lives in
+// its own database, cross-tenant leakage is impossible by construction: there is
+// no `tenant_id` column to forget in a WHERE clause.
+//
+// The datasource URL here is only used by the Prisma CLI for `migrate diff`.
+// At runtime, TenantConnectionManager constructs a client per tenant with the
+// datasource overridden from the master `tenant_databases` registry.
+// ---------------------------------------------------------------------------
+
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../generated/tenant"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("TENANT_SHADOW_DATABASE_URL")
+}
+
+// ------------------------------------------------------------------ enums --
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  COD
+  UPI
+  CARD
+  NETBANKING
+  WALLET
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+enum AddressType {
+  HOME
+  WORK
+  OTHER
+}
+
+enum InventoryTransactionType {
+  PURCHASE
+  SALE
+  RETURN
+  ADJUSTMENT
+  RESERVATION
+  RELEASE
+  DAMAGE
+  INITIAL
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  PUSH
+  IN_APP
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+  READ
+}
+
+enum ActorType {
+  STAFF
+  CUSTOMER
+  SYSTEM
+}
+
+// -------------------------------------------------------------- customers --
+
+/// A shopper of THIS merchant. Customer identity is tenant-scoped for the MVP:
+/// the same person shopping at two merchants has two rows.
+///
+/// Forward path to a global identity (see docs/DECISION_LOG.md ADR-009):
+/// `platformIdentityId` is reserved now so a future global customer directory
+/// can link these rows without a schema migration on every tenant database.
+model Customer {
+  id                 String  @id @default(uuid()) @db.Uuid
+  platformIdentityId String? @map("platform_identity_id") @db.Uuid
+
+  email        String? @unique @db.VarChar(255)
+  phone        String? @unique @db.VarChar(20)
+  passwordHash String? @map("password_hash") @db.VarChar(255)
+  firstName    String  @map("first_name") @db.VarChar(80)
+  lastName     String  @default("") @map("last_name") @db.VarChar(80)
+  avatarUrl    String? @map("avatar_url") @db.VarChar(1024)
+
+  emailVerified Boolean @default(false) @map("email_verified")
+  phoneVerified Boolean @default(false) @map("phone_verified")
+  isActive      Boolean @default(true) @map("is_active")
+  /// Merchant-private note. Never returned on customer-facing endpoints.
+  notes         String? @db.Text
+
+  /// Lifetime aggregates, maintained transactionally on order completion.
+  /// BigInt because a long-lived store can exceed the 2.1 B paise Int ceiling.
+  orderCount  Int       @default(0) @map("order_count")
+  totalSpent  BigInt    @default(0) @map("total_spent")
+  lastOrderAt DateTime? @map("last_order_at") @db.Timestamptz(6)
+
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until") @db.Timestamptz(6)
+  lastLoginAt         DateTime? @map("last_login_at") @db.Timestamptz(6)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  addresses     Address[]
+  carts         Cart[]
+  orders        Order[]
+  reviews       Review[]
+  wishlist      WishlistItem[]
+  sessions      CustomerSession[]
+  notifications Notification[]
+  pushTokens    PushToken[]
+  redemptions   CouponRedemption[]
+
+  @@index([isActive, deletedAt])
+  @@index([createdAt])
+  @@index([lastOrderAt])
+  @@map("customers")
+}
+
+/// Customer refresh sessions live in the tenant DB because customer identity is
+/// tenant-scoped — a token minted for KickZone must be meaningless at ABC Store.
+model CustomerSession {
+  id         String    @id @default(uuid()) @db.Uuid
+  customerId String    @map("customer_id") @db.Uuid
+  /// Stable device/session id, mirrored in the JWT `sid` claim.
+  sessionId  String    @map("session_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash") @db.VarChar(64)
+  version    Int       @default(1)
+  userAgent  String?   @map("user_agent") @db.VarChar(512)
+  ipAddress  String?   @map("ip_address") @db.VarChar(64)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  replacedBy String?   @map("replaced_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastUsedAt DateTime  @default(now()) @map("last_used_at") @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, revokedAt])
+  @@index([customerId, sessionId])
+  @@index([expiresAt])
+  @@map("customer_sessions")
+}
+
+model Address {
+  id         String      @id @default(uuid()) @db.Uuid
+  customerId String      @map("customer_id") @db.Uuid
+  type       AddressType @default(HOME)
+  label      String?     @db.VarChar(40)
+  fullName   String      @map("full_name") @db.VarChar(120)
+  phone      String      @db.VarChar(20)
+  line1      String      @db.VarChar(200)
+  line2      String?     @db.VarChar(200)
+  landmark   String?     @db.VarChar(120)
+  city       String      @db.VarChar(80)
+  state      String      @db.VarChar(80)
+  postalCode String      @map("postal_code") @db.VarChar(12)
+  country    String      @default("IN") @db.VarChar(2)
+  isDefault  Boolean     @default(false) @map("is_default")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, deletedAt])
+  @@map("addresses")
+}
+
+// ---------------------------------------------------------------- catalog --
+
+model Category {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @db.VarChar(120)
+  slug        String  @unique @db.VarChar(140)
+  description String? @db.Text
+  imageUrl    String? @map("image_url") @db.VarChar(1024)
+  iconName    String? @map("icon_name") @db.VarChar(60)
+  parentId    String? @map("parent_id") @db.Uuid
+  sortOrder   Int     @default(0) @map("sort_order")
+  isActive    Boolean @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  @@index([parentId, sortOrder])
+  @@index([isActive, deletedAt])
+  @@map("categories")
+}
+
+model Brand {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @db.VarChar(120)
+  slug        String  @unique @db.VarChar(140)
+  description String? @db.Text
+  logoUrl     String? @map("logo_url") @db.VarChar(1024)
+  isActive    Boolean @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  products Product[]
+
+  @@index([isActive, deletedAt])
+  @@map("brands")
+}
+
+model Product {
+  id               String        @id @default(uuid()) @db.Uuid
+  name             String        @db.VarChar(200)
+  slug             String        @unique @db.VarChar(240)
+  description      String?       @db.Text
+  shortDescription String?       @map("short_description") @db.VarChar(500)
+  status           ProductStatus @default(DRAFT)
+
+  categoryId String? @map("category_id") @db.Uuid
+  brandId    String? @map("brand_id") @db.Uuid
+
+  /// Option axes, e.g. `[{ "name": "Size", "values": ["7","8","9"] }]`.
+  options Json @default("[]")
+  tags    String[] @default([])
+
+  /// Null = inherit the store's default rate.
+  taxRateBps Int?    @map("tax_rate_bps")
+  hsnCode    String? @map("hsn_code") @db.VarChar(16)
+
+  isFeatured Boolean @default(false) @map("is_featured")
+
+  /// Denormalised for sorting/filtering without touching every variant.
+  priceFrom Int @default(0) @map("price_from")
+  mrpFrom   Int @default(0) @map("mrp_from")
+
+  ratingAverage Float @default(0) @map("rating_average")
+  ratingCount   Int   @default(0) @map("rating_count")
+  soldCount     Int   @default(0) @map("sold_count")
+
+  metaTitle       String? @map("meta_title") @db.VarChar(160)
+  metaDescription String? @map("meta_description") @db.VarChar(320)
+
+  /// Concatenated name + brand + tags, maintained by the app and indexed with a
+  /// GIN trigram index for fast ILIKE search without Elasticsearch.
+  searchText String @default("") @map("search_text") @db.Text
+
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  category Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brand    Brand?           @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  images   ProductImage[]
+  variants ProductVariant[]
+  reviews  Review[]
+  wishlist WishlistItem[]
+
+  @@index([status, deletedAt])
+  @@index([categoryId, status])
+  @@index([brandId, status])
+  @@index([isFeatured, status])
+  @@index([priceFrom])
+  @@index([soldCount])
+  @@index([createdAt])
+  @@map("products")
+}
+
+model ProductImage {
+  id        String  @id @default(uuid()) @db.Uuid
+  productId String  @map("product_id") @db.Uuid
+  url       String  @db.VarChar(1024)
+  alt       String? @db.VarChar(200)
+  sortOrder Int     @default(0) @map("sort_order")
+  isPrimary Boolean @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, sortOrder])
+  @@map("product_images")
+}
+
+/// The sellable unit. Price and stock live here, never on Product.
+model ProductVariant {
+  id        String  @id @default(uuid()) @db.Uuid
+  productId String  @map("product_id") @db.Uuid
+  sku       String  @unique @db.VarChar(64)
+  barcode   String? @db.VarChar(64)
+
+  /// Chosen value per axis: `{ "Size": "9", "Color": "Black" }`.
+  options Json   @default("{}")
+  /// Rendered label, e.g. "9 / Black".
+  label   String @default("") @db.VarChar(160)
+
+  /// Minor units (paise).
+  price Int
+  mrp   Int
+
+  imageUrl    String? @map("image_url") @db.VarChar(1024)
+  weightGrams Int?    @map("weight_grams")
+  sortOrder   Int     @default(0) @map("sort_order")
+  isActive    Boolean @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  product      Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inventory    Inventory?
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+  transactions InventoryTransaction[]
+
+  @@index([productId, isActive])
+  @@index([price])
+  @@map("product_variants")
+}
+
+// -------------------------------------------------------------- inventory --
+
+/// One row per variant. `available` is deliberately NOT stored — it is always
+/// `quantity - reserved`, so the two numbers can never disagree.
+model Inventory {
+  id        String @id @default(uuid()) @db.Uuid
+  variantId String @unique @map("variant_id") @db.Uuid
+
+  quantity Int @default(0)
+  /// Held for unpaid orders; released when they are paid, cancelled or expire.
+  reserved Int @default(0)
+
+  lowStockThreshold Int @default(5) @map("low_stock_threshold")
+
+  /// Optimistic-concurrency token, bumped on every write. Two staff members
+  /// adjusting the same SKU concurrently: the second gets a 409, not a lost update.
+  version Int @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([quantity])
+  @@map("inventory")
+}
+
+/// Append-only stock ledger. Every movement is explainable after the fact.
+model InventoryTransaction {
+  id             String                   @id @default(uuid()) @db.Uuid
+  variantId      String                   @map("variant_id") @db.Uuid
+  type           InventoryTransactionType
+  /// Signed: negative for outbound.
+  quantityChange Int                      @map("quantity_change")
+  quantityAfter  Int                      @map("quantity_after")
+  reason         String?                  @db.VarChar(500)
+  referenceType  String?                  @map("reference_type") @db.VarChar(40)
+  referenceId    String?                  @map("reference_id") @db.VarChar(64)
+  /// Master-DB user id of the staff member, or null for system moves.
+  performedBy    String?                  @map("performed_by") @db.VarChar(64)
+  createdAt      DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId, createdAt])
+  @@index([type, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("inventory_transactions")
+}
+
+// ------------------------------------------------------------------ carts --
+
+model Cart {
+  id         String  @id @default(uuid()) @db.Uuid
+  customerId String? @map("customer_id") @db.Uuid
+  /// Signed opaque token for anonymous shoppers; merged into the customer cart
+  /// on login.
+  guestToken String? @unique @map("guest_token") @db.VarChar(128)
+
+  couponCode String? @map("coupon_code") @db.VarChar(32)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+
+  customer Customer?  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  items    CartItem[]
+
+  @@index([customerId])
+  @@index([expiresAt])
+  @@map("carts")
+}
+
+model CartItem {
+  id        String @id @default(uuid()) @db.Uuid
+  cartId    String @map("cart_id") @db.Uuid
+  variantId String @map("variant_id") @db.Uuid
+  quantity  Int    @default(1)
+  /// Price when the item was added, so we can warn "price changed" at checkout.
+  addedAtPrice Int @map("added_at_price")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  cart    Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, variantId])
+  @@index([variantId])
+  @@map("cart_items")
+}
+
+model WishlistItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, productId])
+  @@map("wishlist_items")
+}
+
+// ---------------------------------------------------------------- coupons --
+
+model Coupon {
+  id           String       @id @default(uuid()) @db.Uuid
+  code         String       @unique @db.VarChar(32)
+  description  String?      @db.VarChar(300)
+  discountType DiscountType @map("discount_type")
+  /// Percent (1-100) when PERCENTAGE, minor units when FIXED.
+  discountValue Int         @map("discount_value")
+  /// Caps a percentage discount, minor units.
+  maxDiscountAmount Int?    @map("max_discount_amount")
+  minOrderAmount    Int     @default(0) @map("min_order_amount")
+
+  usageLimit       Int? @map("usage_limit")
+  usageCount       Int  @default(0) @map("usage_count")
+  perCustomerLimit Int? @map("per_customer_limit")
+
+  startsAt DateTime? @map("starts_at") @db.Timestamptz(6)
+  endsAt   DateTime? @map("ends_at") @db.Timestamptz(6)
+  isActive Boolean   @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  redemptions CouponRedemption[]
+
+  @@index([isActive, startsAt, endsAt])
+  @@map("coupons")
+}
+
+/// One row per successful use, so `perCustomerLimit` is enforceable and a
+/// cancelled order's redemption can be reversed.
+model CouponRedemption {
+  id         String   @id @default(uuid()) @db.Uuid
+  couponId   String   @map("coupon_id") @db.Uuid
+  customerId String?  @map("customer_id") @db.Uuid
+  orderId    String   @map("order_id") @db.Uuid
+  amount     Int
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  coupon   Coupon    @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId])
+  @@index([couponId, customerId])
+  @@map("coupon_redemptions")
+}
+
+// ----------------------------------------------------------------- orders --
+
+model Order {
+  id          String @id @default(uuid()) @db.Uuid
+  /// Human-facing, e.g. `KZ-2026-000123`. Unique and never reused.
+  orderNumber String @unique @map("order_number") @db.VarChar(32)
+
+  customerId String? @map("customer_id") @db.Uuid
+
+  /// Contact snapshot — an order stays readable after a customer is deleted.
+  customerName  String  @map("customer_name") @db.VarChar(160)
+  customerEmail String? @map("customer_email") @db.VarChar(255)
+  customerPhone String? @map("customer_phone") @db.VarChar(20)
+
+  status        OrderStatus   @default(PENDING)
+  paymentStatus PaymentStatus @default(PENDING) @map("payment_status")
+  paymentMethod PaymentMethod @map("payment_method")
+
+  /// All minor units. Totals are recomputed server-side at placement; the client
+  /// never supplies a price.
+  subtotal       Int
+  discountAmount Int    @default(0) @map("discount_amount")
+  taxAmount      Int    @default(0) @map("tax_amount")
+  shippingAmount Int    @default(0) @map("shipping_amount")
+  totalAmount    Int    @map("total_amount")
+  currency       String @default("INR") @db.VarChar(3)
+
+  couponCode String? @map("coupon_code") @db.VarChar(32)
+
+  /// Frozen address copies — editing the address book never rewrites history.
+  shippingAddress Json @map("shipping_address")
+  billingAddress  Json? @map("billing_address")
+
+  notes             String? @db.Text
+  internalNotes     String? @map("internal_notes") @db.Text
+  cancellationReason String? @map("cancellation_reason") @db.VarChar(500)
+
+  /// Client-supplied; makes double-tap checkout return the same order.
+  idempotencyKey String @unique @map("idempotency_key") @db.VarChar(128)
+
+  placedAt            DateTime  @default(now()) @map("placed_at") @db.Timestamptz(6)
+  confirmedAt         DateTime? @map("confirmed_at") @db.Timestamptz(6)
+  shippedAt           DateTime? @map("shipped_at") @db.Timestamptz(6)
+  deliveredAt         DateTime? @map("delivered_at") @db.Timestamptz(6)
+  cancelledAt         DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  estimatedDeliveryAt DateTime? @map("estimated_delivery_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customer      Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+  payments      Payment[]
+  reviews       Review[]
+  redemption    CouponRedemption?
+
+  @@index([customerId, placedAt])
+  @@index([status, placedAt])
+  @@index([paymentStatus])
+  @@index([placedAt])
+  @@map("orders")
+}
+
+/// IMMUTABLE snapshot of what was bought. Nothing here is ever updated after
+/// the order is placed — that is the whole point.
+model OrderItem {
+  id        String @id @default(uuid()) @db.Uuid
+  orderId   String @map("order_id") @db.Uuid
+  /// Kept for reporting joins; the snapshot columns are authoritative.
+  productId String @map("product_id") @db.Uuid
+  variantId String @map("variant_id") @db.Uuid
+
+  productName    String @map("product_name") @db.VarChar(200)
+  productSlug    String @map("product_slug") @db.VarChar(240)
+  variantLabel   String @map("variant_label") @db.VarChar(160)
+  sku            String @db.VarChar(64)
+  imageUrl       String? @map("image_url") @db.VarChar(1024)
+  variantOptions Json    @default("{}") @map("variant_options")
+
+  unitPrice      Int @map("unit_price")
+  mrp            Int
+  quantity       Int
+  discountAmount Int @default(0) @map("discount_amount")
+  taxRateBps     Int @default(0) @map("tax_rate_bps")
+  taxAmount      Int @default(0) @map("tax_amount")
+  lineTotal      Int @map("line_total")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order   Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id            String       @id @default(uuid()) @db.Uuid
+  orderId       String       @map("order_id") @db.Uuid
+  fromStatus    OrderStatus? @map("from_status")
+  toStatus      OrderStatus  @map("to_status")
+  note          String?      @db.VarChar(500)
+  changedBy     String?      @map("changed_by") @db.VarChar(64)
+  changedByType ActorType    @default(SYSTEM) @map("changed_by_type")
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("order_status_history")
+}
+
+// --------------------------------------------------------------- payments --
+
+model Payment {
+  id      String @id @default(uuid()) @db.Uuid
+  orderId String @map("order_id") @db.Uuid
+
+  provider String        @db.VarChar(32)
+  method   PaymentMethod
+  status   PaymentStatus @default(PENDING)
+  amount   Int
+  currency String        @default("INR") @db.VarChar(3)
+
+  providerOrderId   String? @map("provider_order_id") @db.VarChar(128)
+  providerPaymentId String? @map("provider_payment_id") @db.VarChar(128)
+  providerSignature String? @map("provider_signature") @db.VarChar(512)
+
+  failureReason  String? @map("failure_reason") @db.VarChar(500)
+  refundedAmount Int     @default(0) @map("refunded_amount")
+
+  /// Guards against a webhook and a client verify both crediting the same payment.
+  idempotencyKey String @unique @map("idempotency_key") @db.VarChar(128)
+  /// Raw provider payload, retained for reconciliation and dispute handling.
+  providerPayload Json? @map("provider_payload")
+
+  paidAt    DateTime? @map("paid_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@index([providerOrderId])
+  @@index([providerPaymentId])
+  @@map("payments")
+}
+
+// ---------------------------------------------------------------- reviews --
+
+model Review {
+  id         String  @id @default(uuid()) @db.Uuid
+  productId  String  @map("product_id") @db.Uuid
+  customerId String  @map("customer_id") @db.Uuid
+  orderId    String? @map("order_id") @db.Uuid
+
+  rating  Int
+  title   String? @db.VarChar(120)
+  comment String? @db.Text
+
+  isApproved         Boolean @default(false) @map("is_approved")
+  isVerifiedPurchase Boolean @default(false) @map("is_verified_purchase")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order    Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  /// One review per customer per product.
+  @@unique([productId, customerId])
+  @@index([productId, isApproved])
+  @@map("reviews")
+}
+
+// ------------------------------------------------------------------ store --
+
+/// Singleton configuration row for this tenant's storefront.
+/// Enforced single-row by the `store_settings_singleton` check constraint.
+model StoreSettings {
+  id String @id @default("singleton") @db.VarChar(16)
+
+  storeName   String  @map("store_name") @db.VarChar(120)
+  tagline     String? @db.VarChar(160)
+  description String? @db.Text
+  logoUrl     String? @map("logo_url") @db.VarChar(1024)
+  faviconUrl  String? @map("favicon_url") @db.VarChar(1024)
+
+  /// `{ primaryColor, accentColor, radius, fontFamily, colorMode }`
+  theme   Json @default("{}")
+  banners Json @default("[]")
+
+  contactEmail   String? @map("contact_email") @db.VarChar(255)
+  contactPhone   String? @map("contact_phone") @db.VarChar(20)
+  whatsappNumber String? @map("whatsapp_number") @db.VarChar(20)
+  addressLine1   String? @map("address_line1") @db.VarChar(200)
+  addressLine2   String? @map("address_line2") @db.VarChar(200)
+  city           String? @db.VarChar(80)
+  state          String? @db.VarChar(80)
+  postalCode     String? @map("postal_code") @db.VarChar(12)
+  country        String  @default("IN") @db.VarChar(2)
+
+  currency            String  @default("INR") @db.VarChar(3)
+  currencySymbol      String  @default("₹") @map("currency_symbol") @db.VarChar(4)
+  defaultTaxRateBps   Int     @default(0) @map("default_tax_rate_bps")
+  taxInclusivePricing Boolean @default(true) @map("tax_inclusive_pricing")
+
+  minOrderAmount        Int @default(0) @map("min_order_amount")
+  shippingFee           Int @default(0) @map("shipping_fee")
+  freeShippingThreshold Int @default(0) @map("free_shipping_threshold")
+
+  codEnabled           Boolean @default(true) @map("cod_enabled")
+  onlinePaymentEnabled Boolean @default(true) @map("online_payment_enabled")
+  allowBackorder       Boolean @default(false) @map("allow_backorder")
+
+  businessHours Json @default("[]") @map("business_hours")
+  socialLinks   Json @default("{}") @map("social_links")
+
+  isPublished        Boolean @default(false) @map("is_published")
+  maintenanceMessage String? @map("maintenance_message") @db.VarChar(500)
+
+  /// Monotonic counter behind `orderNumber`. Bumped inside the order transaction.
+  orderSequence Int    @default(0) @map("order_sequence")
+  orderPrefix   String @default("ORD") @map("order_prefix") @db.VarChar(8)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("store_settings")
+}
+
+/// Read-model mirror of the tenant's staff, kept in sync from the master DB on
+/// invite/update. Lets order history and audit rows show a name without a
+/// cross-database join.
+model StaffProfile {
+  id        String  @id @default(uuid()) @db.Uuid
+  /// Master-DB `users.id`.
+  userId    String  @unique @map("user_id") @db.Uuid
+  email     String  @db.VarChar(255)
+  firstName String  @map("first_name") @db.VarChar(80)
+  lastName  String  @default("") @map("last_name") @db.VarChar(80)
+  phone     String? @db.VarChar(20)
+  role      String  @db.VarChar(24)
+  isActive  Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("staff_profiles")
+}
+
+// ---------------------------------------------------------- notifications --
+
+model Notification {
+  id         String              @id @default(uuid()) @db.Uuid
+  customerId String?             @map("customer_id") @db.Uuid
+  channel    NotificationChannel
+  template   String              @db.VarChar(64)
+  status     NotificationStatus  @default(QUEUED)
+  recipient  String              @db.VarChar(255)
+  subject    String?             @db.VarChar(200)
+  body       String              @db.Text
+  actionUrl  String?             @map("action_url") @db.VarChar(500)
+  metadata   Json?
+
+  readAt DateTime? @map("read_at") @db.Timestamptz(6)
+  sentAt DateTime? @map("sent_at") @db.Timestamptz(6)
+  error  String?   @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, createdAt])
+  @@index([status, createdAt])
+  @@map("notifications")
+}
+
+model PushToken {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  token      String   @unique @db.VarChar(512)
+  platform   String   @db.VarChar(16)
+  deviceId   String?  @map("device_id") @db.VarChar(128)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, isActive])
+  @@map("push_tokens")
+}
+
+/// Tenant-scoped audit trail. Platform-level events go to the master DB instead.
+model TenantAuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  actorId      String?  @map("actor_id") @db.VarChar(64)
+  actorType    ActorType @default(SYSTEM) @map("actor_type")
+  actorEmail   String?  @map("actor_email") @db.VarChar(255)
+  action       String   @db.VarChar(64)
+  resourceType String?  @map("resource_type") @db.VarChar(64)
+  resourceId   String?  @map("resource_id") @db.VarChar(64)
+  requestId    String?  @map("request_id") @db.VarChar(64)
+  ipAddress    String?  @map("ip_address") @db.VarChar(64)
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([action, createdAt])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+  @@map("tenant_audit_logs")
+}
+
+/// Applied-migration ledger, local to each tenant database. The migration runner
+/// consults this before applying anything, which is what makes it idempotent.
+model SchemaMigration {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique @db.VarChar(128)
+  checksum   String   @db.VarChar(64)
+  appliedAt  DateTime @default(now()) @map("applied_at") @db.Timestamptz(6)
+  durationMs Int      @default(0) @map("duration_ms")
+
+  @@map("schema_migrations")
+}

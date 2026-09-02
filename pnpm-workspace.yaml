@@ -1,0 +1,6 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  # `database` is a first-class workspace package: it owns both Prisma schemas,
+  # the generated clients and the versioned tenant SQL migrations.
+  - 'database'

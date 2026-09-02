@@ -1,0 +1,11 @@
+{
+  "extends": "@retailos/tsconfig/base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "isolatedModules": false
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "generated"]
+}

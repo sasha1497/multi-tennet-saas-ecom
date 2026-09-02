@@ -1,0 +1,32 @@
+{
+  "name": "@retailos/database",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "master", "tenant"],
+  "scripts": {
+    "generate": "pnpm generate:master && pnpm generate:tenant",
+    "generate:master": "prisma generate --schema=./master/schema.prisma",
+    "generate:tenant": "prisma generate --schema=./tenant/schema.prisma",
+    "build": "pnpm generate && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --ext .ts",
+    "clean": "rm -rf dist generated .turbo *.tsbuildinfo",
+    "master:migrate": "prisma migrate dev --schema=./master/schema.prisma",
+    "master:deploy": "prisma migrate deploy --schema=./master/schema.prisma",
+    "master:studio": "prisma studio --schema=./master/schema.prisma",
+    "master:reset": "prisma migrate reset --schema=./master/schema.prisma --force",
+    "tenant:diff": "bash ./scripts/generate-tenant-migration.sh"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0"
+  },
+  "devDependencies": {
+    "@retailos/eslint-config": "workspace:*",
+    "@retailos/tsconfig": "workspace:*",
+    "eslint": "^8.57.0",
+    "prisma": "^5.22.0",
+    "typescript": "^5.5.4"
+  }
+}
