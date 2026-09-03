@@ -14,6 +14,7 @@
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },
   "dependencies": {
+    "@retailos/config": "workspace:*",
     "@retailos/types": "workspace:*"
   },
   "devDependencies": {

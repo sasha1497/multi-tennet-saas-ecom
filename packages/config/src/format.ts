@@ -1,6 +1,7 @@
 /**
- * Display helpers shared by every client so ₹ formatting, discount maths and
- * status labels never drift between web and mobile.
+ * Display helpers shared by every client *and* the API, so ₹ formatting,
+ * discount maths and status labels never drift between web, mobile and the
+ * emails the backend sends.
  */
 import type { Money, OrderStatus } from '@retailos/types';
 

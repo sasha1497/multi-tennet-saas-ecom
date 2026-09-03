@@ -311,6 +311,7 @@ CREATE TABLE "orders" (
     "shipping_amount" INTEGER NOT NULL DEFAULT 0,
     "total_amount" INTEGER NOT NULL,
     "currency" VARCHAR(3) NOT NULL DEFAULT 'INR',
+    "tax_inclusive" BOOLEAN NOT NULL DEFAULT true,
     "coupon_code" VARCHAR(32),
     "shipping_address" JSONB NOT NULL,
     "billing_address" JSONB,

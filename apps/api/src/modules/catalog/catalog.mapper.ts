@@ -1,4 +1,4 @@
-import { discountPercent } from '@retailos/api-client';
+import { discountPercent } from '@retailos/config';
 import type {
   Brand,
   Category,

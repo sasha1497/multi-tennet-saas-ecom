@@ -1,0 +1,178 @@
+/* ---------------------------------------------------------------------------
+ * RetailOS design tokens.
+ *
+ * Imported by both web apps before their Tailwind layers. Colours are declared
+ * as space-separated RGB channels so Tailwind's `rgb(var(--x) / <alpha-value>)`
+ * opacity modifiers keep working.
+ *
+ * The storefront overwrites --color-primary/--color-accent at runtime from the
+ * tenant's stored theme, which is how one codebase renders in each merchant's
+ * own colours without a rebuild.
+ * ------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
+
+  /* Brand — overridden per tenant on the storefront. */
+  --color-primary: 31 71 224;
+  --color-primary-fg: 255 255 255;
+  --color-primary-soft: 238 244 255;
+  --color-accent: 249 115 22;
+  --color-accent-fg: 255 255 255;
+
+  /* Surfaces & ink */
+  --color-surface: 255 255 255;
+  --color-surface-muted: 248 250 252;
+  --color-surface-raised: 255 255 255;
+  --color-border: 226 232 240;
+  --color-text: 15 23 42;
+  --color-text-muted: 100 116 139;
+  --color-text-subtle: 148 163 184;
+
+  /* ---- Data visualisation -------------------------------------------------
+   * A single validated series hue. Charts encode magnitude by length/position
+   * and carry identity in text labels, so no categorical ramp is needed — which
+   * is also what keeps every chart colourblind-safe by construction.
+   * Validated against this surface: OKLCH lightness band, chroma floor and
+   * >= 3:1 contrast all pass.
+   * --------------------------------------------------------------------- */
+  --viz-series-1: #2a78d6;
+  --viz-series-1-soft: rgba(42, 120, 214, 0.14);
+  --viz-grid: #e2e8f0;
+  --viz-axis: #cbd5e1;
+  --viz-ink: #0f172a;
+  --viz-ink-muted: #64748b;
+
+  /* Status — reserved, always paired with an icon or text label, never alone. */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+  --status-neutral: #94a3b8;
+  --status-info: #2a78d6;
+
+  --radius: 10px;
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Dark values are declared under both scopes: the media query follows the OS,
+   the data-theme scope follows the in-app toggle and must win either way. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-surface: 15 23 42;
+    --color-surface-muted: 2 6 23;
+    --color-surface-raised: 30 41 59;
+    --color-border: 51 65 85;
+    --color-text: 241 245 249;
+    --color-text-muted: 148 163 184;
+    --color-text-subtle: 100 116 139;
+    --color-primary-soft: 30 41 59;
+
+    /* Re-stepped for the dark surface (#0f172a), not an automatic flip. */
+    --viz-series-1: #3987e5;
+    --viz-series-1-soft: rgba(57, 135, 229, 0.2);
+    --viz-grid: #1e293b;
+    --viz-axis: #334155;
+    --viz-ink: #f1f5f9;
+    --viz-ink-muted: #94a3b8;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-surface: 15 23 42;
+  --color-surface-muted: 2 6 23;
+  --color-surface-raised: 30 41 59;
+  --color-border: 51 65 85;
+  --color-text: 241 245 249;
+  --color-text-muted: 148 163 184;
+  --color-text-subtle: 100 116 139;
+  --color-primary-soft: 30 41 59;
+
+  --viz-series-1: #3987e5;
+  --viz-series-1-soft: rgba(57, 135, 229, 0.2);
+  --viz-grid: #1e293b;
+  --viz-axis: #334155;
+  --viz-ink: #f1f5f9;
+  --viz-ink-muted: #94a3b8;
+}
+
+* {
+  border-color: rgb(var(--color-border));
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: rgb(var(--color-surface-muted));
+  color: rgb(var(--color-text));
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* A single, consistent focus ring — visible for keyboard users, absent for mouse. */
+:focus-visible {
+  outline: 2px solid rgb(var(--color-primary));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Tabular figures wherever numbers must line up in a column. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Skeleton shimmer */
+@keyframes retailos-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.12) 20%,
+    rgba(255, 255, 255, 0.28) 60%,
+    rgba(255, 255, 255, 0)
+  );
+  animation: retailos-shimmer 1.6s infinite;
+}
+
+/* Respect a user's reduced-motion preference across every animated component. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Thin, unobtrusive scrollbars in scrollable panels. */
+.scroll-slim {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--color-border)) transparent;
+}
+.scroll-slim::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--color-border));
+  border-radius: 999px;
+}
+.scroll-slim::-webkit-scrollbar-track {
+  background: transparent;
+}

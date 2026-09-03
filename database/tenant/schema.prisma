@@ -540,6 +540,11 @@ model Order {
   totalAmount    Int    @map("total_amount")
   currency       String @default("INR") @db.VarChar(3)
 
+  /// Whether `subtotal` already contained tax when this order was priced.
+  /// Frozen per order: a store can switch tax modes without rewriting history,
+  /// and the total-consistency CHECK needs to know which identity applies.
+  taxInclusive Boolean @default(true) @map("tax_inclusive")
+
   couponCode String? @map("coupon_code") @db.VarChar(32)
 
   /// Frozen address copies — editing the address book never rewrites history.

@@ -12,7 +12,10 @@
     "./tailwind-preset": "./tailwind-preset.js",
     "./package.json": "./package.json"
   },
-  "files": ["dist", "tailwind-preset.js"],
+  "files": [
+    "dist",
+    "tailwind-preset.js"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
@@ -20,6 +23,9 @@
     "lint": "eslint src --ext .ts",
     "test": "jest --passWithNoTests",
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@retailos/types": "workspace:*"
   },
   "devDependencies": {
     "@retailos/eslint-config": "workspace:*",

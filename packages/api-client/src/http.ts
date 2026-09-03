@@ -40,6 +40,13 @@ export interface HttpClientConfig {
    * server-side — this only tells it *which* of the caller's tenants to act on.
    */
   getTenantHint?: () => string | null | undefined;
+  /**
+   * Tenant slug hint for clients with no tenant hostname — in practice the
+   * mobile app talking to a LAN IP during development. The API resolves it
+   * through the same `domains` lookup the Host header uses, so it selects a
+   * public storefront and grants nothing on its own.
+   */
+  getTenantSlug?: () => string | null | undefined;
   /** Storefront guest cart identity. */
   getGuestToken?: () => string | null | undefined;
   onGuestToken?: (token: string) => void;
@@ -142,6 +149,9 @@ export class HttpClient {
 
     const tenantHint = this.cfg.getTenantHint?.();
     if (tenantHint) headers['X-Tenant-Id'] = tenantHint;
+
+    const tenantSlug = this.cfg.getTenantSlug?.();
+    if (tenantSlug) headers['X-Tenant-Slug'] = tenantSlug;
 
     const guestToken = this.cfg.getGuestToken?.();
     if (guestToken) headers['X-Guest-Token'] = guestToken;

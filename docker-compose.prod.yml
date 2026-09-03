@@ -1,0 +1,133 @@
+# ---------------------------------------------------------------------------
+# Production overlay.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Differences from development, and why:
+#   • images are built from the optimised multi-stage Dockerfiles (no dev deps,
+#     no TypeScript toolchain, non-root user)
+#   • **no database ports are published** — PostgreSQL, MySQL and Redis are
+#     reachable only on the internal Docker network. Nothing but nginx listens
+#     on the host.
+#   • no MinIO/Mailpit/Adminer: production uses real S3 and a real SMTP relay
+#   • memory limits, log rotation and restart policies are set explicitly
+#
+# This overlay targets the single-VM deployment described in
+# docs/STARTUP_DEPLOYMENT.md. See docs/AWS_ARCHITECTURE.md for the scaled-out
+# variant with RDS and ElastiCache.
+# ---------------------------------------------------------------------------
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '20m'
+    max-file: '5'
+
+services:
+  postgres:
+    restart: always
+    logging: *default-logging
+    # Deliberately no `ports:` — never expose a database to the internet.
+    deploy:
+      resources:
+        limits: { memory: 1500M }
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init:/docker-entrypoint-initdb.d:ro
+      - ./backups:/backups
+
+  mysql:
+    restart: always
+    logging: *default-logging
+    # MySQL is a compatibility service, not on the critical path — keep it small.
+    deploy:
+      resources:
+        limits: { memory: 512M }
+    profiles: ['compat']
+
+  redis:
+    restart: always
+    logging: *default-logging
+    deploy:
+      resources:
+        limits: { memory: 512M }
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+    image: retailos/api:${IMAGE_TAG:-latest}
+    restart: always
+    logging: *default-logging
+    environment:
+      NODE_ENV: production
+      LOG_PRETTY: 'false'
+      SWAGGER_ENABLED: 'false'
+    deploy:
+      resources:
+        limits: { memory: 768M }
+    # Two API replicas fit comfortably on a 4 GB VM and remove the single point
+    # of failure for request traffic. nginx load-balances between them.
+    scale: 2
+
+  worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+    image: retailos/api:${IMAGE_TAG:-latest}
+    restart: always
+    logging: *default-logging
+    environment:
+      NODE_ENV: production
+      LOG_PRETTY: 'false'
+    deploy:
+      resources:
+        limits: { memory: 512M }
+
+  storefront-web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/web.Dockerfile
+      args:
+        APP_NAME: storefront-web
+        APP_PORT: '3000'
+    image: retailos/storefront-web:${IMAGE_TAG:-latest}
+    restart: always
+    logging: *default-logging
+    environment:
+      NODE_ENV: production
+    deploy:
+      resources:
+        limits: { memory: 512M }
+
+  merchant-web:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/web.Dockerfile
+      args:
+        APP_NAME: merchant-web
+        APP_PORT: '3001'
+    image: retailos/merchant-web:${IMAGE_TAG:-latest}
+    restart: always
+    logging: *default-logging
+    environment:
+      NODE_ENV: production
+    deploy:
+      resources:
+        limits: { memory: 512M }
+
+  nginx:
+    restart: always
+    logging: *default-logging
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+      # Certbot writes certificates here; see docs/STARTUP_DEPLOYMENT.md.
+      - ./infrastructure/nginx/certs:/etc/letsencrypt:ro
+      - ./infrastructure/nginx/www:/var/www/certbot:ro
+    deploy:
+      resources:
+        limits: { memory: 128M }

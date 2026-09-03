@@ -79,6 +79,12 @@ export interface Order {
   shippingAmount: Money;
   totalAmount: Money;
   currency: string;
+  /**
+   * True when `subtotal` already includes tax (the common Indian retail
+   * convention). Clients use it to decide whether to show tax as an additional
+   * line or as "inclusive of taxes".
+   */
+  taxInclusive: boolean;
 
   couponCode: string | null;
 

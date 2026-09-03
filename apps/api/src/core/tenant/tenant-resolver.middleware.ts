@@ -32,7 +32,20 @@ export class TenantResolverMiddleware implements NestMiddleware {
 
   async use(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const host = req.header('host');
+      /**
+       * `X-Forwarded-Host` takes precedence over `Host`.
+       *
+       * Two callers set it, both of them proxies in front of this service:
+       * nginx (which preserves the browser's original hostname) and the
+       * storefront's server-side renderer (Node's fetch forbids setting `Host`
+       * directly, so SSR has no other way to say which store it is rendering).
+       *
+       * This is not a trust escalation: resolving a hostname only selects which
+       * *public* storefront to serve. Every authenticated action is still gated
+       * on a token whose `tid` must match the tenant resolved here, so naming a
+       * different host grants nothing.
+       */
+      const host = req.header('x-forwarded-host')?.split(',')[0]?.trim() || req.header('host');
       let resolved = await this.resolver.resolveByHostname(host);
       let source: 'HOST' | 'HEADER' = 'HOST';
 
@@ -60,7 +73,7 @@ export class TenantResolverMiddleware implements NestMiddleware {
       // Resolution problems must not take down non-tenant routes such as
       // /health or the platform console.
       this.logger.warn('Tenant resolution failed', {
-        host: req.header('host'),
+        host: req.header('x-forwarded-host') ?? req.header('host'),
         error: (err as Error).message,
       });
     }

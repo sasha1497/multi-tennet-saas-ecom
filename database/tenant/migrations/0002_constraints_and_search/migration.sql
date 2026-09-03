@@ -88,12 +88,21 @@ ALTER TABLE order_items
   ADD CONSTRAINT order_items_amounts_non_negative
   CHECK (unit_price >= 0 AND line_total >= 0 AND tax_amount >= 0 AND discount_amount >= 0);
 
--- An order's total must actually equal its parts. This has caught more bugs in
--- pricing refactors than any test.
+-- An order's total must actually equal its parts.
+--
+-- The identity depends on the tax mode the order was priced under, which is why
+-- `tax_inclusive` is frozen on the row:
+--   inclusive (Indian retail norm): tax already sits inside `subtotal`
+--   exclusive:                      tax is added on top
+-- Getting this wrong is how a rounding bug turns into a rupee of missing revenue
+-- per order, so the database enforces it rather than trusting the pricing code.
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_total_consistent;
 ALTER TABLE orders
   ADD CONSTRAINT orders_total_consistent
-  CHECK (total_amount = subtotal - discount_amount + tax_amount + shipping_amount);
+  CHECK (
+    total_amount = subtotal - discount_amount + shipping_amount
+                 + (CASE WHEN tax_inclusive THEN 0 ELSE tax_amount END)
+  );
 
 ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_amounts_non_negative;
 ALTER TABLE orders

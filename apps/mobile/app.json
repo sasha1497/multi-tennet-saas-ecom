@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "RetailOS Shop",
+    "slug": "retailos-shop",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "retailos",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "splash": {
+      "backgroundColor": "#1f47e0",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "in.ourdomain.retailos.shop",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Scan a shop's QR code to open their store.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
+    },
+    "android": {
+      "package": "in.ourdomain.retailos.shop",
+      "adaptiveIcon": {
+        "backgroundColor": "#1f47e0"
+      },
+      "permissions": ["CAMERA", "INTERNET"],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "*.ourdomain.in"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scan a shop's QR code to open their store."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": false
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      }
+    }
+  }
+}

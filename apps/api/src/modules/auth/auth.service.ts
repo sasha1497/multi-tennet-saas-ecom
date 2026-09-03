@@ -250,8 +250,8 @@ export class AuthService {
     const user = await this.master.user.findUnique({ where: { id: userId } });
     if (!user || !user.isActive) throw Errors.unauthenticated();
 
-    let role = Role.SUPER_ADMIN;
-    let permissions = permissionsForRole(Role.SUPER_ADMIN);
+    let role: Role = Role.SUPER_ADMIN;
+    let permissions: string[] = permissionsForRole(Role.SUPER_ADMIN);
 
     if (!user.isSuperAdmin) {
       const membership = await this.memberships.find(userId, tenantId);
@@ -414,8 +414,8 @@ export class AuthService {
         const user = await this.master.user.findUnique({ where: { id: claims.sub } });
         if (!user || !user.isActive || user.deletedAt) throw Errors.unauthenticated();
 
-        let role = Role.SUPER_ADMIN;
-        let permissions = permissionsForRole(Role.SUPER_ADMIN);
+        let role: Role = Role.SUPER_ADMIN;
+        let permissions: string[] = permissionsForRole(Role.SUPER_ADMIN);
 
         if (!user.isSuperAdmin) {
           if (!claims.tid) throw Errors.unauthenticated();

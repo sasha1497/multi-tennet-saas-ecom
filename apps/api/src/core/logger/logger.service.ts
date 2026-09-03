@@ -15,7 +15,8 @@ import { RequestContextService } from '@/core/context/request-context';
  */
 @Injectable()
 export class AppLogger implements LoggerService {
-  private readonly root: PinoLogger;
+  /** Not `private`: `withContext` clones this instance with a child logger. */
+  protected root: PinoLogger;
   private context?: string;
 
   constructor(
@@ -76,7 +77,7 @@ export class AppLogger implements LoggerService {
   /** Returns a child logger tagged with a class/module name. */
   withContext(context: string): AppLogger {
     const child = new AppLogger(this.config, this.requestContext);
-    (child as { root: PinoLogger }).root = this.root.child({ context });
+    child.root = this.root.child({ context });
     child.context = context;
     return child;
   }

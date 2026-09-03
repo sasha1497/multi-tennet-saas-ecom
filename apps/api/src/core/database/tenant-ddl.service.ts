@@ -129,16 +129,58 @@ export class TenantDdlService {
     try {
       const user = this.quoteIdentifier(username);
       // PostgreSQL 15+ revokes CREATE on public from PUBLIC by default, so the
-      // tenant role needs it granted explicitly to run migrations.
+      // tenant role needs it granted explicitly.
       await client.query(`GRANT ALL ON SCHEMA public TO ${user}`);
-      await client.query(`ALTER SCHEMA public OWNER TO ${user}`);
       await client.query(
         `GRANT ALL PRIVILEGES ON DATABASE ${this.quoteIdentifier(databaseName)} TO ${user}`,
       );
-      // Extensions must be created by a superuser; do it once, up front, so the
-      // tenant migration itself does not need elevated rights.
+
+      /**
+       * Default privileges for objects the ADMIN role creates from here on.
+       *
+       * This is the subtle part. Migrations are applied by the admin user (it
+       * needs to create extensions), so every table ends up owned by the admin —
+       * and the tenant role, which the application actually connects as, would
+       * get "permission denied" on its own data. `ALTER DEFAULT PRIVILEGES`
+       * applies to objects created by the *current* role, so this grants access
+       * automatically for every future migration too, not just today's.
+       */
+      await client.query(
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${user}`,
+      );
+      await client.query(
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${user}`,
+      );
+      await client.query(
+        `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO ${user}`,
+      );
+
+      // Extensions must be created by a superuser/owner; do it once, up front,
+      // so the tenant migration itself does not need elevated rights.
       await client.query('CREATE EXTENSION IF NOT EXISTS pg_trgm');
       await client.query('CREATE EXTENSION IF NOT EXISTS unaccent');
+    } finally {
+      await client.end().catch(() => undefined);
+    }
+  }
+
+  /**
+   * Grants the tenant role access to everything that already exists.
+   *
+   * Called after each migration run. `ALTER DEFAULT PRIVILEGES` only covers
+   * objects created *after* it was set, so a database migrated before that
+   * setting existed — or one migrated by a different admin role — still needs
+   * this explicit sweep. It is cheap and idempotent.
+   */
+  async grantTenantPrivileges(databaseName: string, username: string): Promise<void> {
+    const client = await this.connect(databaseName);
+    try {
+      const user = this.quoteIdentifier(username);
+      await client.query(`GRANT USAGE, CREATE ON SCHEMA public TO ${user}`);
+      await client.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${user}`);
+      await client.query(`GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${user}`);
+      await client.query(`GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO ${user}`);
+      this.logger.debug('Granted tenant role privileges', { databaseName, username });
     } finally {
       await client.end().catch(() => undefined);
     }

@@ -6,6 +6,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import type { Response } from 'express';
+import { ZodValidationException } from 'nestjs-zod';
 import { ZodError } from 'zod';
 import { ApiErrorCode, type ApiErrorResponse } from '@retailos/types';
 import { AppConfigService } from '@/config/config.module';
@@ -113,7 +114,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     // ------------------------------------------------------ validation (zod)
-    if (exception instanceof ZodError) {
+    // `ZodValidationException` is what nestjs-zod's global pipe throws; a bare
+    // `ZodError` comes from a service parsing input by hand. Both must produce
+    // the same field-level payload, or the frontends cannot highlight the
+    // offending input.
+    const zodError =
+      exception instanceof ZodValidationException
+        ? exception.getZodError()
+        : exception instanceof ZodError
+          ? exception
+          : null;
+
+    if (zodError) {
+      const fieldErrors = flattenZod(zodError);
       return {
         status: HttpStatus.BAD_REQUEST,
         logLevel: 'none',
@@ -121,8 +134,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
           success: false,
           error: {
             code: ApiErrorCode.VALIDATION_ERROR,
-            message: 'The submitted data is invalid',
-            details: { fieldErrors: flattenZod(exception) },
+            message: firstMessage(fieldErrors) ?? 'The submitted data is invalid',
+            details: { fieldErrors },
           },
           requestId,
         },
@@ -218,6 +231,19 @@ function flattenZod(error: ZodError): Record<string, string[]> {
     (out[path] ??= []).push(issue.message);
   }
   return out;
+}
+
+/**
+ * Surfaces the first field message as the top-level `message`.
+ *
+ * "Enter a valid 10-digit mobile number" is far more useful in a toast than a
+ * generic "Validation failed", and the full map is still in `details`.
+ */
+function firstMessage(fieldErrors: Record<string, string[]>): string | null {
+  for (const messages of Object.values(fieldErrors)) {
+    if (messages.length > 0) return messages[0];
+  }
+  return null;
 }
 
 function normaliseNestResponse(

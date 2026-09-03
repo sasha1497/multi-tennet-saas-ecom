@@ -1,0 +1,255 @@
+# ---------------------------------------------------------------------------
+# RetailOS — base compose file.
+#
+# Defines the services shared by every environment. Combine it with an overlay:
+#
+#   development:  docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#   production:   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Never run this file on its own — the overlays supply build targets, port
+# publishing and resource limits.
+# ---------------------------------------------------------------------------
+
+name: retailos
+
+services:
+  # =========================================================== PostgreSQL ==
+  # The PRIMARY datastore. Hosts the master (control-plane) database *and*
+  # every tenant database — see docs/DATABASE.md for why one server is the
+  # right call at this scale and how to split it later.
+  postgres:
+    image: postgres:16-alpine
+    container_name: retailos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-retailos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-retailos_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-retailos_master}
+      # Faster and safer collation behaviour for freshly created tenant DBs.
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+    command:
+      - postgres
+      # Database-per-tenant means many more connections than a single-schema
+      # app; the API's pool manager bounds its side, this bounds the server's.
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=768MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=128MB
+      # Log anything slower than a second so bad queries surface early.
+      - -c
+      - log_min_duration_statement=1000
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-retailos} -d ${POSTGRES_DB:-retailos_master}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [retailos]
+
+  # ================================================================ MySQL ==
+  # SECONDARY / compatibility database. Deliberately NOT used by core domain
+  # logic — see docs/DATABASE.md §"Why MySQL is here". It exists so MySQL-backed
+  # integrations (legacy retail software imports, migration testing, optional
+  # future modules) have a first-class local service to develop against.
+  mysql:
+    image: mysql:8.4
+    container_name: retailos-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-retailos_dev_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-retailos_compat}
+      MYSQL_USER: ${MYSQL_USER:-retailos}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-retailos_dev_password}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=caching_sha2_password
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./infrastructure/docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-p${MYSQL_ROOT_PASSWORD:-retailos_dev_root}']
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    networks: [retailos]
+
+  # ================================================================ Redis ==
+  # Cache, rate-limit counters, distributed locks and the BullMQ backing store.
+  redis:
+    image: redis:7-alpine
+    container_name: retailos-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - 'yes'
+      # BullMQ requires `noeviction`: with an LRU policy Redis could silently
+      # drop a queued job under memory pressure, losing an order notification or
+      # a tenant provisioning task. Cache keys all carry TTLs, so they expire on
+      # their own and memory stays bounded without eviction.
+      - --maxmemory
+      - 512mb
+      - --maxmemory-policy
+      - noeviction
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks: [retailos]
+
+  # ================================================================== API ==
+  api:
+    image: retailos/api:${IMAGE_TAG:-local}
+    container_name: retailos-api
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      TENANT_DB_HOST: postgres
+      TENANT_DB_PORT: 5432
+      MASTER_DATABASE_URL: postgresql://${POSTGRES_USER:-retailos}:${POSTGRES_PASSWORD:-retailos_dev_password}@postgres:5432/${POSTGRES_DB:-retailos_master}?schema=public&connection_limit=10&pool_timeout=20
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_URL: redis://redis:6379
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      S3_ENDPOINT: http://minio:9000
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD', 'node', '-e', "require('http').get('http://127.0.0.1:4000/api/v1/health/live',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks: [retailos]
+
+  # =============================================================== Worker ==
+  # Same image as the API, different entrypoint. Runs BullMQ consumers and the
+  # scheduled maintenance jobs; scales independently of request traffic.
+  worker:
+    image: retailos/api:${IMAGE_TAG:-local}
+    container_name: retailos-worker
+    restart: unless-stopped
+    command: ['node', 'dist/worker.js']
+    env_file: [.env]
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      SERVICE_NAME: retailos-worker
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      TENANT_DB_HOST: postgres
+      TENANT_DB_PORT: 5432
+      MASTER_DATABASE_URL: postgresql://${POSTGRES_USER:-retailos}:${POSTGRES_PASSWORD:-retailos_dev_password}@postgres:5432/${POSTGRES_DB:-retailos_master}?schema=public&connection_limit=10&pool_timeout=20
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      # No HTTP surface, so liveness is "the process is still running".
+      test: ['CMD', 'node', '-e', 'process.exit(0)']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks: [retailos]
+
+  # ==================================================== Storefront (web) ==
+  storefront-web:
+    image: retailos/storefront-web:${IMAGE_TAG:-local}
+    container_name: retailos-storefront
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost/api/v1}
+      NEXT_PUBLIC_PLATFORM_DOMAIN: ${NEXT_PUBLIC_PLATFORM_DOMAIN:-localhost}
+      INTERNAL_API_URL: http://api:4000/api/v1
+    depends_on:
+      api: { condition: service_started }
+    healthcheck:
+      test: ['CMD', 'node', '-e', "require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks: [retailos]
+
+  # ================================================= Merchant console (web) ==
+  merchant-web:
+    image: retailos/merchant-web:${IMAGE_TAG:-local}
+    container_name: retailos-merchant
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3001
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost/api/v1}
+      NEXT_PUBLIC_PLATFORM_DOMAIN: ${NEXT_PUBLIC_PLATFORM_DOMAIN:-localhost}
+      INTERNAL_API_URL: http://api:4000/api/v1
+    depends_on:
+      api: { condition: service_started }
+    healthcheck:
+      test: ['CMD', 'node', '-e', "require('http').get('http://127.0.0.1:3001/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks: [retailos]
+
+  # ================================================================ nginx ==
+  # The piece that makes multi-tenancy work in a browser: it routes
+  # *.localhost to the storefront, admin.localhost to the console, and
+  # /api/* on every hostname to the API — **preserving the Host header**, which
+  # is what the tenant resolver reads.
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: retailos-nginx
+    restart: unless-stopped
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      - api
+      - storefront-web
+      - merchant-web
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost/nginx-health']
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    networks: [retailos]
+
+volumes:
+  postgres-data:
+  mysql-data:
+  redis-data:
+  minio-data:
+
+networks:
+  retailos:
+    driver: bridge

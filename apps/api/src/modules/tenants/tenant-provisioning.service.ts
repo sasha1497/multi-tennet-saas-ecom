@@ -270,6 +270,11 @@ export class TenantProvisioningService {
       databaseName: record.databaseName,
     });
 
+    // Migrations run as the admin role, so the tables they create are owned by
+    // it. Hand the tenant's own least-privilege role access before the
+    // application ever connects as that role.
+    await this.ddl.grantTenantPrivileges(record.databaseName, record.username);
+
     await this.master.tenantDatabase.update({
       where: { tenantId },
       data: {
@@ -415,6 +420,7 @@ export class TenantProvisioningService {
       tenantId,
       databaseName: record.databaseName,
     });
+    await this.ddl.grantTenantPrivileges(record.databaseName, record.username);
 
     await this.master.tenantDatabase.update({
       where: { tenantId },
@@ -435,7 +441,7 @@ export class TenantProvisioningService {
   async migrateAllTenants(): Promise<{ migrated: number; failed: { tenantId: string; error: string }[] }> {
     const tenants = await this.master.tenantDatabase.findMany({
       where: { status: 'READY' },
-      select: { tenantId: true, databaseName: true },
+      select: { tenantId: true, databaseName: true, username: true },
     });
 
     const failed: { tenantId: string; error: string }[] = [];
@@ -444,7 +450,10 @@ export class TenantProvisioningService {
     for (const tenant of tenants) {
       try {
         const result = await this.migrations.migrate(tenant);
-        if (result.applied.length > 0) migrated++;
+        if (result.applied.length > 0) {
+          migrated++;
+          await this.ddl.grantTenantPrivileges(tenant.databaseName, tenant.username);
+        }
         await this.master.tenantDatabase.update({
           where: { tenantId: tenant.tenantId },
           data: { schemaVersion: result.schemaVersion, lastMigratedAt: new Date() },
