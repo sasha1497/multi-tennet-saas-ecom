@@ -81,13 +81,41 @@ let client: RetailOSClient | null = null;
  * tenant's own hostname — which means the tenant travels in the Host header the
  * browser sets itself, and there is no CORS preflight on the shopping path.
  */
+/**
+ * Same-origin behind nginx; the API's own port under `next dev`.
+ *
+ * NEXT_PUBLIC_API_URL is usually the nginx address (port 80), which is right
+ * for the Docker stack and wrong for a dev server — nginx is not running there,
+ * so honouring it produces an unexplained "Network request failed" on every
+ * call. A configured URL on port 80 therefore cannot apply to a dev server.
+ * Deriving from window.location.hostname (rather than a literal `localhost`)
+ * also keeps the tenant hostname intact, which is what the API resolves on.
+ */
+function resolveBaseUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_API_URL;
+
+  if (typeof window === 'undefined') return configured ?? 'http://localhost:4000/api/v1';
+
+  if (window.location.port === '' || window.location.port === '80') {
+    return `${window.location.origin}/api/v1`;
+  }
+
+  if (configured) {
+    try {
+      const port = new URL(configured).port;
+      if (port !== '' && port !== '80') return configured;
+    } catch {
+      // A relative or malformed value: fall through to the derived URL.
+    }
+  }
+
+  return `${window.location.protocol}//${window.location.hostname}:4000/api/v1`;
+}
+
 export function api(): RetailOSClient {
   if (client) return client;
 
-  const baseUrl =
-    typeof window !== 'undefined' && (window.location.port === '' || window.location.port === '80')
-      ? `${window.location.origin}/api/v1`
-      : (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1');
+  const baseUrl = resolveBaseUrl();
 
   client = new RetailOSClient({
     baseUrl,

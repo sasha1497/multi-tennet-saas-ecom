@@ -88,7 +88,25 @@ function resolveBaseUrl(): string {
   if (window.location.port === '' || window.location.port === '80') {
     return `${window.location.origin}/api/v1`;
   }
-  return configured ?? 'http://localhost:4000/api/v1';
+
+  // `next dev` on port 3001. NEXT_PUBLIC_API_URL is usually the nginx address
+  // (http://api.localhost/api/v1, port 80), which is correct for the Docker
+  // stack and wrong here — nginx is not running, so every call fails with an
+  // unexplained "Network request failed". A configured URL that points at port
+  // 80 cannot be right for a dev server, so ignore it and talk to the API
+  // directly. Using window.location.hostname rather than a literal `localhost`
+  // also keeps this working when the console is opened from another device on
+  // the LAN.
+  if (configured) {
+    try {
+      const port = new URL(configured).port;
+      if (port !== '' && port !== '80') return configured;
+    } catch {
+      // A relative or malformed value: fall through to the derived URL.
+    }
+  }
+
+  return `${window.location.protocol}//${window.location.hostname}:4000/api/v1`;
 }
 
 let client: RetailOSClient | null = null;

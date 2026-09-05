@@ -176,8 +176,14 @@ export class HttpClient {
     } catch (err) {
       clearTimeout(timer);
       const aborted = (err as Error)?.name === 'AbortError';
+      // "Network request failed" on its own sends people hunting through
+      // application code for a fault that is almost always the API simply not
+      // running. Naming the address we could not reach turns a mystery into a
+      // one-line check.
       throw new NetworkError(
-        aborted ? `Request timed out after ${timeout}ms` : 'Network request failed',
+        aborted
+          ? `Request timed out after ${timeout}ms — ${this.cfg.baseUrl} did not respond`
+          : `Could not reach the API at ${this.cfg.baseUrl}. Is it running?`,
         err,
       );
     } finally {
