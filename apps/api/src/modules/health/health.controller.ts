@@ -120,7 +120,36 @@ export class HealthController {
   }
 }
 
+/**
+ * The API root, `/api/v1`.
+ *
+ * There is no resource here, so this would otherwise be a bare 404 — which
+ * reads as "the API is down" to anyone who opens the base URL in a browser to
+ * check. Answering with a short index makes "is it running?" a question the
+ * address itself can answer, and points at the two things people actually want.
+ */
+@ApiTags('Health')
+@Controller()
+export class ApiIndexController {
+  @Get()
+  @Public()
+  @SkipRateLimit()
+  @NoEnvelope()
+  @ApiExcludeEndpoint()
+  index() {
+    return {
+      name: 'RetailOS API',
+      version: VERSION,
+      status: 'ok',
+      message: 'The API is running. There is no resource at this path.',
+      documentation: '/docs',
+      health: '/api/v1/health',
+      uptimeSeconds: Math.floor((Date.now() - STARTED_AT) / 1000),
+    };
+  }
+}
+
 @Module({
-  controllers: [HealthController],
+  controllers: [HealthController, ApiIndexController],
 })
 export class HealthModule {}
