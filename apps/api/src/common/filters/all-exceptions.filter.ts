@@ -31,6 +31,14 @@ const PRISMA_CODES: Record<string, { status: HttpStatus; code: string; message: 
     code: ApiErrorCode.NOT_FOUND,
     message: 'Record not found',
   },
+  // An identifier that cannot be parsed as the column's type — e.g. a hand-crafted
+  // "id" that is not a UUID. The query is still parameterised, so this is a
+  // malformed request, not an injection; it must never surface as a 500.
+  P2023: {
+    status: HttpStatus.BAD_REQUEST,
+    code: ApiErrorCode.BAD_REQUEST,
+    message: 'A supplied identifier is not valid',
+  },
   P2034: {
     status: HttpStatus.CONFLICT,
     code: ApiErrorCode.CONCURRENT_MODIFICATION,

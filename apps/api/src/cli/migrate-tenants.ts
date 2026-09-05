@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- this is a CLI: stdout IS the user interface, not stray debugging */
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppConfigModule } from '@/config/config.module';

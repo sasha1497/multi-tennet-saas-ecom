@@ -190,11 +190,20 @@ export class TenantConnectionManager implements OnModuleDestroy {
       throw Errors.tenantProvisioning();
     }
 
+    // The registry records where a tenant database *is* (cluster, host, port).
+    // How to *reach* the local cluster, though, depends on who is asking: the
+    // API in a container reaches it as `postgres:5432`, a developer on the host
+    // reaches the same server as `localhost:5433`, and in production it is an
+    // RDS endpoint. So for tenants placed on this deployment's own cluster the
+    // configured address wins; tenants on any other cluster keep the recorded
+    // address, which is what makes multi-cluster placement work.
+    const isLocalCluster = record.clusterId === this.config.tenantDb.clusterId;
+
     return {
       tenantId: record.tenantId,
       clusterId: record.clusterId,
-      host: record.host,
-      port: record.port,
+      host: isLocalCluster ? this.config.tenantDb.host : record.host,
+      port: isLocalCluster ? this.config.tenantDb.port : record.port,
       databaseName: record.databaseName,
       username: record.username,
       password: this.cipher.decrypt(record.encryptedPassword),

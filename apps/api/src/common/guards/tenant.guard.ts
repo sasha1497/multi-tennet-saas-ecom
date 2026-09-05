@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { HEADERS } from '@retailos/config';
 import { TenantStatus, TokenAudience } from '@retailos/types';
+import { uuidSchema } from '@retailos/validation';
 import { METADATA } from '@/common/decorators';
 import { Errors } from '@/common/errors/app.exception';
 import {
@@ -151,6 +152,18 @@ export class TenantGuard implements CanActivate {
       throw Errors.badRequest(
         'No store selected. Pick a store in the console or sign in again.',
       );
+    }
+
+    // Shape-check the header before it reaches the database. Prisma parameterises
+    // its queries, so a hostile value cannot inject SQL — but an unparseable id
+    // would raise a driver error and surface as a 500, which is both a poor
+    // response and a needless hint that the value reached the data layer.
+    if (!uuidSchema.safeParse(candidateId).success) {
+      this.logger.warn('Rejected malformed tenant selector', {
+        userId: auth.userId,
+        source: hint ? 'header' : 'token',
+      });
+      throw Errors.badRequest('Invalid store selection');
     }
 
     if (!auth.isSuperAdmin) {

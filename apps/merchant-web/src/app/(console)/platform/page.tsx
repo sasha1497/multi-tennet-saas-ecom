@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, Database, Plus, Search } from 'lucide-react';
-import { formatDate, formatMoney } from '@retailos/config';
+import { formatMoney } from '@retailos/config';
 import type { PlatformTenantListItem, TenantStatus } from '@retailos/types';
 import {
   Badge,

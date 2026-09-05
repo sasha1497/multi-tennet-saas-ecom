@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- this is a CLI: stdout IS the user interface, not stray debugging */
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';

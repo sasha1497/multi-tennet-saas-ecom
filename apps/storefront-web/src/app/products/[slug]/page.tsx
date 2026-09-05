@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Star } from 'lucide-react';
-import { formatMoney } from '@retailos/config';
 import { ProductCard } from '@/components/product-card';
 import { ProductPurchasePanel } from '@/components/product-purchase-panel';
 import { loadStorefront, serverApi } from '@/lib/server-api';

@@ -72,7 +72,9 @@ services:
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
-      - --default-authentication-plugin=caching_sha2_password
+      # MySQL 8.4 removed --default-authentication-plugin; the server refuses to
+      # start on the unknown variable. authentication_policy is its replacement.
+      - --authentication-policy=caching_sha2_password
     volumes:
       - mysql-data:/var/lib/mysql
       - ./infrastructure/docker/mysql/init:/docker-entrypoint-initdb.d:ro
@@ -238,7 +240,9 @@ services:
       - storefront-web
       - merchant-web
     healthcheck:
-      test: ['CMD', 'wget', '-q', '--spider', 'http://localhost/nginx-health']
+      # 127.0.0.1, not localhost: inside the container `localhost` resolves to
+      # ::1 first and nginx listens on IPv4 only, so the probe is refused.
+      test: ['CMD', 'wget', '-q', '--spider', 'http://127.0.0.1/nginx-health']
       interval: 20s
       timeout: 5s
       retries: 3

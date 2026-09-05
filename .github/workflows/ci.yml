@@ -1,0 +1,193 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '9.15.9'
+
+jobs:
+  # Lint, typecheck, unit tests and a full build. No databases needed.
+  static:
+    name: Lint, typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Prisma clients are imported by the type layer, so they must exist before
+      # anything is typechecked. The URLs are placeholders — generate never
+      # connects.
+      - name: Generate Prisma clients
+        env:
+          MASTER_DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          TENANT_SHADOW_DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+        run: pnpm prisma:generate
+
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  # The suite that matters: cross-tenant isolation against real databases.
+  isolation:
+    name: Cross-tenant isolation (e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: retailos
+          POSTGRES_PASSWORD: retailos_ci_password
+          POSTGRES_DB: retailos_master
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U retailos"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      LOG_LEVEL: error
+      PLATFORM_DOMAIN: localhost
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: retailos
+      POSTGRES_PASSWORD: retailos_ci_password
+      POSTGRES_DB: retailos_master
+      MASTER_DATABASE_URL: postgresql://retailos:retailos_ci_password@localhost:5432/retailos_master?schema=public
+      TENANT_SHADOW_DATABASE_URL: postgresql://retailos:retailos_ci_password@localhost:5432/retailos_shadow?schema=public
+      TENANT_DB_HOST: localhost
+      TENANT_DB_PORT: 5432
+      TENANT_DB_ADMIN_USER: retailos
+      TENANT_DB_ADMIN_PASSWORD: retailos_ci_password
+      TENANT_DB_MAINTENANCE_DB: postgres
+      TENANT_CLUSTER_ID: local-pg-1
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: ci_access_secret_0123456789abcdef0123
+      JWT_REFRESH_SECRET: ci_refresh_secret_fedcba98765432100987
+      CREDENTIALS_ENCRYPTION_KEY: Y2ktb25seS0zMmJ5dGUta2V5LWZvci10ZXN0cyE=
+      COOKIE_SECRET: ci_cookie_secret
+      INTERNAL_API_KEY: ci_internal_api_key
+      PAYMENT_PROVIDER: mock
+      STORAGE_DRIVER: local
+      MAIL_DRIVER: log
+      SMS_DRIVER: log
+      PUSH_DRIVER: log
+      SWAGGER_ENABLED: 'false'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The API creates tenant databases and roles at run time, so its role needs
+      # those rights, and the extensions must exist in the template.
+      - name: Prepare PostgreSQL
+        run: |
+          psql "postgresql://retailos:retailos_ci_password@localhost:5432/postgres" <<'SQL'
+          ALTER ROLE retailos CREATEDB CREATEROLE;
+          SQL
+          psql "$MASTER_DATABASE_URL" <<'SQL'
+          CREATE EXTENSION IF NOT EXISTS pg_trgm;
+          CREATE EXTENSION IF NOT EXISTS unaccent;
+          SQL
+
+      - run: pnpm prisma:generate
+      - run: pnpm --filter @retailos/types --filter @retailos/config --filter @retailos/validation --filter @retailos/api-client build
+      - run: pnpm --filter @retailos/database build
+
+      - name: Apply master migrations
+        run: pnpm db:migrate:deploy
+
+      - name: Seed tenants (each gets its own database)
+        run: pnpm db:seed
+
+      - name: Cross-tenant isolation suite
+        run: pnpm test:e2e
+
+  # Proves the images still build. Does not push anything.
+  images:
+    name: Docker images
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs: static
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/api.Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build storefront image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/web.Dockerfile
+          build-args: |
+            APP_NAME=storefront-web
+            APP_PORT=3000
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build merchant console image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/docker/web.Dockerfile
+          build-args: |
+            APP_NAME=merchant-web
+            APP_PORT=3001
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

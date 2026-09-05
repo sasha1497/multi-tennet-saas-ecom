@@ -49,34 +49,29 @@ describe('PricingService', () => {
   });
 
   describe('tax', () => {
+    // ₹500 keeps the order under the ₹999 free-delivery threshold, so the
+    // shipping fee is part of the assertion rather than silently waived.
     it('adds tax on top when pricing is exclusive', () => {
-      const result = pricing.price([line({ unitPrice: 1000_00 })], exclusiveStore);
-      expect(result.totals.tax).toBe(180_00);
-      // 1000 + 180 tax + 49 shipping
-      expect(result.totals.total).toBe(1000_00 + 180_00 + 49_00);
+      const result = pricing.price([line({ unitPrice: 500_00 })], exclusiveStore);
+      expect(result.totals.tax).toBe(90_00);
+      expect(result.totals.total).toBe(500_00 + 90_00 + 49_00);
     });
 
     it('backs tax out of the price when pricing is inclusive', () => {
-      const result = pricing.price([line({ unitPrice: 1180_00 })], inclusiveStore);
-      // 1180 inclusive of 18% == 1000 net + 180 tax
-      expect(result.totals.tax).toBe(180_00);
+      // ₹590 inclusive of 18% == ₹500 net + ₹90 tax.
+      const result = pricing.price([line({ unitPrice: 590_00 })], inclusiveStore);
+      expect(result.totals.tax).toBe(90_00);
       // The customer pays the shelf price plus delivery — tax is NOT added again.
-      expect(result.totals.total).toBe(1180_00 + 49_00);
+      expect(result.totals.total).toBe(590_00 + 49_00);
     });
 
     it('honours a per-product tax rate over the store default', () => {
-      const result = pricing.price(
-        [line({ unitPrice: 1000_00, taxRateBps: 500 })],
-        exclusiveStore,
-      );
-      expect(result.totals.tax).toBe(50_00);
+      const result = pricing.price([line({ unitPrice: 500_00, taxRateBps: 500 })], exclusiveStore);
+      expect(result.totals.tax).toBe(25_00);
     });
 
     it('charges no tax at a zero rate', () => {
-      const result = pricing.price(
-        [line({ unitPrice: 1000_00, taxRateBps: 0 })],
-        exclusiveStore,
-      );
+      const result = pricing.price([line({ unitPrice: 500_00, taxRateBps: 0 })], exclusiveStore);
       expect(result.totals.tax).toBe(0);
     });
   });

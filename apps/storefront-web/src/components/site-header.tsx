@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Heart, Menu, Package, Search, ShoppingBag, User, X } from 'lucide-react';
 import { formatMoney } from '@retailos/config';
 import type { ProductListItem } from '@retailos/types';
-import { Badge, cn } from '@retailos/ui';
+import { Badge } from '@retailos/ui';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store-context';
 

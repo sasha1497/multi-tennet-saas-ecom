@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Circle, MapPin, Phone, User } from 'lucide-react';
+import { Check, MapPin, Phone, User } from 'lucide-react';
 import { formatDate, formatMoney, ORDER_STATUS_LABELS, ORDER_STATUS_TONES } from '@retailos/config';
 import { ORDER_STATUS_TRANSITIONS, Permission, type OrderStatus } from '@retailos/types';
 import {

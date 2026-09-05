@@ -13,10 +13,24 @@ import type { StorefrontBootstrap } from '@retailos/types';
  * header name for `fetch`, so Node silently drops it and every request would
  * resolve to the internal `api:4000` hostname — i.e. to no tenant at all.
  * nginx sets the same header in front of the API, so both paths agree.
+ *
+ * Reading the *incoming* hostname prefers `x-forwarded-host` over `host` for the
+ * same reason the API does: a CDN or load balancer that rewrites `Host` to the
+ * origin's name would otherwise collapse every tenant into "unknown". Whichever
+ * one survives, it is only ever used to pick which public storefront to render —
+ * it grants nothing on its own.
  */
-export function serverApi(): RetailOSClient {
+function incomingHost(): string {
   const incoming = headers();
-  const host = incoming.get('host') ?? '';
+  return (
+    incoming.get('x-forwarded-host')?.split(',')[0]?.trim() ||
+    incoming.get('host') ||
+    ''
+  );
+}
+
+export function serverApi(): RetailOSClient {
+  const host = incomingHost();
 
   const baseUrl =
     process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
@@ -50,5 +64,5 @@ export async function loadStorefront(): Promise<StorefrontBootstrap | null> {
 
 /** Current host, used for canonical URLs and metadata. */
 export function currentHost(): string {
-  return headers().get('host') ?? 'localhost';
+  return incomingHost() || 'localhost';
 }

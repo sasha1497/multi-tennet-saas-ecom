@@ -3,8 +3,7 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Filter, PackageSearch, SlidersHorizontal, X } from 'lucide-react';
-import { formatMoney } from '@retailos/config';
+import { PackageSearch, SlidersHorizontal, X } from 'lucide-react';
 import { Button, Drawer, EmptyState, Pagination, Select, cn } from '@retailos/ui';
 import { ProductCard, ProductCardSkeleton } from '@/components/product-card';
 import { api } from '@/lib/api';

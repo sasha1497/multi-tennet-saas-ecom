@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Activity, CheckCircle2, XCircle } from 'lucide-react';
 import { formatDate } from '@retailos/config';
-import { Badge, Card, CardBody, CardHeader, DataTable, PageHeader, Skeleton, type Column } from '@retailos/ui';
+import { Badge, Card, CardBody, CardHeader, PageHeader, Skeleton } from '@retailos/ui';
 import { api } from '@/lib/api';
 
 export default function SystemPage() {
@@ -23,12 +23,6 @@ export default function SystemPage() {
     queryKey: ['platform-audit'],
     queryFn: () => api().platform.auditLogs({ limit: 25 }),
   });
-
-  const auditColumns: Column<NonNullable<typeof audit>['items'][number]> = {
-    key: '',
-    header: '',
-    cell: () => null,
-  } as never;
 
   return (
     <div className="mx-auto max-w-5xl">

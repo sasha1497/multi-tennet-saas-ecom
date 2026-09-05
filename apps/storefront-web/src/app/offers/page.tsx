@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { BadgePercent, Copy } from 'lucide-react';
 import { formatDate, formatMoney } from '@retailos/config';
-import { Badge, Button, Card, CardBody, EmptyState, SkeletonRows, useToast } from '@retailos/ui';
+import { Button, Card, CardBody, EmptyState, SkeletonRows, useToast } from '@retailos/ui';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store-context';
 
