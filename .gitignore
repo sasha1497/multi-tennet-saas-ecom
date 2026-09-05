@@ -54,3 +54,6 @@ apps/mobile/ios/
 
 # local uploads (STORAGE_DRIVER=local)
 .storage/
+
+# Local dev logs from project-start.sh
+.logs/

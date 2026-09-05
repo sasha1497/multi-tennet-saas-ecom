@@ -27,9 +27,19 @@ manages tenants, plans and provisioning from a super-admin surface.
 
 ## Quick start
 
-Requires Docker, Node 20+ and pnpm 9. For the full runbook — both run modes, the
-mobile app, every port and the common failures — see
-**[PROJECT_START.md](PROJECT_START.md)**.
+Requires Docker, Node 20+ and pnpm 9.
+
+```bash
+./project-start.sh      # starts everything, prints the URLs and logins
+./project-logs.sh       # watch the logs      (status: ./project-logs.sh status)
+./project-stop.sh       # stop everything     (your data is kept)
+```
+
+That is the whole thing. The script installs, migrates, seeds, starts all three
+apps and does not report success until each one has answered a real request.
+Safe to re-run at any time.
+
+Prefer to drive it yourself, or want the details:
 
 ```bash
 pnpm install

@@ -9,6 +9,24 @@ For deeper reference see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md),
 
 ---
 
+## The short version
+
+```bash
+./project-start.sh      # start everything
+./project-logs.sh       # watch logs   ( ./project-logs.sh status  for a summary )
+./project-stop.sh       # stop everything, keeping your data
+```
+
+`project-start.sh` does every step in this document for you and refuses to
+report success until the API, the storefront and the console have each answered
+a real request. It is safe to run again at any time — it works out what is
+already running and fixes only what is not.
+
+The rest of this file is what those scripts do, for when you want to drive it
+by hand or something needs debugging.
+
+---
+
 ## 0. Prerequisites
 
 ```bash
