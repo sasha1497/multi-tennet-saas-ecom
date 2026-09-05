@@ -27,7 +27,9 @@ manages tenants, plans and provisioning from a super-admin surface.
 
 ## Quick start
 
-Requires Docker, Node 20+ and pnpm 9.
+Requires Docker, Node 20+ and pnpm 9. For the full runbook — both run modes, the
+mobile app, every port and the common failures — see
+**[PROJECT_START.md](PROJECT_START.md)**.
 
 ```bash
 pnpm install

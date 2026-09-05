@@ -6,7 +6,7 @@ use the web console.
 ## Running it
 
 ```bash
-pnpm --filter @retailos/mobile start
+pnpm --filter @retailos/mobile dev
 ```
 
 Press `i` for the iOS simulator, `a` for Android, or scan the QR code with Expo

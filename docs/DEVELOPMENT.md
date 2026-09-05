@@ -172,7 +172,7 @@ counters, locks and BullMQ queues.
 ## Mobile
 
 ```bash
-pnpm --filter @retailos/mobile start
+pnpm --filter @retailos/mobile dev
 ```
 
 The Expo app cannot use `*.localhost`, so it selects a store explicitly and
