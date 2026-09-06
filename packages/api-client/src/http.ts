@@ -94,7 +94,22 @@ export class HttpClient {
     if (!impl) {
       throw new Error('No fetch implementation available; pass `fetchImpl` explicitly.');
     }
-    this.fetchImpl = impl;
+    /**
+     * Bind to globalThis.
+     *
+     * `this.fetchImpl(...)` invokes the function with `this` set to the
+     * HttpClient. The browser's `fetch` is a method of `window` and enforces its
+     * receiver, so an unbound call throws
+     * `TypeError: Failed to execute 'fetch' on 'Window': Illegal invocation`
+     * — before any request is made, which is why it shows up as a "could not
+     * reach the API" with nothing at all in the Network panel.
+     *
+     * Node's fetch does not check its receiver, so this only ever failed in a
+     * browser, and only for callers that did not pass their own `fetchImpl`
+     * (the storefront wraps fetch in an arrow function for caching, which
+     * accidentally hid the bug there).
+     */
+    this.fetchImpl = impl.bind(globalThis);
   }
 
   get baseUrl(): string {
@@ -251,6 +266,24 @@ export class HttpClient {
         details: err?.details ?? null,
         requestId: (envelope as { requestId?: string } | null)?.requestId ?? null,
       });
+    }
+
+    /**
+     * Re-attach pagination.
+     *
+     * The API puts the rows in `data` and the page info in `meta.pagination`.
+     * Returning `envelope.data` alone therefore threw the page info away, so
+     * every endpoint declared `Promise<PaginatedResult<T>>` actually resolved to
+     * a bare array — and `data.pagination.page` blew up at the first render of
+     * any paginated list.
+     *
+     * Recombining them here fixes all twelve paginated endpoints at once and
+     * makes the runtime match the declared types, rather than teaching each
+     * call site to reach into a `meta` it never sees.
+     */
+    const meta = (envelope as { meta?: { pagination?: unknown } } | null)?.meta;
+    if (meta?.pagination && Array.isArray(envelope.data)) {
+      return { items: envelope.data, pagination: meta.pagination } as T;
     }
 
     return envelope.data;

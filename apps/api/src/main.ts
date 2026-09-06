@@ -159,7 +159,30 @@ async function bootstrap(): Promise<void> {
   // requests finish, tenant connections close.
   app.enableShutdownHooks();
 
-  await app.listen(config.http.port, '0.0.0.0');
+  /**
+   * Bind dual-stack.
+   *
+   * `0.0.0.0` is IPv4 only. Browsers resolve `localhost` to `::1` first, so a
+   * page on http://localhost:3001 calling http://localhost:4000 gets connection
+   * refused before the request is ever sent — the API logs nothing, because
+   * nothing arrived. curl hides this by falling back to IPv4, which makes it a
+   * genuinely confusing failure to diagnose.
+   *
+   * `::` accepts IPv6 and IPv4-mapped connections. Some minimal containers have
+   * IPv6 disabled and cannot bind it at all, so fall back rather than refusing
+   * to start.
+   */
+  const host = process.env.HOST ?? '::';
+  try {
+    await app.listen(config.http.port, host);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (host !== '::' || (code !== 'EAFNOSUPPORT' && code !== 'EADDRNOTAVAIL' && code !== 'EINVAL')) {
+      throw err;
+    }
+    logger.warn('IPv6 unavailable, binding IPv4 only', { code });
+    await app.listen(config.http.port, '0.0.0.0');
+  }
 
   logger.info('API started', {
     port: config.http.port,

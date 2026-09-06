@@ -1,0 +1,158 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RetailOS connection diagnostic</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 14px/1.5 -apple-system, system-ui, sans-serif; margin: 0; padding: 24px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; opacity: .7; }
+  table { border-collapse: collapse; width: 100%; max-width: 900px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(128,128,128,.3); vertical-align: top; }
+  th { font-weight: 600; opacity: .7; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  td.r { font-weight: 600; white-space: nowrap; }
+  .ok { color: #15803d; } .bad { color: #b91c1c; } .warn { color: #b45309; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  #env { margin-top: 24px; max-width: 900px; white-space: pre-wrap; word-break: break-all;
+         background: rgba(128,128,128,.12); padding: 12px; border-radius: 8px; font-family: ui-monospace, monospace; font-size: 12px; }
+  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(128,128,128,.5);
+           background: transparent; color: inherit; cursor: pointer; margin-right: 8px; }
+  #verdict { margin-top: 20px; padding: 12px 14px; border-radius: 8px; max-width: 900px; font-weight: 600; }
+</style>
+
+<h1>RetailOS connection diagnostic</h1>
+<p class="sub">Screenshot this whole page and send it back. It runs the same calls the login form makes.</p>
+
+<table>
+  <thead><tr><th>#</th><th>Test</th><th>Result</th><th>Detail</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<div id="verdict"></div>
+
+<p style="margin-top:20px">
+  <button onclick="location.reload()">Run again</button>
+  <button id="swbtn">Unregister service workers &amp; clear caches</button>
+</p>
+
+<div id="env"></div>
+
+<script>
+const rows = document.getElementById('rows');
+let n = 0;
+
+function add(name, cls, result, detail) {
+  n += 1;
+  const tr = document.createElement('tr');
+  tr.innerHTML =
+    '<td>' + n + '</td><td>' + name + '</td>' +
+    '<td class="r ' + cls + '">' + result + '</td>' +
+    '<td><code>' + String(detail).replace(/</g, '&lt;').slice(0, 300) + '</code></td>';
+  rows.appendChild(tr);
+}
+
+const results = [];
+
+async function probe(label, url, options) {
+  try {
+    const r = await fetch(url, options);
+    let body = '';
+    try { body = (await r.text()).slice(0, 160); } catch { body = '(unreadable)'; }
+    const good = r.ok;
+    results.push({ label, ok: good, status: r.status });
+    add(label, good ? 'ok' : 'warn', 'HTTP ' + r.status, body);
+  } catch (e) {
+    results.push({ label, ok: false, status: null, err: e.name + ': ' + e.message });
+    add(label, 'bad', 'BLOCKED', e.name + ': ' + e.message);
+  }
+}
+
+const JSONH = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+const CREDS = JSON.stringify({ email: 'admin@retailos.dev', password: 'SuperAdmin@123' });
+
+/**
+ * This file sits in public/, so it ships inside the production image. The probes
+ * that POST demo credentials are useful on a laptop and inappropriate on a
+ * public host, so they only run against a local dev origin. Everywhere else the
+ * page still reports reachability — which is all it should do there.
+ */
+const IS_LOCAL = ['localhost', '127.0.0.1', '::1'].includes(location.hostname)
+  || location.hostname.endsWith('.localhost');
+
+(async () => {
+  // 1-2: same origin — what the console now uses.
+  await probe('Same-origin GET /api/v1 (via Next proxy)', '/api/v1', { cache: 'no-store' });
+  if (IS_LOCAL) {
+    await probe('Same-origin POST /api/v1/auth/login', '/api/v1/auth/login',
+      { method: 'POST', headers: JSONH, body: CREDS, credentials: 'omit', cache: 'no-store' });
+  } else {
+    add('Same-origin POST /api/v1/auth/login', 'warn', 'SKIPPED', 'demo-credential probes run on localhost only');
+  }
+
+  // 3-4: direct to the API port — what it used to do.
+  await probe('Cross-origin GET http://localhost:4000/api/v1', 'http://localhost:4000/api/v1', { cache: 'no-store' });
+  if (IS_LOCAL) {
+    await probe('Cross-origin POST http://localhost:4000/.../login', 'http://localhost:4000/api/v1/auth/login',
+      { method: 'POST', headers: JSONH, body: CREDS, credentials: 'omit', cache: 'no-store' });
+  }
+
+  // 5: 127.0.0.1 instead of the localhost name — separates DNS from blocking.
+  await probe('Cross-origin GET http://127.0.0.1:4000/api/v1', 'http://127.0.0.1:4000/api/v1', { cache: 'no-store' });
+
+  // 6: a plain same-origin static file, to prove fetch works at all here.
+  await probe('Same-origin static file', '/diagnose.html', { cache: 'no-store' });
+
+  // Verdict.
+  const v = document.getElementById('verdict');
+  const same = results.filter(r => r.label.startsWith('Same-origin'));
+  const cross = results.filter(r => r.label.startsWith('Cross-origin'));
+  const sameOk = same.every(r => r.ok);
+  const crossOk = cross.every(r => r.ok);
+
+  if (sameOk && crossOk) {
+    v.style.background = 'rgba(21,128,61,.15)';
+    v.textContent = 'Everything works from this browser. The login form should work — hard-reload the console (Cmd+Shift+R).';
+  } else if (sameOk && !crossOk) {
+    v.style.background = 'rgba(180,83,9,.15)';
+    v.textContent = 'Same-origin works, port 4000 is blocked for this browser. The console proxy fix is correct and login should now work.';
+  } else if (!sameOk && results.find(r => r.label === 'Same-origin static file')?.ok) {
+    v.style.background = 'rgba(185,28,28,.15)';
+    v.textContent = 'Static files load but /api/v1 is blocked on this same origin — something is intercepting these requests (extension, service worker, or proxy). Try the unregister button, then an incognito window.';
+  } else {
+    v.style.background = 'rgba(185,28,28,.15)';
+    v.textContent = 'Even a same-origin static file failed. Something in this browser is blocking fetch entirely — try an incognito window with extensions disabled.';
+  }
+
+  // Environment, including anything that could intercept requests.
+  const env = document.getElementById('env');
+  let sw = 'not supported';
+  try {
+    if (navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      sw = regs.length === 0 ? 'none' : regs.map(r => r.scope).join(', ') + '  <-- COULD BE THE CAUSE';
+    }
+  } catch (e) { sw = 'error: ' + e.message; }
+
+  env.textContent =
+    'origin      : ' + location.origin + '\n' +
+    'href        : ' + location.href + '\n' +
+    'serviceWkrs : ' + sw + '\n' +
+    'online      : ' + navigator.onLine + '\n' +
+    'userAgent   : ' + navigator.userAgent;
+})();
+
+document.getElementById('swbtn').onclick = async () => {
+  try {
+    if (navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    if (window.caches) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    alert('Service workers unregistered and caches cleared. Reloading.');
+    location.reload();
+  } catch (e) { alert('Failed: ' + e.message); }
+};
+</script>

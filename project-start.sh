@@ -167,7 +167,16 @@ start_app() {
 start_app api            @retailos/api
 start_app storefront     @retailos/storefront-web
 start_app console        @retailos/merchant-web
-ok "launched api, storefront, console (logs in .logs/)"
+
+# The worker is not optional. Creating a store enqueues a provisioning job, and
+# without a worker that job sits in Redis forever: the merchant watches a
+# "Setting up your store" screen that never finishes, with nothing in any log to
+# say why. Order emails and stale-reservation cleanup queue up the same way.
+: > "$LOGS/worker.log"
+nohup pnpm --filter @retailos/api dev:worker >>"$LOGS/worker.log" 2>&1 &
+echo $! >"$LOGS/worker.pid"
+
+ok "launched api, worker, storefront, console (logs in .logs/)"
 
 # ---------------------------------------------------------- 7. verify -----
 step "7/7  Verifying everything answers"
@@ -192,6 +201,15 @@ console_up()    { curl -sf -m 10 http://localhost:3001/login; }
 check "API (:4000)"        api        api_up
 check "storefront (:3000)" storefront storefront_up
 check "console (:3001)"    console    console_up
+
+# The worker has no port to poll, so confirm it from its own log.
+# worker.ts logs exactly this line once its queue processors are attached.
+if wait_for 180 "worker (queues)" grep -qa "Worker started" "$LOGS/worker.log"; then
+  ok "worker (queues)"
+else
+  printf '  %s!%s worker did not confirm start — new stores will hang at "Setting up your store".\n' "$Y" "$N"
+  tail -10 "$LOGS/worker.log" | sed 's/^/      /'
+fi
 
 if [ "$FAILED" -eq 1 ]; then
   printf '\n%s Something did not start. See the log lines above, or run ./project-logs.sh %s\n\n' "$R✗$N" ""
@@ -238,6 +256,7 @@ ${B}═════════════════════════�
   ${B}COMMANDS${N}
     ./project-logs.sh            watch all logs
     ./project-logs.sh api        watch just the API
+    ./project-logs.sh worker     watch the background worker
     ./project-stop.sh            stop everything
     ./project-start.sh           start again (safe to re-run any time)
 

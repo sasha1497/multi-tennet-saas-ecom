@@ -4,6 +4,7 @@
 #
 #   ./project-logs.sh              everything, live (Ctrl-C to quit)
 #   ./project-logs.sh api          just the API
+#   ./project-logs.sh worker       background jobs (store provisioning, emails)
 #   ./project-logs.sh storefront   just the customer site
 #   ./project-logs.sh console      just the merchant dashboard
 #   ./project-logs.sh db           PostgreSQL
@@ -49,6 +50,15 @@ case "$WHAT" in
     check_port 4000 "API"        "http://localhost:4000/api/v1/health/live"
     check_port 3000 "Storefront" "http://localhost:3000/"
     check_port 3001 "Console"    "http://localhost:3001/login"
+
+    # The worker binds no port, so it is checked by process, not by request.
+    # Its absence is not cosmetic: without it, creating a store hangs forever on
+    # "Setting up your store" and no log anywhere explains why.
+    if pgrep -f "entryFile worker" >/dev/null 2>&1 || pgrep -f "dist/worker.js" >/dev/null 2>&1; then
+      printf '  %s✓%s %-22s        running  %s(store provisioning, emails)%s\n' "$G" "$N" "Worker" "$D" "$N"
+    else
+      printf '  %s✗%s %-22s        NOT RUNNING  %s<- new stores will hang%s\n' "$R" "$N" "Worker" "$D" "$N"
+    fi
 
     # Mobile is started separately and on purpose, so its absence is normal —
     # a red cross here would suggest something is broken when nothing is.
@@ -112,7 +122,7 @@ case "$WHAT" in
     ;;
 
   # -------------------------------------------------------- one service ---
-  api|storefront|console)
+  api|worker|storefront|console)
     [ -f "$LOGS/$WHAT.log" ] || missing "$WHAT"
     printf '\n%s═══ %s ═══%s  %sCtrl-C to quit%s\n\n' "$B" "$WHAT" "$N" "$D" "$N"
     tail -f -n 200 "$LOGS/$WHAT.log"
@@ -125,7 +135,7 @@ case "$WHAT" in
     printf '%sCtrl-C to quit.  For one service: ./project-logs.sh api%s\n\n' "$D" "$N"
     # tail -f on several files prints a ==> filename <== header when the source
     # changes, which is what makes interleaved output readable.
-    tail -f -n 50 "$LOGS"/api.log "$LOGS"/storefront.log "$LOGS"/console.log 2>/dev/null
+    tail -f -n 50 "$LOGS"/api.log "$LOGS"/worker.log "$LOGS"/storefront.log "$LOGS"/console.log 2>/dev/null
     ;;
 
   *)

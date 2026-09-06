@@ -32,7 +32,7 @@ printf '%s▸ Application servers%s\n' "$B" "$N"
 STOPPED=0
 
 # PIDs recorded by project-start.sh.
-for name in api storefront console; do
+for name in api worker storefront console; do
   if [ -f "$LOGS/$name.pid" ]; then
     PID=$(cat "$LOGS/$name.pid" 2>/dev/null)
     if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
@@ -59,6 +59,9 @@ done
 
 pkill -f "turbo run dev" 2>/dev/null
 pkill -f "expo start" 2>/dev/null
+# The worker holds no port, so it can only be matched by its entry file.
+pkill -f "entryFile worker" 2>/dev/null
+pkill -f "dist/worker.js" 2>/dev/null
 
 if [ "$STOPPED" -gt 0 ]; then ok "stopped $STOPPED server(s)"; else ok "no app servers were running"; fi
 
