@@ -9,7 +9,7 @@ import { LoggerModule } from '@/core/logger/logger.service';
 import { ObservabilityModule } from '@/core/observability/metrics.service';
 import { QueueModule } from '@/core/queue/queue.module';
 import { SecurityModule } from '@/core/security/security.module';
-import { StorageModule } from '@/core/storage/storage.service';
+import { StorageModule } from '@/core/storage/storage.module';
 import { TenantModule } from '@/core/tenant/tenant.module';
 import { AppLogger } from '@/core/logger/logger.service';
 import { AuditModule } from '@/modules/audit/audit.service';

@@ -102,7 +102,32 @@ export const envSchema = z
     MYSQL_URL: z.string().optional(),
 
     // ------------------------------------------------------------ storage --
+    /**
+     * Which storage backend to use. This is the ONLY switch — no business
+     * module may branch on NODE_ENV to decide where a file goes.
+     *
+     * STORAGE_DRIVER is the older name and is still honoured so existing
+     * deployments and .env files keep working.
+     */
+    STORAGE_PROVIDER: z.enum(['minio', 's3', 'local']).optional(),
     STORAGE_DRIVER: z.enum(['s3', 'local']).default('local'),
+
+    // MinIO (local development). Falls back to the S3_* names when unset, so a
+    // single set of variables can drive either backend.
+    MINIO_ENDPOINT: z.string().optional(),
+    MINIO_PUBLIC_ENDPOINT: z.string().optional(),
+    MINIO_REGION: z.string().optional(),
+    MINIO_BUCKET: z.string().optional(),
+    MINIO_ACCESS_KEY: z.string().optional(),
+    MINIO_SECRET_KEY: z.string().optional(),
+
+    // AWS S3 (production). Credentials are optional: prefer an IAM role.
+    AWS_REGION: z.string().optional(),
+    AWS_S3_BUCKET: z.string().optional(),
+    AWS_S3_PUBLIC_ENDPOINT: z.string().optional(),
+    AWS_ACCESS_KEY_ID: z.string().optional(),
+    AWS_SECRET_ACCESS_KEY: z.string().optional(),
+
     S3_ENDPOINT: z.string().optional(),
     S3_PUBLIC_ENDPOINT: z.string().optional(),
     S3_REGION: z.string().default('us-east-1'),

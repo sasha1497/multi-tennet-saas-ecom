@@ -91,14 +91,32 @@ export function buildConfig(env: Env) {
       url: env.MYSQL_URL,
     },
 
+    /**
+     * Storage.
+     *
+     * `provider` is resolved once, here, and is the single decision point for
+     * which backend the application talks to. STORAGE_PROVIDER wins; otherwise
+     * the legacy STORAGE_DRIVER is mapped forward ('s3' with an endpoint set is
+     * how MinIO used to be configured).
+     *
+     * Each backend reads its own variable family first and falls back to the
+     * shared S3_* names, so an existing .env keeps working untouched.
+     */
     storage: {
+      provider: resolveStorageProvider(env),
+      // Kept for anything still reading `driver`; same decision, older name.
       driver: env.STORAGE_DRIVER,
-      endpoint: env.S3_ENDPOINT,
-      publicEndpoint: env.S3_PUBLIC_ENDPOINT ?? env.S3_ENDPOINT,
-      region: env.S3_REGION,
-      bucket: env.S3_BUCKET,
-      accessKey: env.S3_ACCESS_KEY,
-      secretKey: env.S3_SECRET_KEY,
+      endpoint: env.MINIO_ENDPOINT ?? env.S3_ENDPOINT,
+      publicEndpoint:
+        env.MINIO_PUBLIC_ENDPOINT ??
+        env.AWS_S3_PUBLIC_ENDPOINT ??
+        env.S3_PUBLIC_ENDPOINT ??
+        env.MINIO_ENDPOINT ??
+        env.S3_ENDPOINT,
+      region: env.AWS_REGION ?? env.MINIO_REGION ?? env.S3_REGION,
+      bucket: env.AWS_S3_BUCKET ?? env.MINIO_BUCKET ?? env.S3_BUCKET,
+      accessKey: env.AWS_ACCESS_KEY_ID ?? env.MINIO_ACCESS_KEY ?? env.S3_ACCESS_KEY,
+      secretKey: env.AWS_SECRET_ACCESS_KEY ?? env.MINIO_SECRET_KEY ?? env.S3_SECRET_KEY,
       forcePathStyle: env.S3_FORCE_PATH_STYLE,
       localDir: env.STORAGE_LOCAL_DIR,
       maxFileSize: env.UPLOAD_MAX_FILE_SIZE,
@@ -170,3 +188,17 @@ export function buildConfig(env: Env) {
 }
 
 export type AppConfig = ReturnType<typeof buildConfig>;
+
+/**
+ * One decision, made once.
+ *
+ * Explicit STORAGE_PROVIDER always wins. Otherwise the older STORAGE_DRIVER is
+ * translated: `s3` plus a custom endpoint is how MinIO was configured before
+ * this variable existed, so it maps to `minio` rather than to real AWS.
+ */
+function resolveStorageProvider(env: Env): 'minio' | 's3' | 'local' {
+  if (env.STORAGE_PROVIDER) return env.STORAGE_PROVIDER;
+  if (env.STORAGE_DRIVER === 'local') return 'local';
+  const endpoint = env.MINIO_ENDPOINT ?? env.S3_ENDPOINT;
+  return endpoint ? 'minio' : 's3';
+}
