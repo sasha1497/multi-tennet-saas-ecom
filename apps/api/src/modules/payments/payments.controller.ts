@@ -67,13 +67,14 @@ export class PaymentsController {
     @Req() req: Request & { rawBody?: Buffer },
     @Headers() headers: Record<string, string | undefined>,
   ): Promise<{ received: boolean }> {
-    if (provider !== this.payments.providerName) {
-      // Do not confirm or deny which providers are configured.
-      return { received: true };
-    }
-
+    // The provider name comes from the URL, and the tenant is resolved from the
+    // payload's order reference inside handleWebhook — this endpoint is public
+    // and has no tenant hostname, so there is nothing else to key on. An
+    // unknown provider or an unroutable order is answered with the same 200 as
+    // everything else: a webhook endpoint that reports what it recognises is a
+    // free enumeration oracle.
     const rawBody = req.rawBody ?? Buffer.from(JSON.stringify(req.body ?? {}), 'utf8');
-    await this.payments.handleWebhook(rawBody, headers);
+    await this.payments.handleWebhook(rawBody, headers, provider);
     return { received: true };
   }
 

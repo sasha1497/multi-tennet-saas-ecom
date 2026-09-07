@@ -1,4 +1,5 @@
 import type { Money, NormalisedPaymentEvent, PaymentMethod } from '@retailos/types';
+import type { PaymentCredentials } from './payment-config.service';
 
 export interface CreateIntentParams {
   /** Our own payment row id — becomes the provider's receipt reference. */
@@ -60,8 +61,8 @@ export interface PaymentProviderAdapter {
   /** Payment methods this adapter can handle. */
   readonly supportedMethods: readonly PaymentMethod[];
 
-  /** Creates the gateway-side order/intent. */
-  createIntent(params: CreateIntentParams): Promise<ProviderIntent>;
+  /** Creates the gateway-side order/intent, using THIS tenant's credentials. */
+  createIntent(params: CreateIntentParams, credentials: PaymentCredentials): Promise<ProviderIntent>;
 
   /**
    * Verifies the client-side callback signature.
@@ -69,18 +70,37 @@ export interface PaymentProviderAdapter {
    * MUST be constant-time and MUST fail closed on any malformed input — this is
    * the check that stops a shopper from marking their own order as paid.
    */
-  verifySignature(params: VerifySignatureParams): boolean;
+  verifySignature(params: VerifySignatureParams, credentials: PaymentCredentials): boolean;
 
   /**
-   * Verifies and normalises a webhook.
+   * Reads the gateway's order reference out of a webhook body WITHOUT trusting
+   * it.
+   *
+   * This exists because of a chicken-and-egg problem created by per-tenant
+   * credentials: the signature can only be checked with the right tenant's
+   * webhook secret, but the tenant is only known once the payload has been
+   * read. So parsing and verification are separate steps.
+   *
+   * The value returned here is untrusted input. Its ONLY legitimate use is to
+   * look up a payment route and thereby learn which tenant's secret to verify
+   * with — never to authorise anything on its own.
+   */
+  extractOrderReference(rawBody: Buffer): string | null;
+
+  /**
+   * Verifies and normalises a webhook against one tenant's webhook secret.
    *
    * Receives the **raw** body, because signatures are computed over the exact
    * bytes the gateway sent; re-serialising parsed JSON changes them.
    * Returns null when the signature does not verify.
    */
-  parseWebhook(rawBody: Buffer, headers: Record<string, string | undefined>): NormalisedPaymentEvent | null;
+  verifyWebhook(
+    rawBody: Buffer,
+    headers: Record<string, string | undefined>,
+    credentials: PaymentCredentials,
+  ): NormalisedPaymentEvent | null;
 
-  refund(params: RefundParams): Promise<RefundResult>;
+  refund(params: RefundParams, credentials: PaymentCredentials): Promise<RefundResult>;
 }
 
 export const PAYMENT_PROVIDER = Symbol('PAYMENT_PROVIDER');

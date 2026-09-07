@@ -69,6 +69,7 @@ export function onHost(app: INestApplication, host: string) {
     get: (path: string) => agent.get(`${API_PREFIX}${path}`).set('Host', host),
     post: (path: string) => agent.post(`${API_PREFIX}${path}`).set('Host', host),
     patch: (path: string) => agent.patch(`${API_PREFIX}${path}`).set('Host', host),
+    put: (path: string) => agent.put(`${API_PREFIX}${path}`).set('Host', host),
     delete: (path: string) => agent.delete(`${API_PREFIX}${path}`).set('Host', host),
   };
 }

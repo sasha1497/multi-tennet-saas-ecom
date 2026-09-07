@@ -214,6 +214,7 @@ model Tenant {
   subscription     Subscription?
   entitlements     FeatureEntitlement[]
   provisioningJobs TenantProvisioningJob[]
+  paymentConfigs TenantPaymentConfig[]
   paymentRoutes    PaymentRoute[]
 
   @@index([status])
@@ -405,6 +406,50 @@ model FeatureEntitlement {
 /// Payment webhooks arrive at a single platform endpoint with no Host-based
 /// tenant context, so this index is how we find which tenant database to open —
 /// without ever trusting a tenant id from the webhook body.
+/// Per-tenant payment gateway configuration.
+///
+/// Each merchant settles to their own gateway account, so credentials belong to
+/// the tenant and never to the platform. Secrets are stored encrypted with the
+/// same AES-256-GCM envelope used for tenant database passwords, and are
+/// decrypted only in memory, only for the tenant a request has already been
+/// verified against.
+///
+/// `publicKey` is deliberately NOT encrypted: it is handed to the checkout SDK
+/// in the browser and is public by definition. Keeping it in a separate column
+/// from the secrets is what lets the API expose a safe view without ever
+/// touching the encrypted fields.
+model TenantPaymentConfig {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// 'razorpay' | 'mock' — matches PaymentProviderAdapter.name.
+  provider String  @db.VarChar(32)
+  enabled  Boolean @default(false)
+
+  /// 'test' | 'live'. A live key in a test store is a costly mistake, so the
+  /// intent is recorded rather than inferred from NODE_ENV.
+  environment String @default("test") @db.VarChar(16)
+
+  /// Safe to expose. The client SDK needs it.
+  publicKey String? @map("public_key") @db.VarChar(255)
+
+  /// AES-256-GCM, `v1.<iv>.<tag>.<ciphertext>`. Never leaves the API.
+  encryptedSecretKey     String? @map("encrypted_secret_key")
+  encryptedWebhookSecret String? @map("encrypted_webhook_secret")
+
+  /// Overrides the platform default when the merchant trades in another currency.
+  currency String @default("INR") @db.VarChar(3)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, provider])
+  @@index([tenantId])
+  @@map("tenant_payment_configs")
+}
+
 model PaymentRoute {
   id              String   @id @default(uuid()) @db.Uuid
   provider        String   @db.VarChar(32)

@@ -287,6 +287,7 @@ export class OrdersService {
         }
 
         const { paymentId } = await this.payments.createPaymentRecord(tx, {
+          tenantId: tenant.tenantId,
           orderId: order.id,
           orderNumber,
           amount: priced.totals.total,

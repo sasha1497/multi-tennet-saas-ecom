@@ -18,14 +18,17 @@ import {
 import { AppLogger } from '@/core/logger/logger.service';
 import { AuditService } from '@/modules/audit/audit.service';
 import { OrdersService } from '@/modules/orders/orders.service';
-import { PAYMENT_PROVIDER, type PaymentProviderAdapter } from './payment-provider.interface';
+import type { PaymentProviderAdapter } from './payment-provider.interface';
+import { PaymentProviderRegistry } from './payment-provider.registry';
+import { PaymentConfigService, type PaymentCredentials } from './payment-config.service';
 
 @Injectable()
 export class PaymentsService {
   private readonly logger: AppLogger;
 
   constructor(
-    @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProviderAdapter,
+    private readonly providers: PaymentProviderRegistry,
+    private readonly paymentConfig: PaymentConfigService,
     private readonly tenantDb: TenantDatabaseService,
     private readonly master: MasterPrismaService,
     private readonly config: AppConfigService,
@@ -36,8 +39,26 @@ export class PaymentsService {
     this.logger = logger.withContext('PaymentsService');
   }
 
-  get providerName(): string {
-    return this.provider.name;
+  /**
+   * The gateway a specific tenant settles through, with that tenant's
+   * credentials attached.
+   *
+   * Every payment operation goes through here. There is no ambient "current
+   * provider" any more, so using another merchant's gateway would require
+   * passing their tenant id — which the guards have already refused before any
+   * of this runs.
+   */
+  private async gatewayFor(
+    tenantId: string,
+  ): Promise<{ adapter: PaymentProviderAdapter; credentials: PaymentCredentials }> {
+    const credentials = await this.paymentConfig.resolve(tenantId);
+    return { adapter: this.providers.get(credentials.provider), credentials };
+  }
+
+  /** Which gateway a tenant uses, by name. Safe to expose. */
+  async providerNameFor(tenantId: string): Promise<string> {
+    const credentials = await this.paymentConfig.resolve(tenantId);
+    return credentials.provider;
   }
 
   /**
@@ -51,6 +72,8 @@ export class PaymentsService {
   async createPaymentRecord(
     tx: TenantTransactionClient,
     params: {
+      /** Whose gateway this payment belongs to. */
+      tenantId: string;
       orderId: string;
       orderNumber: string;
       amount: Money;
@@ -58,10 +81,15 @@ export class PaymentsService {
       method: PaymentMethod;
     },
   ): Promise<{ paymentId: string }> {
+    // Reads the tenant's own gateway name. This is a master-database lookup,
+    // not a query on the tenant transaction, so it does not extend the lock.
+    const provider =
+      params.method === 'COD' ? 'cod' : await this.providerNameFor(params.tenantId);
+
     const payment = await tx.payment.create({
       data: {
         orderId: params.orderId,
-        provider: params.method === 'COD' ? 'cod' : this.provider.name,
+        provider,
         method: params.method,
         status: 'PENDING',
         amount: params.amount,
@@ -105,16 +133,23 @@ export class PaymentsService {
       };
     }
 
-    const intent = await this.provider.createIntent({
-      paymentId: params.paymentId,
-      orderId: params.orderId,
-      orderNumber: params.orderNumber,
-      amount: params.amount,
-      currency: params.currency,
-      method: params.method,
-      customer: params.customer,
-      tenantSlug: params.tenantSlug,
-    });
+    // Resolved from the tenant, so the intent is created against THIS
+    // merchant's gateway account and nobody else's.
+    const { adapter, credentials } = await this.gatewayFor(params.tenantId);
+
+    const intent = await adapter.createIntent(
+      {
+        paymentId: params.paymentId,
+        orderId: params.orderId,
+        orderNumber: params.orderNumber,
+        amount: params.amount,
+        currency: params.currency,
+        method: params.method,
+        customer: params.customer,
+        tenantSlug: params.tenantSlug,
+      },
+      credentials,
+    );
 
     await this.tenantDb.runFor(params.tenantId, (db) =>
       db.payment.update({
@@ -130,12 +165,12 @@ export class PaymentsService {
       await this.master.paymentRoute.upsert({
         where: {
           provider_providerOrderId: {
-            provider: this.provider.name,
+            provider: adapter.name,
             providerOrderId: intent.providerOrderId,
           },
         },
         create: {
-          provider: this.provider.name,
+          provider: adapter.name,
           providerOrderId: intent.providerOrderId,
           tenantId: params.tenantId,
           paymentId: params.paymentId,
@@ -147,7 +182,7 @@ export class PaymentsService {
 
     return {
       paymentId: params.paymentId,
-      provider: this.provider.name,
+      provider: adapter.name,
       providerOrderId: intent.providerOrderId,
       amount: params.amount,
       currency: params.currency,
@@ -196,11 +231,17 @@ export class PaymentsService {
       throw Errors.paymentSignatureInvalid();
     }
 
-    const valid = this.provider.verifySignature({
-      providerOrderId: params.providerOrderId,
-      providerPaymentId: params.providerPaymentId,
-      signature: params.signature,
-    });
+    // Verified with the tenant's own key. A signature minted by another
+    // merchant's gateway account must not settle an order here.
+    const { adapter, credentials } = await this.gatewayFor(tenantId);
+    const valid = adapter.verifySignature(
+      {
+        providerOrderId: params.providerOrderId,
+        providerPaymentId: params.providerPaymentId,
+        signature: params.signature,
+      },
+      credentials,
+    );
 
     if (!valid) {
       await this.markFailed(tenantId, payment.id, 'Signature verification failed');
@@ -230,20 +271,63 @@ export class PaymentsService {
   /**
    * Webhook entry point.
    *
-   * Four defences, all necessary:
-   *   1. signature verification over the raw body (in the adapter)
-   *   2. event de-duplication in the master `webhook_events` table
-   *   3. tenant resolution via `payment_routes`, never from the payload
+   * Per-tenant credentials create an ordering problem worth stating plainly:
+   * the signature can only be checked with the right tenant's webhook secret,
+   * but the tenant is only known once the payload has been read. So the payload
+   * is parsed first — WITHOUT trusting it — purely to find a payment route, and
+   * only then is the signature verified with that tenant's secret.
+   *
+   * Nothing is authorised on the strength of the unverified read. Its only
+   * output is a tenant id used to select a key; if the signature then fails,
+   * the event is discarded having touched nothing.
+   *
+   * Five defences, all necessary:
+   *   1. tenant resolution via `payment_routes`, never from the payload body
+   *   2. signature verification over the raw body with THAT tenant's secret
+   *   3. event de-duplication in the master `webhook_events` table
    *   4. an idempotent state transition, so a replay is a no-op
+   *   5. the route also pins the payment and order, so a valid signature from
+   *      one merchant cannot settle another merchant's order
    */
   async handleWebhook(
     rawBody: Buffer,
     headers: Record<string, string | undefined>,
+    providerName: string,
   ): Promise<{ handled: boolean; reason?: string }> {
-    const event = this.provider.parseWebhook(rawBody, headers);
+    if (!this.providers.has(providerName)) {
+      return { handled: false, reason: 'unknown_provider' };
+    }
+    const adapter = this.providers.get(providerName);
+
+    // Step 1 — untrusted read, only to find out whose webhook this is.
+    const reference = adapter.extractOrderReference(rawBody);
+    if (!reference) {
+      this.logger.warn('Discarded webhook with no order reference', { provider: adapter.name });
+      return { handled: false, reason: 'no_order_reference' };
+    }
+
+    const route = await this.master.paymentRoute.findUnique({
+      where: {
+        provider_providerOrderId: { provider: adapter.name, providerOrderId: reference },
+      },
+    });
+
+    if (!route) {
+      // Either a webhook for an order we never created, or a probe. Either way
+      // there is no tenant, so there is no secret to verify against.
+      this.logger.warn('Webhook for an unknown provider order', { provider: adapter.name });
+      return { handled: false, reason: 'unknown_order' };
+    }
+
+    // Step 2 — NOW verify, with the credentials of the tenant that owns it.
+    const credentials = await this.paymentConfig.resolve(route.tenantId);
+    const event = adapter.verifyWebhook(rawBody, headers, credentials);
     if (!event) {
       // Never leak *why* it failed to an unauthenticated caller.
-      this.logger.warn('Discarded unverifiable webhook', { provider: this.provider.name });
+      this.logger.warn('Discarded unverifiable webhook', {
+        provider: adapter.name,
+        tenantId: route.tenantId,
+      });
       return { handled: false, reason: 'invalid_signature' };
     }
 
@@ -253,7 +337,7 @@ export class PaymentsService {
     try {
       await this.master.webhookEvent.create({
         data: {
-          provider: this.provider.name,
+          provider: adapter.name,
           eventId: event.eventId.slice(0, 191),
           eventType: event.type,
           payloadHash,
@@ -266,15 +350,15 @@ export class PaymentsService {
     }
 
     try {
-      const result = await this.routeAndApply(event);
+      const result = await this.routeAndApply(event, route);
       await this.master.webhookEvent.updateMany({
-        where: { provider: this.provider.name, eventId: event.eventId.slice(0, 191) },
+        where: { provider: adapter.name, eventId: event.eventId.slice(0, 191) },
         data: { status: 'PROCESSED', processedAt: new Date() },
       });
       return result;
     } catch (err) {
       await this.master.webhookEvent.updateMany({
-        where: { provider: this.provider.name, eventId: event.eventId.slice(0, 191) },
+        where: { provider: adapter.name, eventId: event.eventId.slice(0, 191) },
         data: { status: 'FAILED', error: (err as Error).message.slice(0, 1000) },
       });
       this.logger.error('Webhook processing failed', err as Error, { eventId: event.eventId });
@@ -282,27 +366,18 @@ export class PaymentsService {
     }
   }
 
+  /**
+   * Applies a verified event to the tenant the route names.
+   *
+   * The route is passed in rather than looked up again, and that is deliberate:
+   * it is the same row whose tenant supplied the webhook secret that verified
+   * this event. Re-deriving it from the (now trusted) payload would open a gap
+   * where a body could name one order while being signed for another.
+   */
   private async routeAndApply(
     event: NormalisedPaymentEvent,
+    route: { tenantId: string; paymentId: string; orderId: string },
   ): Promise<{ handled: boolean; reason?: string }> {
-    if (!event.providerOrderId) return { handled: false, reason: 'no_order_reference' };
-
-    const route = await this.master.paymentRoute.findUnique({
-      where: {
-        provider_providerOrderId: {
-          provider: this.provider.name,
-          providerOrderId: event.providerOrderId,
-        },
-      },
-    });
-
-    if (!route) {
-      this.logger.warn('Webhook for an unknown provider order', {
-        providerOrderId: event.providerOrderId,
-      });
-      return { handled: false, reason: 'unknown_order' };
-    }
-
     switch (event.type) {
       case 'payment.captured':
         await this.markPaid(route.tenantId, {
@@ -440,12 +515,16 @@ export class PaymentsService {
     // COD never charged the customer, so there is nothing to send back through
     // a gateway — it is recorded and settled in person.
     if (payment.method !== 'COD' && payment.providerPaymentId) {
-      await this.provider.refund({
-        providerPaymentId: payment.providerPaymentId,
-        amount: requested,
-        reason,
-        idempotencyKey: `refund:${payment.id}:${requested}`,
-      });
+      const { adapter: refundAdapter, credentials: refundCreds } = await this.gatewayFor(tenantId);
+      await refundAdapter.refund(
+        {
+          providerPaymentId: payment.providerPaymentId,
+          amount: requested,
+          reason,
+          idempotencyKey: `refund:${payment.id}:${requested}`,
+        },
+        refundCreds,
+      );
     }
 
     const totalRefunded = payment.refundedAmount + requested;
@@ -479,7 +558,9 @@ export class PaymentsService {
     paymentId: string,
     outcome: 'success' | 'failure',
   ): Promise<VerifyPaymentResponse> {
-    if (this.config.isProd || this.provider.name !== 'mock') {
+    const tenantId = this.tenantDb.tenantId;
+    const { adapter } = await this.gatewayFor(tenantId);
+    if (this.config.isProd || adapter.name !== 'mock') {
       throw Errors.forbidden('Payment simulation is only available in development');
     }
 
@@ -505,7 +586,7 @@ export class PaymentsService {
     const providerPaymentId = `mock_pay_${randomUUID().replace(/-/g, '').slice(0, 18)}`;
     const providerOrderId = payment.providerOrderId ?? `mock_order_${paymentId.slice(0, 12)}`;
     // Only the mock adapter exposes `sign`; the guard above proves we have it.
-    const signature = (this.provider as unknown as { sign(payload: string): string }).sign(
+    const signature = (adapter as unknown as { sign(payload: string): string }).sign(
       `${providerOrderId}|${providerPaymentId}`,
     );
 

@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UploadedFile,
   UseInterceptors,
@@ -39,6 +40,7 @@ import {
   updateOrderStatusSchema,
   updateProductSchema,
   updateStoreSettingsSchema,
+  upsertPaymentConfigSchema,
   inviteStaffSchema,
   updateStaffSchema,
   reviewQuerySchema,
@@ -54,6 +56,7 @@ import { RateLimit } from '@/common/guards/rate-limit.guard';
 import { Errors } from '@/common/errors/app.exception';
 import { TenantDatabaseService } from '@/core/database/tenant-database.service';
 import { StorageService } from '@/core/storage/storage.service';
+import { PaymentConfigService } from '@/modules/payments/payment-config.service';
 import { CategoriesService } from '@/modules/catalog/categories.service';
 import { ProductsService } from '@/modules/catalog/products.service';
 import { CouponsService } from '@/modules/coupons/coupons.service';
@@ -105,6 +108,7 @@ class UpdateCouponDto extends createZodDto(updateCouponSchema) {}
 class ReviewQueryDto extends createZodDto(reviewQuerySchema) {}
 class ModerateReviewDto extends createZodDto(moderateReviewSchema) {}
 class UpdateStoreDto extends createZodDto(updateStoreSettingsSchema) {}
+class UpsertPaymentConfigDto extends createZodDto(upsertPaymentConfigSchema) {}
 class InviteStaffDto extends createZodDto(inviteStaffSchema) {}
 class UpdateStaffDto extends createZodDto(updateStaffSchema) {}
 class ReportQueryDto extends createZodDto(reportQuerySchema) {}
@@ -148,6 +152,7 @@ export class MerchantController {
     private readonly entitlements: EntitlementsService,
     private readonly memberships: MembershipService,
     private readonly tenantDb: TenantDatabaseService,
+    private readonly paymentConfig: PaymentConfigService,
     private readonly context: RequestContextService,
   ) {}
 
@@ -509,6 +514,41 @@ export class MerchantController {
   @ApiOperation({ summary: 'Update branding, theme, banners, tax, shipping and payment options' })
   updateStore(@Body() dto: UpdateStoreDto) {
     return this.store.updateSettings(dto);
+  }
+
+  // ====================================================== payment gateway ==
+
+  /**
+   * The merchant's own gateway credentials.
+   *
+   * Gated on STORE_MANAGE, which OWNER holds and MANAGER does not: staff who
+   * run the shop day to day have no business rotating the keys money settles
+   * through.
+   *
+   * Every response here is the safe view — provider, enabled, environment,
+   * public key, currency, and whether a secret is present. The secret and
+   * webhook secret are write-only and are never returned by any endpoint.
+   */
+  @Get('payments/config')
+  @RequirePermissions(Permission.STORE_MANAGE)
+  @ApiOperation({ summary: 'Payment gateways configured for this store (no secrets)' })
+  listPaymentConfig() {
+    return this.paymentConfig.listForTenant(this.tenantDb.tenantId);
+  }
+
+  @Put('payments/config')
+  @RequirePermissions(Permission.STORE_MANAGE)
+  @ApiOperation({ summary: 'Create or update a payment gateway for this store' })
+  upsertPaymentConfig(@Body() dto: UpsertPaymentConfigDto) {
+    return this.paymentConfig.upsert(this.tenantDb.tenantId, dto);
+  }
+
+  @Delete('payments/config/:provider')
+  @RequirePermissions(Permission.STORE_MANAGE)
+  @ApiOperation({ summary: 'Disable a payment gateway for this store' })
+  async disablePaymentConfig(@Param('provider') provider: string) {
+    await this.paymentConfig.disable(this.tenantDb.tenantId, provider);
+    return { disabled: true };
   }
 
   // ================================================================ staff ==

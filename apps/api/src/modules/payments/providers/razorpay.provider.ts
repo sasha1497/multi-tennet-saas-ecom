@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import type { PaymentCredentials } from '../payment-config.service';
 import type { NormalisedPaymentEvent, PaymentMethod } from '@retailos/types';
 import { AppConfigService } from '@/config/config.module';
 import { Errors } from '@/common/errors/app.exception';
@@ -41,8 +42,12 @@ export class RazorpayProvider implements PaymentProviderAdapter {
     this.logger = logger.withContext('RazorpayProvider');
   }
 
-  async createIntent(params: CreateIntentParams): Promise<ProviderIntent> {
-    const { keyId, keySecret } = this.config.payments.razorpay;
+  async createIntent(
+    params: CreateIntentParams,
+    credentials: PaymentCredentials,
+  ): Promise<ProviderIntent> {
+    const keyId = credentials.publicKey;
+    const keySecret = credentials.secretKey;
     if (!keyId || !keySecret) {
       throw Errors.paymentFailed('Online payments are not configured for this platform');
     }
@@ -84,8 +89,8 @@ export class RazorpayProvider implements PaymentProviderAdapter {
     };
   }
 
-  verifySignature(params: VerifySignatureParams): boolean {
-    const secret = this.config.payments.razorpay.keySecret;
+  verifySignature(params: VerifySignatureParams, credentials: PaymentCredentials): boolean {
+    const secret = credentials.secretKey;
     if (!secret) return false;
 
     // Checkout callback: HMAC over "order_id|payment_id".
@@ -96,11 +101,28 @@ export class RazorpayProvider implements PaymentProviderAdapter {
     return safeCompare(expected, params.signature);
   }
 
-  parseWebhook(
+  /**
+   * Reads `payload.payment.entity.order_id` without verifying anything.
+   *
+   * Used only to find which tenant this webhook belongs to, so the right
+   * webhook secret can then be used to verify it. Treat the result as hostile.
+   */
+  extractOrderReference(rawBody: Buffer): string | null {
+    try {
+      const payload = JSON.parse(rawBody.toString('utf8')) as RazorpayWebhookPayload;
+      const entity = payload.payload?.payment?.entity ?? payload.payload?.refund?.entity;
+      return entity?.order_id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  verifyWebhook(
     rawBody: Buffer,
     headers: Record<string, string | undefined>,
+    credentials: PaymentCredentials,
   ): NormalisedPaymentEvent | null {
-    const secret = this.config.payments.razorpay.webhookSecret;
+    const secret = credentials.webhookSecret;
     const signature = headers['x-razorpay-signature'];
     if (!secret || !signature) return null;
 
@@ -132,8 +154,9 @@ export class RazorpayProvider implements PaymentProviderAdapter {
     };
   }
 
-  async refund(params: RefundParams): Promise<RefundResult> {
-    const { keyId, keySecret } = this.config.payments.razorpay;
+  async refund(params: RefundParams, credentials: PaymentCredentials): Promise<RefundResult> {
+    const keyId = credentials.publicKey;
+    const keySecret = credentials.secretKey;
     if (!keyId || !keySecret) throw Errors.paymentFailed('Refunds are not configured');
 
     const response = await fetch(

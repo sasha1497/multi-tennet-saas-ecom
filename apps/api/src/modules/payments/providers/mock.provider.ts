@@ -1,5 +1,6 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
+import type { PaymentCredentials } from '../payment-config.service';
 import type { NormalisedPaymentEvent, PaymentMethod } from '@retailos/types';
 import { AppConfigService } from '@/config/config.module';
 import { AppLogger } from '@/core/logger/logger.service';
@@ -41,7 +42,10 @@ export class MockPaymentProvider implements PaymentProviderAdapter {
     this.logger = logger.withContext('MockPaymentProvider');
   }
 
-  async createIntent(params: CreateIntentParams): Promise<ProviderIntent> {
+  async createIntent(
+    params: CreateIntentParams,
+    _credentials: PaymentCredentials,
+  ): Promise<ProviderIntent> {
     const providerOrderId = `mock_order_${randomUUID().replace(/-/g, '').slice(0, 20)}`;
 
     this.logger.info('Created mock payment intent', {
@@ -59,14 +63,25 @@ export class MockPaymentProvider implements PaymentProviderAdapter {
     };
   }
 
-  verifySignature(params: VerifySignatureParams): boolean {
+  verifySignature(params: VerifySignatureParams, _credentials: PaymentCredentials): boolean {
     const expected = this.sign(`${params.providerOrderId}|${params.providerPaymentId}`);
     return safeCompare(expected, params.signature);
   }
 
-  parseWebhook(
+  /** Mock order ids are self-describing; no verification happens here. */
+  extractOrderReference(rawBody: Buffer): string | null {
+    try {
+      const payload = JSON.parse(rawBody.toString('utf8')) as { orderId?: string };
+      return payload.orderId ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  verifyWebhook(
     rawBody: Buffer,
     headers: Record<string, string | undefined>,
+    _credentials: PaymentCredentials,
   ): NormalisedPaymentEvent | null {
     const signature = headers['x-mock-signature'];
     if (!signature) return null;
@@ -112,7 +127,7 @@ export class MockPaymentProvider implements PaymentProviderAdapter {
     }
   }
 
-  async refund(params: RefundParams): Promise<RefundResult> {
+  async refund(params: RefundParams, _credentials: PaymentCredentials): Promise<RefundResult> {
     this.logger.info('Simulated refund', {
       providerPaymentId: params.providerPaymentId,
       amount: params.amount,

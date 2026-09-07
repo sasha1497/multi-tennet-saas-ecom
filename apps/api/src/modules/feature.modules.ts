@@ -14,9 +14,10 @@ import { CustomerOrdersController } from './orders/customer-orders.controller';
 import { OrdersService } from './orders/orders.service';
 import { PaymentsController } from './payments/payments.controller';
 import { PaymentsService } from './payments/payments.service';
+import { PaymentConfigService } from './payments/payment-config.service';
+import { PaymentProviderRegistry } from './payments/payment-provider.registry';
 import { MockPaymentProvider } from './payments/providers/mock.provider';
 import { RazorpayProvider } from './payments/providers/razorpay.provider';
-import { PAYMENT_PROVIDER } from './payments/payment-provider.interface';
 import { PlatformController } from './platform/platform.controller';
 import { PlatformService } from './platform/platform.service';
 import { ReportsService } from './reports/reports.service';
@@ -24,8 +25,6 @@ import { ReviewsService } from './reviews/reviews.service';
 import { StaffService } from './staff/staff.service';
 import { StorefrontController } from './storefront/storefront.controller';
 import { StoreService } from './store/store.service';
-import { AppConfigService } from '@/config/config.module';
-import { AppLogger } from '@/core/logger/logger.service';
 
 /**
  * Catalog: products, variants, categories and brands.
@@ -93,7 +92,7 @@ export class NotificationsModule {}
  * Payments.
  *
  * The active provider is chosen once, here, from configuration — every consumer
- * depends on the `PAYMENT_PROVIDER` token and never on a concrete adapter, which
+ * resolves its gateway per tenant and never on a concrete adapter, which
  * is what keeps adding a gateway to a one-file change.
  *
  * The mock provider is refused outright in production: shipping a build where a
@@ -104,32 +103,12 @@ export class NotificationsModule {}
   controllers: [PaymentsController],
   providers: [
     PaymentsService,
+    PaymentConfigService,
+    PaymentProviderRegistry,
     MockPaymentProvider,
     RazorpayProvider,
-    {
-      provide: PAYMENT_PROVIDER,
-      inject: [AppConfigService, MockPaymentProvider, RazorpayProvider, AppLogger],
-      useFactory: (
-        config: AppConfigService,
-        mock: MockPaymentProvider,
-        razorpay: RazorpayProvider,
-        logger: AppLogger,
-      ) => {
-        if (config.payments.provider === 'razorpay') return razorpay;
-
-        if (config.isProd) {
-          throw new Error(
-            'PAYMENT_PROVIDER=mock is not permitted in production. Configure a real gateway.',
-          );
-        }
-        logger.withContext('PaymentsModule').warn(
-          'Using the MOCK payment provider — no real money will move.',
-        );
-        return mock;
-      },
-    },
   ],
-  exports: [PaymentsService, PAYMENT_PROVIDER],
+  exports: [PaymentsService, PaymentConfigService, PaymentProviderRegistry],
 })
 export class PaymentsModule {}
 
@@ -181,6 +160,8 @@ export class StorefrontModule {}
     StoreModule,
     StaffModule,
     ReportsModule,
+    // For the payment-gateway settings endpoints.
+    forwardRef(() => PaymentsModule),
   ],
   controllers: [MerchantController],
 })
