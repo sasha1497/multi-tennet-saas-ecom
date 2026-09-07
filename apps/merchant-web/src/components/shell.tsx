@@ -91,6 +91,14 @@ const PLATFORM_ITEMS: NavItem[] = [
 export function ConsoleShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { session, activeTenant, isSuperAdmin, can, logout } = useAuth();
+
+  /**
+   * A platform super admin belongs to no store, and a merchant can lose their
+   * last membership. Either way every merchant route would answer "No store
+   * selected", so the catalog/sell/store sections are hidden rather than
+   * offered as links that can only fail.
+   */
+  const hasNoStore = Boolean(session) && !session?.activeTenantId && session?.memberships.length === 0;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
@@ -155,6 +163,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
           </>
         ) : (
           NAV_SECTIONS.map((section, i) => {
+            if (hasNoStore) return null;
             const visible = section.items.filter((item) => !item.permission || can(item.permission));
             if (visible.length === 0) return null;
             return (
