@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { CartController } from './cart/cart.controller';
+import { BillingService } from './billing/billing.service';
 import { CartService } from './cart/cart.service';
 import { PricingService } from './cart/pricing.service';
 import { CategoriesService } from './catalog/categories.service';
@@ -148,9 +149,22 @@ export class ReportsModule {}
 })
 export class StorefrontModule {}
 
+/**
+ * Platform billing: what a shop owner pays RetailOS.
+ *
+ * Separate from `PaymentsModule`, which is what a shopper pays a merchant.
+ * Two different money flows, two different gateway accounts.
+ */
+@Module({
+  providers: [BillingService],
+  exports: [BillingService],
+})
+export class BillingModule {}
+
 /** Merchant console. One controller composing the domain services. */
 @Module({
   imports: [
+    BillingModule,
     CatalogModule,
     InventoryModule,
     OrdersModule,

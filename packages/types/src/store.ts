@@ -1,5 +1,30 @@
 /** Tenant-scoped storefront configuration + branding. */
 
+/**
+ * Which storefront design this store renders through.
+ *
+ * The entire presentation layer, expressed as three fields. Switching a
+ * template writes exactly this object and nothing else — no product, order,
+ * customer, payment or inventory row is read or written by the operation.
+ *
+ * The shape mirrors `StoreTemplateConfig` in `@retailos/templates`; it is
+ * restated here so `@retailos/types` stays dependency-free, and the two are
+ * kept in step by `store-template.spec.ts` in the templates package.
+ */
+export interface StoreTemplate {
+  /** Template id from the catalogue, e.g. `urban-luxe`. */
+  templateId: string;
+  /** The version the store adopted. Pinned so a template update cannot surprise it. */
+  templateVersion: number;
+  /** The merchant's presentation preferences, layered on the template. */
+  customization: {
+    hiddenSections?: string[];
+    shownSections?: string[];
+    sectionOrder?: string[];
+    sectionText?: Record<string, { title?: string | null; subtitle?: string | null }>;
+  };
+}
+
 export interface StoreTheme {
   primaryColor: string;
   accentColor: string;
@@ -38,6 +63,8 @@ export interface StoreSettings {
   logoUrl: string | null;
   faviconUrl: string | null;
   theme: StoreTheme;
+  /** The active storefront design. Presentation only — see `StoreTemplate`. */
+  template: StoreTemplate;
   banners: StoreBanner[];
 
   contactEmail: string | null;
@@ -91,4 +118,22 @@ export interface StorefrontBootstrap {
   features: Record<string, boolean>;
 }
 
-export interface UpdateStoreSettingsRequest extends Partial<Omit<StoreSettings, 'id' | 'updatedAt'>> {}
+/**
+ * `template` is deliberately absent: presentation changes go through the
+ * dedicated template endpoint, so a settings save can never move a store's
+ * design by accident.
+ */
+export interface UpdateStoreSettingsRequest
+  extends Partial<Omit<StoreSettings, 'id' | 'updatedAt' | 'template'>> {}
+
+/**
+ * Switch template, adjust the current template's customisation, or both.
+ *
+ * Omitting `templateId` keeps the active template and edits only its
+ * customisation — that is the store builder. Supplying a different one is a
+ * template switch: presentation is replaced, business data is untouched.
+ */
+export interface UpdateStoreTemplateRequest {
+  templateId?: string;
+  customization?: StoreTemplate['customization'];
+}

@@ -3,23 +3,31 @@
 import { useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@retailos/ui';
+import type { TemplateDefinition } from '@retailos/templates';
 import type { StorefrontBootstrap } from '@retailos/types';
 import { StoreProvider } from '@/lib/store-context';
+import { TemplateProvider } from '@/templates/context';
 import { SiteHeader } from './site-header';
 import { SiteFooter } from './site-footer';
 import { MaintenanceBanner } from './store-closed';
+import { PreviewRibbon } from './preview-ribbon';
 
 /**
  * Client shell for the storefront.
  *
  * Kept separate from `layout.tsx` so the layout can stay a server component and
- * resolve the tenant from the Host header before anything renders.
+ * resolve both the tenant (from the Host header) and the template (from that
+ * tenant's stored config) before anything renders.
  */
 export function StorefrontFrame({
   bootstrap,
+  template,
+  isPreview,
   children,
 }: {
   bootstrap: StorefrontBootstrap;
+  template: TemplateDefinition;
+  isPreview: boolean;
   children: ReactNode;
 }) {
   const [queryClient] = useState(
@@ -41,14 +49,17 @@ export function StorefrontFrame({
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
-        <StoreProvider bootstrap={bootstrap}>
-          <div className="flex min-h-screen flex-col">
-            {!bootstrap.store.isPublished && <MaintenanceBanner />}
-            <SiteHeader />
-            <main className="flex-1">{children}</main>
-            <SiteFooter />
-          </div>
-        </StoreProvider>
+        <TemplateProvider template={template} isPreview={isPreview}>
+          <StoreProvider bootstrap={bootstrap}>
+            <div className="flex min-h-screen flex-col">
+              {isPreview && <PreviewRibbon templateName={template.name} />}
+              {!bootstrap.store.isPublished && <MaintenanceBanner />}
+              <SiteHeader />
+              <main className="flex-1">{children}</main>
+              <SiteFooter />
+            </div>
+          </StoreProvider>
+        </TemplateProvider>
       </ToastProvider>
     </QueryClientProvider>
   );

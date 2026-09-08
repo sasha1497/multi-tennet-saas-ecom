@@ -49,6 +49,24 @@ export interface DomainConfig {
   apiSubdomain?: string;
   protocol?: 'http' | 'https';
   reservedSubdomains?: readonly string[];
+  /**
+   * The ports the web apps are actually reachable on from a browser.
+   *
+   * In production and in the Docker stack everything sits behind nginx on
+   * 80/443, so these are omitted from generated URLs. Under `pnpm dev` there is
+   * no proxy — the storefront answers on 3000 and the console on 3001 — and
+   * without them every "visit my store" link, and the console's storefront
+   * preview, points at a port nothing is listening on.
+   */
+  storefrontPort?: number;
+  adminPort?: number;
+}
+
+/** Renders a port, unless it is the protocol's default or unset. */
+function portSuffix(port: number | undefined, protocol: 'http' | 'https'): string {
+  if (!port) return '';
+  if ((protocol === 'http' && port === 80) || (protocol === 'https' && port === 443)) return '';
+  return `:${port}`;
 }
 
 export type HostKind = 'tenant' | 'admin' | 'api' | 'root' | 'custom' | 'unknown';
@@ -129,12 +147,12 @@ export function isReservedSlug(slug: string, reserved?: readonly string[]): bool
 
 export function storefrontUrl(slug: string, config: DomainConfig): string {
   const protocol = config.protocol ?? 'https';
-  return `${protocol}://${slug}.${normaliseHostname(config.platformDomain)}`;
+  return `${protocol}://${slug}.${normaliseHostname(config.platformDomain)}${portSuffix(config.storefrontPort, protocol)}`;
 }
 
 export function adminUrl(config: DomainConfig): string {
   const protocol = config.protocol ?? 'https';
-  return `${protocol}://${config.adminSubdomain ?? 'admin'}.${normaliseHostname(config.platformDomain)}`;
+  return `${protocol}://${config.adminSubdomain ?? 'admin'}.${normaliseHostname(config.platformDomain)}${portSuffix(config.adminPort, protocol)}`;
 }
 
 export function apiUrl(config: DomainConfig): string {

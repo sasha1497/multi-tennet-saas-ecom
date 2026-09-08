@@ -1,11 +1,41 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Bricolage_Grotesque, Fraunces, Nunito, Space_Grotesk } from 'next/font/google';
 import './globals.css';
 import { StorefrontFrame } from '@/components/frame';
 import { StoreClosed } from '@/components/store-closed';
 import { currentHost, loadStorefront } from '@/lib/server-api';
+import { activeTemplate } from '@/templates/resolve-server';
+import { templateCssVariables } from '@/templates/theme';
 
+/**
+ * The type palette every template draws from.
+ *
+ * Loaded once, self-hosted by `next/font`, and exposed as CSS custom
+ * properties — so switching template changes which stack is *referenced*, with
+ * no extra request and no layout shift. A template names a variable
+ * (`var(--font-serif)`), never a font file.
+ */
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swap' });
+const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-serif', display: 'swap' });
+const bricolage = Bricolage_Grotesque({
+  subsets: ['latin'],
+  variable: '--font-display',
+  display: 'swap',
+});
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-tech',
+  display: 'swap',
+});
+const nunito = Nunito({ subsets: ['latin'], variable: '--font-rounded', display: 'swap' });
+
+const fontVariables = [
+  inter.variable,
+  fraunces.variable,
+  bricolage.variable,
+  spaceGrotesk.variable,
+  nunito.variable,
+].join(' ');
 
 /**
  * Per-tenant metadata.
@@ -55,7 +85,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // shell with an empty header.
   if (!data) {
     return (
-      <html lang="en" className={inter.variable}>
+      <html lang="en" className={fontVariables}>
         <body className="min-h-screen bg-surface-muted antialiased">
           <StoreClosed host={currentHost()} />
         </body>
@@ -63,71 +93,26 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     );
   }
 
-  const { theme } = data.store;
+  const { template, isPreview } = activeTemplate(data);
 
   return (
     <html
       lang="en"
-      className={inter.variable}
-      // The merchant's colours become CSS custom properties on the root element,
-      // which every component already reads. One deployment, N brand identities,
-      // no rebuild — and it is server-rendered, so there is no flash of the
-      // wrong colour on first paint.
-      style={
-        {
-          '--color-primary': hexToRgbChannels(theme.primaryColor),
-          '--color-accent': hexToRgbChannels(theme.accentColor),
-          '--color-primary-soft': hexToRgbChannels(mixWithWhite(theme.primaryColor, 0.92)),
-          '--radius': RADIUS_SCALE[theme.radius] ?? '10px',
-        } as React.CSSProperties
-      }
+      className={fontVariables}
+      data-template={template.id}
+      // The active template's palette, type and rhythm — merged with whatever
+      // branding the merchant explicitly set — become CSS custom properties on
+      // the root element, which every component already reads. One deployment,
+      // N designs, no rebuild, and server-rendered, so there is no flash of the
+      // wrong design on first paint.
+      style={templateCssVariables(template.theme, data.store) as React.CSSProperties}
       suppressHydrationWarning
     >
-      <body className="min-h-screen bg-surface antialiased">
-        <StorefrontFrame bootstrap={data}>{children}</StorefrontFrame>
+      <body className="min-h-screen bg-surface-muted antialiased">
+        <StorefrontFrame bootstrap={data} template={template} isPreview={isPreview}>
+          {children}
+        </StorefrontFrame>
       </body>
     </html>
   );
-}
-
-const RADIUS_SCALE: Record<string, string> = {
-  none: '0px',
-  sm: '6px',
-  md: '10px',
-  lg: '14px',
-  full: '9999px',
-};
-
-/** `#1f47e0` -> `31 71 224`, the space-separated form Tailwind's alpha syntax needs. */
-function hexToRgbChannels(hex: string): string {
-  const clean = hex.replace('#', '');
-  const full =
-    clean.length === 3
-      ? clean
-          .split('')
-          .map((c) => c + c)
-          .join('')
-      : clean;
-  const value = Number.parseInt(full, 16);
-  if (Number.isNaN(value)) return '31 71 224';
-  return `${(value >> 16) & 255} ${(value >> 8) & 255} ${value & 255}`;
-}
-
-/** Produces the soft tint used for subtle backgrounds from the brand colour. */
-function mixWithWhite(hex: string, amount: number): string {
-  const clean = hex.replace('#', '');
-  const full =
-    clean.length === 3
-      ? clean
-          .split('')
-          .map((c) => c + c)
-          .join('')
-      : clean;
-  const value = Number.parseInt(full, 16);
-  if (Number.isNaN(value)) return '#eef4ff';
-  const mix = (channel: number) => Math.round(channel + (255 - channel) * amount);
-  const r = mix((value >> 16) & 255);
-  const g = mix((value >> 8) & 255);
-  const b = mix(value & 255);
-  return `#${[r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')}`;
 }

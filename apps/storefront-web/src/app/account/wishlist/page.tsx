@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Heart, X } from 'lucide-react';
 import { Button, Card, EmptyState, useToast } from '@retailos/ui';
-import { ProductCard, ProductCardSkeleton } from '@/components/product-card';
+import { ProductCard, ProductCardSkeleton } from '@/templates/components/product-card';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store-context';
 

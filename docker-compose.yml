@@ -135,6 +135,10 @@ services:
       S3_ENDPOINT: http://minio:9000
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
+      # Both web apps are served by nginx in this stack, not on their own
+      # ports, so URLs the API hands to clients must not carry 3000/3001.
+      PUBLIC_STOREFRONT_PORT: ${NGINX_HTTP_PORT:-80}
+      PUBLIC_ADMIN_PORT: ${NGINX_HTTP_PORT:-80}
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -169,6 +173,10 @@ services:
       S3_ENDPOINT: http://minio:9000
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
+      # Both web apps are served by nginx in this stack, not on their own
+      # ports, so URLs the API hands to clients must not carry 3000/3001.
+      PUBLIC_STOREFRONT_PORT: ${NGINX_HTTP_PORT:-80}
+      PUBLIC_ADMIN_PORT: ${NGINX_HTTP_PORT:-80}
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }

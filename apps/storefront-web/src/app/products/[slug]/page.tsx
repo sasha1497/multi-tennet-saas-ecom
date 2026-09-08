@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Star } from 'lucide-react';
-import { ProductCard } from '@/components/product-card';
 import { ProductPurchasePanel } from '@/components/product-purchase-panel';
 import { loadStorefront, serverApi } from '@/lib/server-api';
+import { ProductCard } from '@/templates/components/product-card';
 
 interface Props {
   params: { slug: string };
@@ -74,11 +74,11 @@ export default async function ProductPage({ params }: Props) {
         )}
       </nav>
 
-      <div className="grid gap-8 lg:grid-cols-2">
-        {/* Gallery + purchase panel are one client island so image selection and
-            variant selection can talk to each other. */}
-        <ProductPurchasePanel product={product} currency={currency} store={data.store} />
-      </div>
+      {/* Gallery + purchase panel are one client island so image selection and
+          variant selection can talk to each other. It also owns its own
+          arrangement, because the active template decides whether the buy box
+          is sticky, stacked or a spec sheet. */}
+      <ProductPurchasePanel product={product} currency={currency} store={data.store} />
 
       {product.description && (
         <section className="mt-12 max-w-3xl">

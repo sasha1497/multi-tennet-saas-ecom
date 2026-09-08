@@ -82,13 +82,20 @@ notifications.
 variants, categories, brands, image upload, inventory with stock adjustments and
 low-stock thresholds, orders with status workflow, customers, coupons, review
 moderation, sales/customer/inventory reports, store settings and branding, staff
-management with roles.
+management with roles, subscription and billing.
+
+**Store design** — six storefront templates with genuinely different design
+languages, a gallery that previews any of them **on the merchant's own
+catalogue** before they commit, one-click switching that provably touches no
+business data, and a builder for showing, hiding, reordering and retitling the
+blocks on the home page. See [TEMPLATES.md](docs/TEMPLATES.md).
 
 **Platform admin** — tenant directory, tenant creation and provisioning,
 subscription plans, entitlements, suspend/reactivate, per-tenant schema
 migration, audit log, service health and queue depth.
 
-**Under the hood** — database-per-tenant provisioning state machine, versioned
+**Under the hood** — a storefront presentation layer kept strictly apart from
+business data, database-per-tenant provisioning state machine, versioned
 tenant migrations with advisory locking, JWT access tokens with refresh rotation
 and reuse detection, granular `resource.action` RBAC, a payment-provider
 abstraction with signature and webhook verification, idempotent checkout,
@@ -138,6 +145,7 @@ Start with the first three.
 | --- | --- |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, request lifecycle, module map |
 | [TENANCY.md](docs/TENANCY.md) | How tenants are resolved, isolated and provisioned |
+| [TEMPLATES.md](docs/TEMPLATES.md) | The storefront template system and why switching one is safe |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md) | Local setup, day-to-day workflows |
 | [REQUIREMENTS.md](docs/REQUIREMENTS.md) | Functional and non-functional scope |
 | [DATABASE.md](docs/DATABASE.md) | Master and tenant schemas, indexes, constraints |

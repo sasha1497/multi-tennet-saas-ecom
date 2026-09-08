@@ -716,6 +716,21 @@ model StoreSettings {
   theme   Json @default("{}")
   banners Json @default("[]")
 
+  /// ── Presentation layer ───────────────────────────────────────────────────
+  /// The store's storefront design, and nothing else. `template_id` names an
+  /// entry in the `@retailos/templates` catalogue, `template_version` pins the
+  /// version the merchant adopted so a catalogue update cannot silently
+  /// restyle a live store, and `template_customization` holds their section
+  /// overrides (hidden, reordered, retitled).
+  ///
+  /// Switching a template writes these three columns and only these three.
+  /// Products, orders, customers, payments and inventory are in other tables
+  /// and are not read or written by the operation — that is the guarantee the
+  /// whole template system rests on. See docs/TEMPLATES.md.
+  templateId            String? @map("template_id") @db.VarChar(64)
+  templateVersion       Int     @default(1) @map("template_version")
+  templateCustomization Json    @default("{}") @map("template_customization")
+
   contactEmail   String? @map("contact_email") @db.VarChar(255)
   contactPhone   String? @map("contact_phone") @db.VarChar(20)
   whatsappNumber String? @map("whatsapp_number") @db.VarChar(20)

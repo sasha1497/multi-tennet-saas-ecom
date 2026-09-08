@@ -9,8 +9,10 @@ import {
   Boxes,
   Building2,
   ChevronDown,
+  CreditCard,
   ExternalLink,
   LayoutDashboard,
+  LayoutTemplate,
   LogOut,
   type LucideIcon,
   Menu,
@@ -19,11 +21,13 @@ import {
   Palette,
   Settings,
   ShoppingCart,
+  SlidersHorizontal,
   Star,
   Sun,
   Tags,
   Users,
   UsersRound,
+  Wand2,
   X,
 } from 'lucide-react';
 import { Permission } from '@retailos/types';
@@ -41,6 +45,15 @@ interface NavItem {
   exact?: boolean;
 }
 
+/**
+ * Console navigation.
+ *
+ * Grouped the way a shop owner thinks about their day: what happened, what I
+ * sell, who bought it, and what my shop looks like. "Store" is its own section
+ * rather than a single link, because storefront design is now a place a
+ * merchant returns to — to try a template, to rearrange their home page — not
+ * a settings page they visit once.
+ */
 const NAV_SECTIONS: { title: string | null; items: NavItem[] }[] = [
   {
     title: null,
@@ -68,10 +81,19 @@ const NAV_SECTIONS: { title: string | null; items: NavItem[] }[] = [
   {
     title: 'Store',
     items: [
-      { href: '/reports', label: 'Reports', icon: BarChart3, permission: Permission.REPORTS_READ },
-      { href: '/store', label: 'Store design', icon: Palette, permission: Permission.STORE_DESIGN },
+      { href: '/store', label: 'Store design', icon: Palette, permission: Permission.STORE_DESIGN, exact: true },
+      { href: '/store/templates', label: 'Templates', icon: LayoutTemplate, permission: Permission.STORE_DESIGN },
+      { href: '/store/customize', label: 'Customise', icon: Wand2, permission: Permission.STORE_DESIGN },
+      { href: '/store/settings', label: 'Store settings', icon: SlidersHorizontal, permission: Permission.STORE_DESIGN },
+    ],
+  },
+  {
+    title: 'Business',
+    items: [
+      { href: '/reports', label: 'Analytics', icon: BarChart3, permission: Permission.REPORTS_READ },
+      { href: '/subscription', label: 'Subscription', icon: CreditCard },
       { href: '/staff', label: 'Team', icon: UsersRound, permission: Permission.STAFF_READ },
-      { href: '/settings', label: 'Settings', icon: Settings },
+      { href: '/settings', label: 'Account', icon: Settings },
     ],
   },
 ];

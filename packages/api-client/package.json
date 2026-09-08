@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@retailos/config": "workspace:*",
+    "@retailos/templates": "workspace:*",
     "@retailos/types": "workspace:*"
   },
   "devDependencies": {

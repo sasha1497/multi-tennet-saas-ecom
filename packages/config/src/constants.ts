@@ -89,21 +89,46 @@ export const ORDER_TIMELINE_STEPS = [
   { status: 'DELIVERED', label: 'Delivered' },
 ] as const;
 
-export const BUSINESS_CATEGORIES = [
-  'Footwear',
-  'Menswear',
-  'Womenswear',
-  'Kidswear',
-  'Fancy Store',
-  'Mobile Shop',
-  'Electronics',
-  'Cosmetics',
-  'Grocery',
-  'Stationery',
-  'Sports',
-  'Home & Kitchen',
-  'General Retail',
+/**
+ * What a merchant sells. Drives the recommended storefront templates during
+ * onboarding and in Store Design.
+ *
+ * Grouped for the picker, but stored as a plain string on the tenant — the
+ * column is free text, so adding a category here is additive and never
+ * invalidates an existing store's value. `@retailos/templates` matches these
+ * case- and punctuation-insensitively.
+ */
+export const BUSINESS_CATEGORY_GROUPS = [
+  {
+    label: 'Fashion',
+    categories: ["Men's Wear", "Women's Wear", 'Textile', 'Saree', 'Boutique', 'Kids Wear'],
+  },
+  {
+    label: 'Retail',
+    categories: ['Footwear', 'Fancy Store', 'Grocery', 'General Store', 'Stationery'],
+  },
+  {
+    label: 'Technology',
+    categories: ['Mobile Shop', 'Electronics', 'Computer Accessories'],
+  },
+  {
+    label: 'Beauty',
+    categories: ['Cosmetics', 'Beauty & Personal Care'],
+  },
+  {
+    label: 'Lifestyle',
+    categories: ['Jewellery', 'Home & Lifestyle', 'Home & Kitchen', 'Sports'],
+  },
+  {
+    label: 'Specialised',
+    categories: ['Pet Shop', 'Gift Shop', 'Toys', 'General Retail'],
+  },
 ] as const;
+
+/** Flat list, for anywhere that just needs the options. */
+export const BUSINESS_CATEGORIES = BUSINESS_CATEGORY_GROUPS.flatMap(
+  (group) => group.categories,
+) as readonly string[];
 
 export const INDIAN_STATES = [
   'Andhra Pradesh',

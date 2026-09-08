@@ -5,6 +5,7 @@ import {
   normaliseHostname,
   resolveHost,
   storefrontUrl,
+  adminUrl,
   type DomainConfig,
 } from './domain';
 
@@ -155,5 +156,52 @@ describe('storefrontUrl', () => {
     expect(storefrontUrl('kickzone', { platformDomain: 'localhost', protocol: 'http' })).toBe(
       'http://kickzone.localhost',
     );
+  });
+
+  /**
+   * These URLs are handed to browsers — "visit my store", and the iframe the
+   * console previews a template in. A missing dev port makes both dead links.
+   */
+  it('states the port when the apps are not behind a proxy', () => {
+    expect(
+      storefrontUrl('kickzone', {
+        platformDomain: 'localhost',
+        protocol: 'http',
+        storefrontPort: 3000,
+      }),
+    ).toBe('http://kickzone.localhost:3000');
+
+    expect(
+      adminUrl({ platformDomain: 'localhost', protocol: 'http', adminPort: 3001 }),
+    ).toBe('http://admin.localhost:3001');
+  });
+
+  it('omits the port when it is the protocol default', () => {
+    expect(
+      storefrontUrl('kickzone', {
+        platformDomain: 'ourdomain.in',
+        protocol: 'https',
+        storefrontPort: 443,
+      }),
+    ).toBe('https://kickzone.ourdomain.in');
+
+    expect(
+      storefrontUrl('kickzone', {
+        platformDomain: 'localhost',
+        protocol: 'http',
+        storefrontPort: 80,
+      }),
+    ).toBe('http://kickzone.localhost');
+  });
+
+  it('uses the storefront port for stores and the admin port for the console', () => {
+    const config: DomainConfig = {
+      platformDomain: 'localhost',
+      protocol: 'http',
+      storefrontPort: 3000,
+      adminPort: 3001,
+    };
+    expect(storefrontUrl('kickzone', config)).toBe('http://kickzone.localhost:3000');
+    expect(adminUrl(config)).toBe('http://admin.localhost:3001');
   });
 });

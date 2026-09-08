@@ -5,9 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { PackageSearch, SlidersHorizontal, X } from 'lucide-react';
 import { Button, Drawer, EmptyState, Pagination, Select, cn } from '@retailos/ui';
-import { ProductCard, ProductCardSkeleton } from '@/components/product-card';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store-context';
+import { ProductCard, ProductCardSkeleton } from '@/templates/components/product-card';
+import { gridClass, useTemplate } from '@/templates/context';
 
 const SORTS = [
   { value: 'soldCount:desc', label: 'Most popular' },
@@ -19,6 +20,9 @@ const SORTS = [
 
 function ProductsView() {
   const { bootstrap } = useStore();
+  // The listing grid uses the active template's column count, so browsing
+  // feels like the same shop as the home page rather than a generic catalogue.
+  const { layout } = useTemplate();
   const router = useRouter();
   const params = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -206,8 +210,8 @@ function ProductsView() {
           </div>
 
           {isLoading ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-              {Array.from({ length: 8 }).map((_, i) => (
+            <div className={cn('grid gap-3', gridClass(layout))}>
+              {Array.from({ length: 12 }).map((_, i) => (
                 <ProductCardSkeleton key={i} />
               ))}
             </div>
@@ -228,7 +232,7 @@ function ProductsView() {
             />
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+              <div className={cn('grid gap-3', gridClass(layout))}>
                 {data!.items.map((product) => (
                   <ProductCard
                     key={product.id}
@@ -269,16 +273,20 @@ function ProductsView() {
 
 export default function ProductsPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-3 px-4 py-8 sm:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <ProductCardSkeleton key={i} />
-          ))}
-        </div>
-      }
-    >
+    <Suspense fallback={<ProductsSkeleton />}>
       <ProductsView />
     </Suspense>
+  );
+}
+
+/** Shown while the search params resolve; holds the template's own grid shape. */
+function ProductsSkeleton() {
+  const { layout } = useTemplate();
+  return (
+    <div className={cn('mx-auto max-w-7xl gap-3 px-4 py-8', 'grid', gridClass(layout))}>
+      {Array.from({ length: 12 }).map((_, i) => (
+        <ProductCardSkeleton key={i} />
+      ))}
+    </div>
   );
 }

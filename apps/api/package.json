@@ -42,6 +42,7 @@
     "@prisma/client": "^5.22.0",
     "@retailos/config": "workspace:*",
     "@retailos/database": "workspace:*",
+    "@retailos/templates": "workspace:*",
     "@retailos/types": "workspace:*",
     "@retailos/validation": "workspace:*",
     "bullmq": "^5.21.2",

@@ -13,6 +13,7 @@
   "dependencies": {
     "@retailos/api-client": "workspace:*",
     "@retailos/config": "workspace:*",
+    "@retailos/templates": "workspace:*",
     "@retailos/types": "workspace:*",
     "@retailos/ui": "workspace:*",
     "@retailos/validation": "workspace:*",

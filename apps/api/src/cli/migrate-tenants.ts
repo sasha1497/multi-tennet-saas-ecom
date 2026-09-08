@@ -96,6 +96,17 @@ async function main(): Promise<void> {
 
     const result = await provisioning.migrateAllTenants();
     console.log(`\nMigrated ${result.migrated} tenant database(s).`);
+
+    // Presentation-only follow-up: a store that predates the template system
+    // has no design recorded. Fill one in from its business category so its
+    // storefront renders something deliberate rather than the generic
+    // fallback. Never overwrites a template a merchant has chosen.
+    const backfill = await provisioning.backfillStoreTemplates();
+    if (backfill.updated.length > 0) {
+      console.log(`\nAssigned a storefront template to ${backfill.updated.length} store(s):`);
+      for (const line of backfill.updated) console.log(`  · ${line}`);
+    }
+
     if (result.failed.length) {
       console.error(`\n${result.failed.length} failure(s):`);
       for (const f of result.failed) console.error(`  ✗ ${f.tenantId}: ${f.error}`);

@@ -35,6 +35,8 @@ export function buildConfig(env: Env) {
       reservedSubdomains: [
         ...new Set([...DEFAULT_RESERVED_SUBDOMAINS, ...env.RESERVED_SUBDOMAINS]),
       ],
+      storefrontPort: env.PUBLIC_STOREFRONT_PORT,
+      adminPort: env.PUBLIC_ADMIN_PORT,
     },
 
     masterDb: {

@@ -18,6 +18,48 @@ export const storeThemeSchema = z.object({
   colorMode: z.enum(['light', 'dark', 'system']).default('light'),
 });
 
+/** A template or section identifier. Kebab-case, catalogue-controlled. */
+const templateIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9-]*$/, 'Use lowercase letters, numbers and hyphens');
+
+/**
+ * The merchant's presentation preferences.
+ *
+ * Ids are validated for *shape* here and for *existence* by the templates
+ * catalogue in the API — an id that no longer names a section is stored
+ * harmlessly and simply not applied, which is what lets a merchant switch away
+ * from a template and back without losing their layout.
+ */
+export const templateCustomizationSchema = z.object({
+  hiddenSections: z.array(templateIdSchema).max(40).optional(),
+  shownSections: z.array(templateIdSchema).max(40).optional(),
+  sectionOrder: z.array(templateIdSchema).max(40).optional(),
+  sectionText: z
+    .record(
+      templateIdSchema,
+      z.object({
+        title: z.string().trim().max(120).nullish(),
+        subtitle: z.string().trim().max(200).nullish(),
+      }),
+    )
+    .optional(),
+});
+
+export const updateStoreTemplateSchema = z
+  .object({
+    /** Omit to keep the active template and change only its customisation. */
+    templateId: templateIdSchema.optional(),
+    customization: templateCustomizationSchema.optional(),
+  })
+  .refine((v) => v.templateId !== undefined || v.customization !== undefined, {
+    message: 'Provide a template to switch to, a customisation to apply, or both',
+  });
+export type UpdateStoreTemplateInput = z.infer<typeof updateStoreTemplateSchema>;
+
 export const storeBannerSchema = z.object({
   id: z.string().max(64).optional(),
   title: shortText(120),

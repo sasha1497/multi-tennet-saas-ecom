@@ -170,6 +170,8 @@ export function Dropdown({ trigger, items, align = 'right', className, menuClass
 export interface SegmentOption {
   value: string;
   label: string;
+  /** Optional leading glyph. Decorative — the label still carries the meaning. */
+  icon?: ReactNode;
 }
 
 export interface SegmentedControlProps {
@@ -208,13 +210,14 @@ export function SegmentedControl({
           aria-pressed={opt.value === value}
           onClick={() => onChange(opt.value)}
           className={cn(
-            'rounded-[6px] font-medium transition-colors',
+            'inline-flex items-center gap-1.5 rounded-[6px] font-medium transition-colors',
             size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm',
             opt.value === value
               ? 'bg-surface-raised text-content shadow-xs'
               : 'text-content-muted hover:text-content',
           )}
         >
+          {opt.icon}
           {opt.label}
         </button>
       ))}

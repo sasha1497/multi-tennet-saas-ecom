@@ -9,4 +9,36 @@
   body {
     height: 100%;
   }
+
+  /* ---------------------------------------------------------------------
+   * Template typography.
+   *
+   * The active template sets --tpl-* on <html> (see templates/theme.ts).
+   * Body copy and every heading read from those variables, so a template
+   * switch changes the storefront's voice everywhere at once without a
+   * single component knowing which template it is in.
+   *
+   * Fallbacks keep the page readable if a template ever omits a value.
+   * ------------------------------------------------------------------- */
+  body {
+    font-family: var(--tpl-body-font, var(--font-sans));
+  }
+
+  h1,
+  h2,
+  h3,
+  .heading {
+    font-family: var(--tpl-heading-font, var(--font-sans));
+    font-weight: var(--tpl-heading-weight, 700);
+    letter-spacing: var(--tpl-heading-tracking, -0.02em);
+    text-transform: var(--tpl-heading-transform, none);
+  }
+}
+
+@layer utilities {
+  /* Section rhythm, so a section can opt into the template's density
+     without importing anything. */
+  .section-space {
+    padding-block: var(--tpl-section-space, 3rem);
+  }
 }

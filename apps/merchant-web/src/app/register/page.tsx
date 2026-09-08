@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Check, Loader2, Store, X } from 'lucide-react';
 import { isApiClientError } from '@retailos/api-client';
-import { BUSINESS_CATEGORIES } from '@retailos/config';
+import { BUSINESS_CATEGORY_GROUPS } from '@retailos/config';
 import { slugify } from '@retailos/validation';
 import { Button, Card, Input, Select } from '@retailos/ui';
 import { api, setActiveTenantId, tokenStore } from '@/lib/api';
@@ -75,6 +75,10 @@ export default function RegisterPage() {
         storeName: form.storeName.trim(),
         storeSlug: effectiveSlug || undefined,
         businessCategory: form.businessCategory || undefined,
+        // Everyone starts on the ₹499 plan's trial. Setup then walks them
+        // through choosing a design and seeing their store before the
+        // subscription is ever mentioned.
+        planCode: 'STARTER',
       });
 
       tokenStore.set({
@@ -226,12 +230,16 @@ export default function RegisterPage() {
               }
             />
 
+            {/* Drives which storefront designs we recommend during setup. */}
             <Select
               label="What do you sell?"
               value={form.businessCategory}
               onChange={set('businessCategory')}
               placeholder="Choose a category"
-              options={BUSINESS_CATEGORIES.map((c) => ({ value: c, label: c }))}
+              options={BUSINESS_CATEGORY_GROUPS.flatMap((group) =>
+                group.categories.map((c) => ({ value: c, label: `${group.label} · ${c}` })),
+              )}
+              hint="We use this to suggest storefront designs. You can change it later."
             />
 
             <Button

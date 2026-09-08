@@ -43,10 +43,13 @@ export default function WelcomePage() {
     if (ready) void refresh();
   }, [ready, refresh]);
 
-  // A store that is already live has no reason to sit on this page.
+  // Once the database is up, the merchant goes on to set up their store —
+  // choose a design, see it with their branding, and decide about the
+  // subscription. Dropping them on an empty dashboard here would skip the
+  // whole point of the product.
   useEffect(() => {
     if (activeTenant?.tenantStatus === 'ACTIVE' && ready) {
-      const timer = setTimeout(() => router.replace('/'), 1500);
+      const timer = setTimeout(() => router.replace('/onboarding'), 1200);
       return () => clearTimeout(timer);
     }
   }, [activeTenant, ready, router]);
@@ -98,8 +101,8 @@ export default function WelcomePage() {
 
       {ready && data && (
         <div className="mt-6 flex flex-col items-center gap-3">
-          <Button size="lg" onClick={() => router.replace('/products/new')}>
-            Add your first product
+          <Button size="lg" onClick={() => router.replace('/onboarding')}>
+            Set up my store
           </Button>
           <a
             href={data.tenant.storefrontUrl}

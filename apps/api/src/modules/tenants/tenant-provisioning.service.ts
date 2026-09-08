@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { defaultStoreTheme } from '@retailos/config';
+import { cacheKeys, defaultStoreTheme } from '@retailos/config';
+import { defaultTemplateFor } from '@retailos/templates';
 import { AuditAction, ProvisioningStep } from '@retailos/types';
 import { Errors } from '@/common/errors/app.exception';
 import { AppConfigService } from '@/config/config.module';
@@ -325,7 +326,21 @@ export class TenantProvisioningService {
     });
   }
 
+  /**
+   * Applies the default theme and picks the storefront design.
+   *
+   * The template is chosen from the tenant's business category, so a mobile
+   * shop's storefront does not open looking like a boutique. It is only ever
+   * *filled in* — a merchant who already picked a design during onboarding
+   * keeps it, which is what makes this step safe to re-run.
+   */
   private async configureBranding(tenantId: string, slug: string): Promise<void> {
+    const tenant = await this.master.tenant.findUnique({
+      where: { id: tenantId },
+      select: { businessCategory: true },
+    });
+    const suggested = defaultTemplateFor(tenant?.businessCategory ?? null);
+
     await this.tenantDb.runFor(tenantId, async (db) => {
       const settings = await db.storeSettings.findUnique({ where: { id: 'singleton' } });
       const theme = (settings?.theme ?? {}) as Record<string, unknown>;
@@ -334,11 +349,67 @@ export class TenantProvisioningService {
         data: {
           theme: { ...defaultStoreTheme, ...theme } as never,
           tagline: settings?.tagline ?? 'Quality products, delivered locally',
+          ...(settings?.templateId
+            ? {}
+            : { templateId: suggested.id, templateVersion: suggested.version }),
         },
       });
     });
 
-    this.logger.debug('Applied default branding', { tenantId, slug });
+    this.logger.debug('Applied default branding', {
+      tenantId,
+      slug,
+      template: suggested.id,
+    });
+  }
+
+  /**
+   * Gives every store that predates the template system a design to render.
+   *
+   * Idempotent and presentation-only: it fills in `template_id` where it is
+   * NULL, chosen from the tenant's business category, and touches nothing
+   * else — no product, order, customer, payment or inventory row is read or
+   * written. A store that already has a template is skipped entirely, so this
+   * can never override a merchant's choice however many times it runs.
+   *
+   * Run by `pnpm db:tenant:migrate` after the SQL migrations, which is where
+   * an operator would expect "bring every tenant up to date" to live.
+   */
+  async backfillStoreTemplates(): Promise<{ updated: string[]; skipped: number }> {
+    const tenants = await this.master.tenant.findMany({
+      where: { deletedAt: null, database: { status: 'READY' } },
+      select: { id: true, slug: true, businessCategory: true },
+    });
+
+    const updated: string[] = [];
+    let skipped = 0;
+
+    for (const tenant of tenants) {
+      const template = defaultTemplateFor(tenant.businessCategory);
+      try {
+        const changed = await this.tenantDb.runFor(tenant.id, (db) =>
+          db.storeSettings.updateMany({
+            where: { id: 'singleton', templateId: null },
+            data: { templateId: template.id, templateVersion: template.version },
+          }),
+        );
+        if (changed.count > 0) {
+          updated.push(`${tenant.slug} → ${template.id}`);
+          await this.cache.del(cacheKeys.storeSettings(tenant.id));
+        } else {
+          skipped++;
+        }
+      } catch (err) {
+        // A single unreachable tenant must not abort the fleet. It keeps its
+        // read-time fallback design until the next run.
+        this.logger.warn('Could not backfill store template', {
+          tenantId: tenant.id,
+          error: (err as Error).message,
+        });
+      }
+    }
+
+    return { updated, skipped };
   }
 
   private async activate(tenantId: string): Promise<void> {

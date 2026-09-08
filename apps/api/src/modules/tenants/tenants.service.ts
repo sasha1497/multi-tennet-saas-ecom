@@ -239,6 +239,25 @@ export class TenantsService {
   }
 
   /**
+   * Records what a shop sells.
+   *
+   * Deliberately the *only* field a merchant can change on their own tenant
+   * row. Name, slug, status, owner and plan are control-plane concerns and stay
+   * with the platform. The business category is not: it is the merchant's own
+   * description of their shop, and it is what drives which storefront designs
+   * are recommended to them, so they should be able to correct it.
+   *
+   * No cache is invalidated because nothing routing-related changed — the
+   * resolver does not read this field.
+   */
+  async updateBusinessCategory(tenantId: string, businessCategory: string | null): Promise<void> {
+    await this.master.tenant.update({
+      where: { id: tenantId },
+      data: { businessCategory },
+    });
+  }
+
+  /**
    * Status transitions. Suspending evicts cached routing immediately so an
    * abusive store stops serving within a second, not after a cache TTL.
    */

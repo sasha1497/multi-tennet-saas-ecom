@@ -51,6 +51,17 @@ export const envSchema = z
     API_SUBDOMAIN: z.string().default('api'),
     RESERVED_SUBDOMAINS: csv([]),
 
+    /**
+     * Ports the web apps are reachable on *from a browser*.
+     *
+     * Behind nginx (Docker, production) that is the proxy's port, so these are
+     * 80/443 and are left out of generated URLs. Under `pnpm dev` there is no
+     * proxy and the apps answer on 3000/3001 — without these, "visit my store"
+     * and the console's storefront preview point at a dead port.
+     */
+    PUBLIC_STOREFRONT_PORT: int(3000),
+    PUBLIC_ADMIN_PORT: int(3001),
+
     API_PORT: int(4000),
 
     // ---------------------------------------------------------- master db --

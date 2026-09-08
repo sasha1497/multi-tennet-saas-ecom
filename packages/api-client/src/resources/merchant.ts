@@ -31,8 +31,69 @@ import type {
   UpdateOrderStatusRequest,
   UpdateProductRequest,
   UpdateStoreSettingsRequest,
+  UpdateStoreTemplateRequest,
 } from '@retailos/types';
+import type { TemplateDefinition } from '@retailos/templates';
 import type { HttpClient } from '../http';
+
+/** A plan in the RetailOS catalogue, as the merchant console sees it. */
+export interface SubscriptionPlanOption {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  /** Minor units — ₹499/month is `49900`. */
+  priceMonthly: number;
+  priceYearly: number;
+  currency: string;
+  trialDays: number;
+  features: Record<string, boolean>;
+  limits: Record<string, number>;
+  isCurrent: boolean;
+}
+
+/** Response of `GET /merchant/subscription`. */
+export interface SubscriptionOverview {
+  plans: SubscriptionPlanOption[];
+  subscription: {
+    id: string;
+    status: string;
+    planCode: string;
+    planName: string;
+    priceMonthly: number;
+    currency: string;
+    currentPeriodStart: string;
+    currentPeriodEnd: string;
+    trialEndsAt: string | null;
+    cancelledAt: string | null;
+    /** Days left in the current period; negative once it has lapsed. */
+    daysRemaining: number;
+    isTrialing: boolean;
+  } | null;
+  /** False when this deployment cannot take a subscription payment yet. */
+  billingAvailable: boolean;
+}
+
+/** Response of `POST /merchant/subscription/checkout`. */
+export interface SubscriptionCheckout {
+  reference: string;
+  planCode: string;
+  planName: string;
+  amount: number;
+  currency: string;
+  /** True while the deployment has no real platform gateway wired in. */
+  simulated: boolean;
+}
+
+/** Response of `GET /merchant/templates`. */
+export interface TemplateCatalogue {
+  /** The whole catalogue, ranked with this store's recommendations first. */
+  templates: TemplateDefinition[];
+  /** Ids designed for this store's business category. */
+  recommendedIds: string[];
+  /** The design the storefront is currently rendering. */
+  active: StoreSettings['template'];
+}
 
 export interface StaffMember {
   id: string;
@@ -223,6 +284,53 @@ export class MerchantResource {
 
   updateStoreSettings(body: UpdateStoreSettingsRequest): Promise<StoreSettings> {
     return this.http.patch('/merchant/store', body);
+  }
+
+  /** Records what the shop sells. Drives template recommendations. */
+  updateBusinessCategory(businessCategory: string | null): Promise<CurrentTenantResponse> {
+    return this.http.patch('/merchant/tenant', { businessCategory });
+  }
+
+  // ---------------------------------------------------------- templates --
+
+  /** The template catalogue, recommendations first, with the active one flagged. */
+  storeTemplates(): Promise<TemplateCatalogue> {
+    return this.http.get('/merchant/templates');
+  }
+
+  /**
+   * Switches storefront template and/or updates its customisation.
+   *
+   * Presentation only: the merchant's products, orders, customers, payments
+   * and inventory are not touched by this call.
+   */
+  updateStoreTemplate(body: UpdateStoreTemplateRequest): Promise<StoreSettings> {
+    return this.http.put('/merchant/store/template', body);
+  }
+
+  // ------------------------------------------------------- subscription --
+
+  /**
+   * What this store pays RetailOS.
+   *
+   * Not to be confused with `paymentConfig` — that is how the store gets paid
+   * by its own shoppers.
+   */
+  subscription(): Promise<SubscriptionOverview> {
+    return this.http.get('/merchant/subscription');
+  }
+
+  startSubscriptionCheckout(planCode: string): Promise<SubscriptionCheckout> {
+    return this.http.post('/merchant/subscription/checkout', { planCode });
+  }
+
+  confirmSubscription(planCode: string, reference: string): Promise<{
+    status: string;
+    planCode: string;
+    planName: string;
+    currentPeriodEnd: string;
+  }> {
+    return this.http.post('/merchant/subscription/confirm', { planCode, reference });
   }
 
   // -------------------------------------------------------------- staff --

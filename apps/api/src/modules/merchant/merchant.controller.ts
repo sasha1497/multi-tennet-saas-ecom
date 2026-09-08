@@ -40,6 +40,7 @@ import {
   updateOrderStatusSchema,
   updateProductSchema,
   updateStoreSettingsSchema,
+  updateStoreTemplateSchema,
   upsertPaymentConfigSchema,
   inviteStaffSchema,
   updateStaffSchema,
@@ -56,6 +57,7 @@ import { RateLimit } from '@/common/guards/rate-limit.guard';
 import { Errors } from '@/common/errors/app.exception';
 import { TenantDatabaseService } from '@/core/database/tenant-database.service';
 import { StorageService } from '@/core/storage/storage.service';
+import { BillingService } from '@/modules/billing/billing.service';
 import { PaymentConfigService } from '@/modules/payments/payment-config.service';
 import { CategoriesService } from '@/modules/catalog/categories.service';
 import { ProductsService } from '@/modules/catalog/products.service';
@@ -108,6 +110,15 @@ class UpdateCouponDto extends createZodDto(updateCouponSchema) {}
 class ReviewQueryDto extends createZodDto(reviewQuerySchema) {}
 class ModerateReviewDto extends createZodDto(moderateReviewSchema) {}
 class UpdateStoreDto extends createZodDto(updateStoreSettingsSchema) {}
+class UpdateStoreTemplateDto extends createZodDto(updateStoreTemplateSchema) {}
+class UpdateTenantDto extends createZodDto(
+  z.object({ businessCategory: z.string().trim().max(80).nullish() }),
+) {}
+const planCodeSchema = z.string().trim().min(2).max(32).regex(/^[A-Za-z_]+$/);
+class SubscriptionCheckoutDto extends createZodDto(z.object({ planCode: planCodeSchema })) {}
+class SubscriptionConfirmDto extends createZodDto(
+  z.object({ planCode: planCodeSchema, reference: z.string().trim().min(8).max(128) }),
+) {}
 class UpsertPaymentConfigDto extends createZodDto(upsertPaymentConfigSchema) {}
 class InviteStaffDto extends createZodDto(inviteStaffSchema) {}
 class UpdateStaffDto extends createZodDto(updateStaffSchema) {}
@@ -153,6 +164,7 @@ export class MerchantController {
     private readonly memberships: MembershipService,
     private readonly tenantDb: TenantDatabaseService,
     private readonly paymentConfig: PaymentConfigService,
+    private readonly billing: BillingService,
     private readonly context: RequestContextService,
   ) {}
 
@@ -234,6 +246,22 @@ export class MerchantController {
         createdAt: d.createdAt.toISOString(),
       })),
     };
+  }
+
+  /**
+   * Records what this shop sells, which is what drives template
+   * recommendations. The only tenant field a merchant may change themselves —
+   * name, slug, status, ownership and plan remain control-plane concerns.
+   */
+  @Patch('tenant')
+  @RequirePermissions(Permission.STORE_MANAGE)
+  @ApiOperation({ summary: 'Update the store’s business category' })
+  async updateTenant(@Body() dto: UpdateTenantDto) {
+    await this.tenants.updateBusinessCategory(
+      this.context.requireTenantId(),
+      dto.businessCategory ?? null,
+    );
+    return this.currentTenant();
   }
 
   @Get('tenant/memberships')
@@ -516,6 +544,48 @@ export class MerchantController {
     return this.store.updateSettings(dto);
   }
 
+  // ================================================== storefront template ==
+
+  /**
+   * The template gallery, ranked for this store's business category.
+   *
+   * Read-only, and so is previewing: the storefront renders any template on
+   * request via a query parameter, so a merchant sees their own catalogue in a
+   * candidate design without a single write. Nothing is persisted until they
+   * call the endpoint below.
+   */
+  @Get('templates')
+  @RequireAnyPermission(Permission.STORE_MANAGE, Permission.STORE_DESIGN)
+  @ApiOperation({
+    summary: 'Storefront templates available to this store',
+    description:
+      'The full catalogue, with the ones designed for this store\'s business category first ' +
+      'and the active template identified.',
+  })
+  async listTemplates() {
+    const tenant = await this.tenants.findById(this.context.requireTenantId());
+    return this.store.listTemplatesForTenant(tenant.businessCategory);
+  }
+
+  /**
+   * Switch storefront template, or adjust the current one's layout.
+   *
+   * Presentation only. This writes three columns on the store's settings row
+   * and reads nothing else — products, orders, customers, payments and
+   * inventory are untouched, and a merchant can switch back and forth freely.
+   */
+  @Put('store/template')
+  @RequireAnyPermission(Permission.STORE_MANAGE, Permission.STORE_DESIGN)
+  @ApiOperation({
+    summary: 'Switch storefront template or update its customisation',
+    description:
+      'Send `templateId` to switch design, `customization` to change section visibility, order ' +
+      'or headings, or both. Business data is never affected.',
+  })
+  updateStoreTemplate(@Body() dto: UpdateStoreTemplateDto) {
+    return this.store.updateTemplate(dto);
+  }
+
   // ====================================================== payment gateway ==
 
   /**
@@ -549,6 +619,46 @@ export class MerchantController {
   async disablePaymentConfig(@Param('provider') provider: string) {
     await this.paymentConfig.disable(this.tenantDb.tenantId, provider);
     return { disabled: true };
+  }
+
+  // ========================================================= subscription ==
+
+  /**
+   * What this store pays RetailOS.
+   *
+   * Distinct from `payments/config` above, which is how this store gets paid by
+   * its own customers. The UI keeps the two apart for the same reason the API
+   * does: they are different money moving in different directions.
+   */
+  @Get('subscription')
+  @ApiOperation({
+    summary: 'This store’s RetailOS subscription and the available plans',
+    description:
+      'The plan catalogue plus the current subscription, its period and how long is left on it.',
+  })
+  subscription() {
+    return this.billing.overview(this.context.requireTenantId());
+  }
+
+  @Post('subscription/checkout')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.STORE_MANAGE)
+  @ApiOperation({ summary: 'Begin paying for a subscription plan' })
+  startSubscriptionCheckout(@Body() dto: SubscriptionCheckoutDto) {
+    return this.billing.startCheckout(this.context.requireTenantId(), dto.planCode);
+  }
+
+  @Post('subscription/confirm')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.STORE_MANAGE)
+  @ApiOperation({
+    summary: 'Confirm a subscription payment',
+    description:
+      'Moves the subscription to ACTIVE for a fresh monthly period. Products, orders, ' +
+      'customers and the storefront template are not affected.',
+  })
+  confirmSubscription(@Body() dto: SubscriptionConfirmDto) {
+    return this.billing.confirm(this.context.requireTenantId(), dto.planCode, dto.reference);
   }
 
   // ================================================================ staff ==
