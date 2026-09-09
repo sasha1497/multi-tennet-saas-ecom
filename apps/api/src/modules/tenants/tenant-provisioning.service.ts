@@ -134,7 +134,13 @@ export class TenantProvisioningService {
           data: { currentStep: step },
         });
 
-        const outcome = await this.runStep(step, tenant.id, tenant.slug, tenant.name, tenant.contactEmail);
+        const outcome = await this.runStep(
+          step,
+          tenant.id,
+          tenant.slug,
+          tenant.name,
+          tenant.contactEmail,
+        );
         databaseName = outcome.databaseName ?? databaseName;
         schemaVersion = outcome.schemaVersion ?? schemaVersion;
 
@@ -181,7 +187,10 @@ export class TenantProvisioningService {
         .catch(() => undefined);
 
       await this.master.tenantDatabase
-        .updateMany({ where: { tenantId }, data: { status: 'FAILED', lastError: message.slice(0, 2000) } })
+        .updateMany({
+          where: { tenantId },
+          data: { status: 'FAILED', lastError: message.slice(0, 2000) },
+        })
         .catch(() => undefined);
 
       this.audit.record('platform', {
@@ -509,7 +518,10 @@ export class TenantProvisioningService {
    * migration hammering the database in parallel is how you turn a schema change
    * into an outage.
    */
-  async migrateAllTenants(): Promise<{ migrated: number; failed: { tenantId: string; error: string }[] }> {
+  async migrateAllTenants(): Promise<{
+    migrated: number;
+    failed: { tenantId: string; error: string }[];
+  }> {
     const tenants = await this.master.tenantDatabase.findMany({
       where: { status: 'READY' },
       select: { tenantId: true, databaseName: true, username: true },
@@ -572,5 +584,10 @@ function orderPrefixFor(name: string): string {
     .toUpperCase()
     .replace(/[^A-Z]/g, '');
   if (initials.length >= 2) return initials.slice(0, 4);
-  return (name.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) || 'ORD').padEnd(2, 'X');
+  return (
+    name
+      .toUpperCase()
+      .replace(/[^A-Z]/g, '')
+      .slice(0, 3) || 'ORD'
+  ).padEnd(2, 'X');
 }

@@ -132,8 +132,16 @@ export class HttpClient {
   async patch<T>(path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
     return this.request<T>('PATCH', path, { ...opts, body });
   }
-  async delete<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-    return this.request<T>('DELETE', path, opts);
+  /**
+   * DELETE, optionally with a body.
+   *
+   * A body on DELETE is unusual, and used here for exactly one thing: the
+   * typed confirmation on a destructive operation. Putting that in the query
+   * string would write the name of the store being destroyed into every access
+   * log between here and the API.
+   */
+  async delete<T>(path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
+    return this.request<T>('DELETE', path, body === undefined ? opts : { ...opts, body });
   }
 
   /** Multipart upload; the browser/RN sets its own boundary so we omit Content-Type. */

@@ -43,6 +43,20 @@ export const updateTenantStatusSchema = z
     path: ['reason'],
   });
 
+/**
+ * Confirmation for permanent tenant deletion.
+ *
+ * The caller has to type the store's own identifier. That is not theatre: the
+ * tenant id in the path is a uuid nobody reads, so without a second, *human*
+ * identifier the only thing standing between "suspend the wrong store" and
+ * "destroy the wrong store" is one misclick. The server checks this against the
+ * slug it loaded from the database, never against anything else in the request.
+ */
+export const deleteTenantSchema = z.object({
+  confirmation: z.string().trim().min(1, "Type the store's identifier to confirm"),
+});
+export type DeleteTenantInput = z.infer<typeof deleteTenantSchema>;
+
 export const platformTenantQuerySchema = paginationSchema.extend({
   status: tenantStatusSchema.optional(),
   planCode: z.string().trim().max(32).optional(),

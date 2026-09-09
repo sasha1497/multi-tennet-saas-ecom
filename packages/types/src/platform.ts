@@ -130,3 +130,29 @@ export interface QueueStats {
   delayed: number;
   paused: boolean;
 }
+
+/**
+ * Outcome of a permanent tenant deletion.
+ *
+ * Deletion spans the control-plane database, the tenant's own database and
+ * object storage — three systems that cannot share a transaction. So the result
+ * is a *state*, not a boolean: `completedSteps` says how far it got, and a
+ * `FAILED` outcome names the step and the reason so the operation can be
+ * retried from exactly there.
+ */
+export interface TenantDeletionResult {
+  jobId: string;
+  tenantId: string;
+  tenantSlug: string;
+  status: 'COMPLETED' | 'FAILED';
+  /** Steps already finished. A retry skips these. */
+  completedSteps: string[];
+  /** The step that failed, when one did. */
+  currentStep: string | null;
+  /** How many objects were removed from storage. */
+  objectsDeleted: number;
+  databaseName: string | null;
+  error: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}

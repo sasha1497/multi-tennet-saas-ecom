@@ -370,6 +370,12 @@ export interface ConfirmDialogProps {
   cancelLabel?: string;
   destructive?: boolean;
   loading?: boolean;
+  /**
+   * Blocks confirmation until some condition in `message` is satisfied — a
+   * typed store name, a ticked acknowledgement. For operations where "are you
+   * sure?" is not a high enough bar on its own.
+   */
+  confirmDisabled?: boolean;
 }
 
 /** Used before anything irreversible: archiving a product, cancelling an order. */
@@ -383,6 +389,7 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   destructive,
   loading,
+  confirmDisabled,
 }: ConfirmDialogProps) {
   return (
     <Modal
@@ -404,7 +411,7 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={() => void onConfirm()}
-            disabled={loading}
+            disabled={loading || confirmDisabled}
             className={cn(
               'h-9 rounded-lg px-3.5 text-sm font-medium text-white disabled:opacity-50',
               destructive ? 'bg-danger-600 hover:bg-danger-700' : 'bg-primary hover:brightness-110',

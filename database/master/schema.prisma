@@ -327,6 +327,51 @@ model TenantProvisioningJob {
   @@map("tenant_provisioning_jobs")
 }
 
+/// Durable, resumable state for permanently deleting a tenant.
+///
+/// Deletion spans three systems that cannot share a transaction — the master
+/// database, the tenant's own database, and object storage — so a crash between
+/// any two of them leaves work half done. This row is what makes that
+/// recoverable rather than unknown: each finished step is recorded, and a retry
+/// resumes at the first one that is not.
+///
+/// Deliberately NOT cascaded from `Tenant`: the job outlives the tenant row it
+/// deleted, which is the only way a completed deletion can still be inspected.
+model TenantDeletionJob {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  /// Kept as plain columns because the tenant they name is about to stop
+  /// existing — a relation would either block the delete or vanish with it.
+  tenantSlug String @map("tenant_slug") @db.VarChar(63)
+  tenantName String @map("tenant_name") @db.VarChar(120)
+
+  /// Reuses the provisioning lifecycle: PENDING → RUNNING → COMPLETED/FAILED.
+  status         ProvisioningJobStatus @default(PENDING)
+  currentStep    String?               @map("current_step") @db.VarChar(64)
+  /// Steps already finished — a retry skips these.
+  completedSteps String[]              @default([]) @map("completed_steps")
+  attempts       Int                   @default(0)
+  lastError      String?               @map("last_error") @db.Text
+
+  /// What the deletion actually removed, for the audit record.
+  objectsDeleted Int     @default(0) @map("objects_deleted")
+  databaseName   String? @map("database_name") @db.VarChar(63)
+
+  /// The super admin who asked for this. Never null in practice; nullable so a
+  /// deleted admin account cannot take the deletion record with it.
+  requestedByUserId String? @map("requested_by_user_id") @db.Uuid
+  requestedByEmail  String? @map("requested_by_email") @db.VarChar(255)
+
+  startedAt  DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([tenantId, createdAt])
+  @@index([status, createdAt])
+  @@map("tenant_deletion_jobs")
+}
+
 // ---------------------------------------------------------------- billing --
 
 model Plan {

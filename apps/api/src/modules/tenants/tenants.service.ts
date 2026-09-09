@@ -109,7 +109,8 @@ export class TenantsService {
       const now = new Date();
       const periodEnd = new Date(now);
       periodEnd.setMonth(periodEnd.getMonth() + 1);
-      const trialEnd = plan.trialDays > 0 ? new Date(now.getTime() + plan.trialDays * 86_400_000) : null;
+      const trialEnd =
+        plan.trialDays > 0 ? new Date(now.getTime() + plan.trialDays * 86_400_000) : null;
 
       await tx.subscription.create({
         data: {
@@ -261,11 +262,7 @@ export class TenantsService {
    * Status transitions. Suspending evicts cached routing immediately so an
    * abusive store stops serving within a second, not after a cache TTL.
    */
-  async updateStatus(
-    tenantId: string,
-    status: TenantStatus,
-    reason?: string,
-  ): Promise<void> {
+  async updateStatus(tenantId: string, status: TenantStatus, reason?: string): Promise<void> {
     const tenant = await this.master.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) throw Errors.notFound('Store', tenantId);
 
@@ -308,7 +305,12 @@ export class TenantsService {
       metadata: { from: tenant.status, to: status, reason },
     });
 
-    this.logger.info('Tenant status changed', { tenantId, from: tenant.status, to: status, reason });
+    this.logger.info('Tenant status changed', {
+      tenantId,
+      from: tenant.status,
+      to: status,
+      reason,
+    });
   }
 
   storefrontUrlFor(slug: string): string {
@@ -319,7 +321,10 @@ export class TenantsService {
     const code = (planCode ?? 'FREE').toUpperCase();
     const plan =
       (await this.master.plan.findUnique({ where: { code } })) ??
-      (await this.master.plan.findFirst({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }));
+      (await this.master.plan.findFirst({
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
+      }));
 
     if (!plan) {
       throw Errors.internal(

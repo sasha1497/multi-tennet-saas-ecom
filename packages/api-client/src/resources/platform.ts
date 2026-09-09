@@ -13,6 +13,7 @@ import type {
   QueueStats,
   Subscription,
   SystemHealthDetail,
+  TenantDeletionResult,
   TenantStatus,
 } from '@retailos/types';
 import type { HttpClient } from '../http';
@@ -47,6 +48,26 @@ export class PlatformResource {
     reason?: string,
   ): Promise<PlatformTenantListItem> {
     return this.http.post(`/platform/tenants/${id}/status`, { status, reason });
+  }
+
+  /**
+   * Permanently deletes a store, its database and its files.
+   *
+   * `confirmation` must be the store's slug; the server checks it against the
+   * tenant it loaded, so a wrong id cannot be confirmed by a right name.
+   *
+   * Resumable rather than transactional — deletion spans three systems that
+   * cannot share a transaction. A `FAILED` result names the step that failed;
+   * calling this again continues from there. Calling it after `COMPLETED`
+   * returns the original outcome and deletes nothing further.
+   */
+  deleteTenant(id: string, confirmation: string): Promise<TenantDeletionResult> {
+    return this.http.delete(`/platform/tenants/${id}`, { confirmation });
+  }
+
+  /** Deletion history, including for tenants that no longer exist. */
+  tenantDeletionJobs(id: string): Promise<TenantDeletionResult[]> {
+    return this.http.get(`/platform/tenants/${id}/deletion-jobs`);
   }
 
   /** Idempotent: re-running on an already-provisioned tenant is a no-op. */

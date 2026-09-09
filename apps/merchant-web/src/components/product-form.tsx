@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ImagePlus, Plus, Trash2, Upload } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import type { CreateProductRequest, Product, ProductStatus } from '@retailos/types';
 import {
   Button,
@@ -17,6 +17,7 @@ import {
 } from '@retailos/ui';
 import { api } from '@/lib/api';
 import { paiseToRupees, rupeesToPaise, useErrorToast } from '@/lib/hooks';
+import { ProductImageEditor, toEditorImages, type EditorImage } from './product-images';
 
 interface VariantRow {
   id?: string;
@@ -62,8 +63,9 @@ export function ProductForm({ product }: { product?: Product }) {
     tags: (product?.tags ?? []).join(', '),
   });
 
-  const [images, setImages] = useState<string[]>(product?.images.map((i) => i.url) ?? []);
-  const [uploading, setUploading] = useState(false);
+  const [images, setImages] = useState<EditorImage[]>(
+    product ? toEditorImages(product.images) : [],
+  );
 
   const [options, setOptions] = useState<OptionRow[]>(
     product?.options.length
@@ -92,18 +94,6 @@ export function ProductForm({ product }: { product?: Product }) {
     [options],
   );
 
-  const upload = async (file: File) => {
-    setUploading(true);
-    try {
-      const result = await api().merchant.uploadFile(file, file.name);
-      setImages((list) => [...list, result.url]);
-    } catch (err) {
-      showError(err, 'Could not upload the image');
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const buildPayload = (): CreateProductRequest => ({
     name: basics.name.trim(),
     shortDescription: basics.shortDescription.trim() || null,
@@ -119,7 +109,19 @@ export function ProductForm({ product }: { product?: Product }) {
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean),
-    images: images.map((url, i) => ({ url, isPrimary: i === 0 })),
+    // The gallery is sent in the order it is shown, with the first image
+    // primary — the same rule the editor displays, so what the merchant
+    // arranged is what the storefront renders.
+    images: images.map((image, i) => ({
+      url: image.objectKey ? undefined : image.url,
+      objectKey: image.objectKey ?? undefined,
+      alt: image.alt ?? null,
+      fileName: image.fileName,
+      mimeType: image.mimeType,
+      size: image.size,
+      sortOrder: i,
+      isPrimary: i === 0,
+    })),
     options: options
       .filter((o) => o.name.trim() && o.values.trim())
       .map((o) => ({
@@ -276,55 +278,10 @@ export function ProductForm({ product }: { product?: Product }) {
       <Card>
         <CardHeader
           title="Images"
-          description="The first image is used as the main product photo."
+          description="Add several at once. The first image is the main product photo."
         />
         <CardBody>
-          <div className="flex flex-wrap gap-3">
-            {images.map((url, i) => (
-              <div key={url} className="group relative">
-                <img
-                  src={url}
-                  alt=""
-                  className="h-24 w-24 rounded-lg border border-line object-cover"
-                />
-                {i === 0 && (
-                  <span className="absolute left-1 top-1 rounded bg-neutral-900/75 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                    Main
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setImages((list) => list.filter((u) => u !== url))}
-                  className="absolute -right-1.5 -top-1.5 rounded-full bg-danger-600 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
-                  aria-label="Remove image"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
-            ))}
-
-            <label className="flex h-24 w-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line text-content-subtle hover:border-primary hover:text-primary">
-              {uploading ? (
-                <Upload className="h-5 w-5 animate-pulse" />
-              ) : (
-                <ImagePlus className="h-5 w-5" />
-              )}
-              <span className="text-[11px]">{uploading ? 'Uploading…' : 'Add image'}</span>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/avif"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void upload(file);
-                  e.target.value = '';
-                }}
-              />
-            </label>
-          </div>
-          <p className="mt-3 text-xs text-content-subtle">
-            JPEG, PNG, WebP or AVIF · up to 5 MB each.
-          </p>
+          <ProductImageEditor images={images} onChange={setImages} productId={product?.id} />
         </CardBody>
       </Card>
 

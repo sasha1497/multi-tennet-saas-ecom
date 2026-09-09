@@ -17,17 +17,20 @@ import {
   auditLogQuerySchema,
   changeSubscriptionSchema,
   createTenantSchema,
+  deleteTenantSchema,
   platformTenantQuerySchema,
   setEntitlementSchema,
   updateTenantStatusSchema,
   upsertPlanSchema,
 } from '@retailos/validation';
 import { Audience, RequirePermissions, SuperAdminOnly } from '@/common/decorators';
+import { TenantDeletionService } from '@/modules/tenants/tenant-deletion.service';
 import { PlatformService } from './platform.service';
 
 class TenantQueryDto extends createZodDto(platformTenantQuerySchema) {}
 class CreateTenantDto extends createZodDto(createTenantSchema) {}
 class UpdateStatusDto extends createZodDto(updateTenantStatusSchema) {}
+class DeleteTenantDto extends createZodDto(deleteTenantSchema) {}
 class SetEntitlementDto extends createZodDto(setEntitlementSchema) {}
 class ChangeSubscriptionDto extends createZodDto(changeSubscriptionSchema) {}
 class UpsertPlanDto extends createZodDto(upsertPlanSchema) {}
@@ -47,7 +50,10 @@ class AuditQueryDto extends createZodDto(auditLogQuerySchema) {}
 @Audience(TokenAudience.ADMIN)
 @SuperAdminOnly()
 export class PlatformController {
-  constructor(private readonly platform: PlatformService) {}
+  constructor(
+    private readonly platform: PlatformService,
+    private readonly deletion: TenantDeletionService,
+  ) {}
 
   @Get('overview')
   @RequirePermissions(Permission.PLATFORM_TENANTS_READ)
@@ -104,6 +110,43 @@ export class PlatformController {
   })
   provision(@Param('id') id: string) {
     return this.platform.provision(id);
+  }
+
+  /**
+   * Permanent, irreversible deletion.
+   *
+   * Three independent gates, none of which the front end can satisfy on its
+   * own: the controller is `@SuperAdminOnly()`, the route needs
+   * `platform.tenants.delete` (which no merchant role holds, not even OWNER),
+   * and the body must carry the store's own identifier. Hiding the button is
+   * not one of the gates.
+   *
+   * Resumable: calling it again after a partial failure continues from the step
+   * that failed rather than starting over, and calling it after success returns
+   * the original outcome instead of deleting anything twice.
+   */
+  @Delete('tenants/:id')
+  @RequirePermissions(Permission.PLATFORM_TENANTS_DELETE)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Permanently delete a store, its database and its files',
+    description:
+      "Removes the tenant's own PostgreSQL database, everything under its object-storage prefix, " +
+      'and its control-plane records. Other tenants and shared platform data are untouched. ' +
+      "Requires the store's slug in the body as confirmation. This cannot be undone.",
+  })
+  deleteTenant(@Param('id') id: string, @Body() dto: DeleteTenantDto) {
+    return this.deletion.deleteTenant(id, dto.confirmation);
+  }
+
+  @Get('tenants/:id/deletion-jobs')
+  @RequirePermissions(Permission.PLATFORM_TENANTS_READ)
+  @ApiOperation({
+    summary: 'Deletion history for a store',
+    description: 'Also answers for tenants that no longer exist — that is the point of it.',
+  })
+  deletionJobs(@Param('id') id: string) {
+    return this.deletion.jobs(id);
   }
 
   @Get('tenants/:id/provisioning-jobs')

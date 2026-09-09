@@ -1,11 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Database, PlayCircle, RefreshCw, ShieldOff, ShieldCheck } from 'lucide-react';
+import {
+  AlertTriangle,
+  Database,
+  PlayCircle,
+  RefreshCw,
+  ShieldOff,
+  ShieldCheck,
+  Trash2,
+} from 'lucide-react';
 import { formatDate, formatMoney } from '@retailos/config';
-import type { TenantStatus } from '@retailos/types';
+import type { TenantDeletionResult, TenantStatus } from '@retailos/types';
 import {
   Badge,
   Button,
@@ -26,12 +34,18 @@ import { useErrorToast } from '@/lib/hooks';
 
 export default function TenantDetailPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const toast = useToast();
   const showError = useErrorToast();
   const queryClient = useQueryClient();
 
   const [suspending, setSuspending] = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
+
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  /** A partial failure, kept on screen so the retry has something to explain. */
+  const [deletionFailure, setDeletionFailure] = useState<TenantDeletionResult | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['platform-tenant', params.id],
@@ -54,6 +68,39 @@ export default function TenantDetailPage() {
       invalidate();
     },
     onError: (err) => showError(err, 'Could not change the store status'),
+  });
+
+  /**
+   * Permanent deletion.
+   *
+   * The API answers 200 with a *result* rather than throwing on a partial
+   * failure, because "the database is gone but storage cleanup failed" is a
+   * state the operator needs to see and retry, not an error to swallow. So the
+   * success handler has to branch on `status`.
+   */
+  const deleteTenant = useMutation({
+    mutationFn: () => api().platform.deleteTenant(params.id, deleteConfirmation),
+    onSuccess: (result) => {
+      if (result.status === 'COMPLETED') {
+        toast.success(
+          `${data?.tenant.name ?? 'Store'} deleted`,
+          `Database dropped and ${result.objectsDeleted} file(s) removed from storage.`,
+        );
+        setDeleting(false);
+        setDeletionFailure(null);
+        void queryClient.invalidateQueries({ queryKey: ['platform-tenants'] });
+        router.push('/platform');
+        return;
+      }
+
+      setDeletionFailure(result);
+      toast.error(
+        'Deletion stopped part way',
+        `Failed at ${stepLabel(result.currentStep)}. Nothing was left in an unknown state — retry to continue.`,
+      );
+      invalidate();
+    },
+    onError: (err) => showError(err, 'Could not delete this store'),
   });
 
   const provision = useMutation({
@@ -293,6 +340,87 @@ export default function TenantDetailPage() {
         </Card>
       </div>
 
+      {/* ── Danger zone ──────────────────────────────────────────────────
+          Deliberately below everything else and visually separated: it is the
+          one action on this page that cannot be undone. */}
+      <Card className="mt-4 border-danger-200 dark:border-danger-700/40">
+        <CardHeader
+          title="Delete this store"
+          description="Permanently removes the store, its database and every file it uploaded."
+        />
+        <CardBody>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <ul className="max-w-xl space-y-1 text-sm text-content-muted">
+              <li>· Its PostgreSQL database is dropped — products, orders, customers, everything.</li>
+              <li>· Every file under its storage prefix is deleted.</li>
+              <li>· Its subdomain, members, subscription and settings are removed.</li>
+              <li className="text-content">
+                · Other stores and shared platform data are not touched.
+              </li>
+            </ul>
+            <Button
+              variant="danger"
+              leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+              onClick={() => {
+                setDeleteConfirmation('');
+                setDeleting(true);
+              }}
+            >
+              Delete store
+            </Button>
+          </div>
+
+          {deletionFailure && (
+            <div className="mt-4 rounded-lg border border-danger-200 bg-danger-50 p-3 dark:border-danger-700/40 dark:bg-danger-700/15">
+              <p className="flex items-center gap-1.5 text-sm font-medium text-danger-700 dark:text-danger-100">
+                <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                Deletion stopped at {stepLabel(deletionFailure.currentStep)}
+              </p>
+              <p className="mt-1 text-xs text-danger-700/90 dark:text-danger-100/80">
+                {deletionFailure.error}
+              </p>
+              <p className="mt-2 text-xs text-content-muted">
+                Completed:{' '}
+                {deletionFailure.completedSteps.map(stepLabel).join(', ') || 'nothing yet'}. Deleting
+                again resumes from where it stopped rather than starting over.
+              </p>
+            </div>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* Typing the store's identifier is the actual gate on the client side;
+          the server checks the same string against the tenant it loaded. */}
+      <ConfirmDialog
+        open={deleting}
+        onClose={() => setDeleting(false)}
+        onConfirm={() => deleteTenant.mutate()}
+        title={`Delete ${data.tenant.name}?`}
+        destructive
+        confirmLabel="Delete permanently"
+        loading={deleteTenant.isPending}
+        confirmDisabled={deleteConfirmation.trim().toLowerCase() !== data.tenant.slug.toLowerCase()}
+        message={
+          <div className="space-y-3">
+            <p className="font-medium text-content">
+              This permanently removes this store and all of its data. It cannot be undone.
+            </p>
+            <p className="text-sm text-content-muted">
+              The store&apos;s database will be dropped, every uploaded file deleted, and its team
+              signed out immediately. No other store is affected.
+            </p>
+            <Input
+              label={`Type ${data.tenant.slug} to confirm`}
+              required
+              autoComplete="off"
+              value={deleteConfirmation}
+              onChange={(e) => setDeleteConfirmation(e.target.value)}
+              placeholder={data.tenant.slug}
+            />
+          </div>
+        }
+      />
+
       <ConfirmDialog
         open={suspending}
         onClose={() => setSuspending(false)}
@@ -319,6 +447,18 @@ export default function TenantDetailPage() {
       />
     </div>
   );
+}
+
+/** Turns a pipeline step name into something an operator can read. */
+function stepLabel(step: string | null): string {
+  const labels: Record<string, string> = {
+    REVOKE_ACCESS: 'revoking access',
+    PURGE_STORAGE: 'deleting files',
+    DROP_DATABASE: 'dropping the database',
+    PURGE_MASTER_RECORDS: 'removing platform records',
+    FINALISE: 'final verification',
+  };
+  return step ? (labels[step] ?? step.toLowerCase().replace(/_/g, ' ')) : 'an unknown step';
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {

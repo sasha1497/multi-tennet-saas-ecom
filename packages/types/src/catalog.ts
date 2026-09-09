@@ -187,6 +187,25 @@ export interface UpsertVariantRequest {
   lowStockThreshold?: number;
 }
 
+/**
+ * One image on a product write.
+ *
+ * `objectKey` for anything uploaded through the presigned flow, `url` for
+ * images that predate it or came from the multipart route. At least one of the
+ * two is required; the API rejects a payload carrying neither.
+ */
+export interface ProductImageInput {
+  url?: string;
+  objectKey?: string;
+  alt?: string | null;
+  fileName?: string | null;
+  mimeType?: string | null;
+  size?: number | null;
+  /** Position in the gallery. Omitted means "the order these were sent in". */
+  sortOrder?: number;
+  isPrimary?: boolean;
+}
+
 export interface CreateProductRequest {
   name: string;
   description?: string | null;
@@ -194,7 +213,7 @@ export interface CreateProductRequest {
   status?: ProductStatus;
   categoryId?: string | null;
   brandId?: string | null;
-  images?: { url: string; alt?: string | null; isPrimary?: boolean }[];
+  images?: ProductImageInput[];
   options?: ProductOption[];
   variants: UpsertVariantRequest[];
   taxRateBps?: number | null;

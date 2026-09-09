@@ -61,6 +61,14 @@ export const Permission = {
   // Platform-only
   PLATFORM_TENANTS_READ: 'platform.tenants.read',
   PLATFORM_TENANTS_MANAGE: 'platform.tenants.manage',
+  /**
+   * Permanent, irreversible tenant deletion.
+   *
+   * Split from `manage` on purpose: suspending a store and destroying it are
+   * not the same authority, and the destructive one should be grantable — or
+   * withholdable — on its own.
+   */
+  PLATFORM_TENANTS_DELETE: 'platform.tenants.delete',
   PLATFORM_PLANS_MANAGE: 'platform.plans.manage',
   PLATFORM_USERS_MANAGE: 'platform.users.manage',
   PLATFORM_AUDIT_READ: 'platform.audit.read',
