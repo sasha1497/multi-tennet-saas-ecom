@@ -1,7 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { cacheKeys } from '@retailos/config';
-import { AuditAction, LimitKey, type PaginatedResult, type Product, type ProductListItem } from '@retailos/types';
-import { slugify, type CreateProductInput, type ProductQueryInput, type UpdateProductInput } from '@retailos/validation';
+import {
+  AuditAction,
+  LimitKey,
+  type PaginatedResult,
+  type Product,
+  type ProductImage,
+  type ProductListItem,
+} from '@retailos/types';
+import {
+  slugify,
+  type AddProductImagesInput,
+  type CreateProductInput,
+  type ProductQueryInput,
+  type ReorderProductImagesInput,
+  type UpdateProductInput,
+} from '@retailos/validation';
 import { Errors } from '@/common/errors/app.exception';
 import { buildOrderBy, escapeLike, normaliseSearch, paginate, toPrismaPage } from '@/common/utils/pagination';
 import { AppConfigService } from '@/config/config.module';
@@ -9,11 +23,14 @@ import { CacheService } from '@/core/cache/cache.service';
 import { RequestContextService } from '@/core/context/request-context';
 import { TenantDatabaseService, type TenantTransactionClient } from '@/core/database/tenant-database.service';
 import { AppLogger } from '@/core/logger/logger.service';
+import { MediaUrlService, type MediaUrlResolver } from '@/core/storage/media-url.service';
+import { StorageService } from '@/core/storage/storage.service';
 import { AuditService } from '@/modules/audit/audit.service';
 import { EntitlementsService } from '@/modules/entitlements/entitlements.service';
 import {
   buildSearchText,
   buildVariantLabel,
+  mapImage,
   mapProduct,
   mapProductListItem,
 } from './catalog.mapper';
@@ -54,9 +71,26 @@ export class ProductsService {
     private readonly entitlements: EntitlementsService,
     private readonly audit: AuditService,
     private readonly config: AppConfigService,
+    private readonly storage: StorageService,
+    private readonly media: MediaUrlService,
     logger: AppLogger,
   ) {
     this.logger = logger.withContext('ProductsService');
+  }
+
+  /**
+   * A URL resolver covering every image on the rows about to be mapped.
+   *
+   * Built once per response rather than per image: on a private bucket each
+   * image needs a presigned GET, and signing inside a `.map()` would mean one
+   * await per product. See `MediaUrlService` for why the URLs it returns are
+   * safe to put in the catalogue cache.
+   */
+  private imageUrls(rows: { images?: { objectKey?: string | null; url: string }[] }[]) {
+    const refs = rows.flatMap((row) =>
+      (row.images ?? []).map((image) => ({ objectKey: image.objectKey ?? null, url: image.url })),
+    );
+    return this.media.resolver(this.tenantDb.tenantId, refs);
   }
 
   // =========================================================== reading ==
@@ -120,8 +154,12 @@ export class ProductsService {
       ]),
     );
 
+    const resolveUrl = await this.imageUrls(rows as never);
     let items = rows.map((row) =>
-      mapProductListItem(row as never, { includeAdminFields: scope === 'merchant' }),
+      mapProductListItem(row as never, {
+        includeAdminFields: scope === 'merchant',
+        resolveUrl,
+      }),
     );
 
     // Stock filters run in memory because availability is a derived value
@@ -152,7 +190,7 @@ export class ProductsService {
           }),
         );
         if (!row) throw Errors.notFound('Product');
-        return mapProduct(row as never);
+        return mapProduct(row as never, await this.imageUrls([row as never]));
       },
     );
   }
@@ -163,7 +201,7 @@ export class ProductsService {
       db.product.findFirst({ where: { id, deletedAt: null }, include: PRODUCT_INCLUDE }),
     );
     if (!row) throw Errors.notFound('Product', id);
-    return mapProduct(row as never);
+    return mapProduct(row as never, await this.imageUrls([row as never]));
   }
 
   async featured(limit = 8): Promise<ProductListItem[]> {
@@ -180,7 +218,8 @@ export class ProductsService {
             take: limit,
           }),
         );
-        return rows.map((r) => mapProductListItem(r as never));
+        const resolveUrl = await this.imageUrls(rows as never);
+        return rows.map((r) => mapProductListItem(r as never, { resolveUrl }));
       },
     );
   }
@@ -199,7 +238,8 @@ export class ProductsService {
             take: limit,
           }),
         );
-        return rows.map((r) => mapProductListItem(r as never));
+        const resolveUrl = await this.imageUrls(rows as never);
+        return rows.map((r) => mapProductListItem(r as never, { resolveUrl }));
       },
     );
   }
@@ -230,7 +270,8 @@ export class ProductsService {
         take: limit,
       }),
     );
-    return rows.map((r) => mapProductListItem(r as never));
+    const resolveUrl = await this.imageUrls(rows as never);
+    return rows.map((r) => mapProductListItem(r as never, { resolveUrl }));
   }
 
   /** Type-ahead search. Backed by the trigram index from migration 0002. */
@@ -254,7 +295,8 @@ export class ProductsService {
         take: limit,
       }),
     );
-    return rows.map((r) => mapProductListItem(r as never));
+    const resolveUrl = await this.imageUrls(rows as never);
+    return rows.map((r) => mapProductListItem(r as never, { resolveUrl }));
   }
 
   // =========================================================== writing ==
@@ -307,15 +349,7 @@ export class ProductsService {
             skus: input.variants.map((v) => v.sku),
           }),
           publishedAt: input.status === 'PUBLISHED' ? new Date() : null,
-          images: {
-            create: (input.images ?? []).map((img, index) => ({
-              url: img.url,
-              alt: img.alt ?? null,
-              sortOrder: index,
-              // Exactly one primary; default to the first if none was flagged.
-              isPrimary: img.isPrimary ?? index === 0,
-            })),
-          },
+          images: { create: this.buildImageRows(tenantId, input.images ?? []) },
         },
       });
 
@@ -374,11 +408,13 @@ export class ProductsService {
     });
 
     this.logger.info('Product created', { productId: product.id, tenantId });
-    return mapProduct(product as never);
+    return mapProduct(product as never, await this.imageUrls([product as never]));
   }
 
   async update(id: string, input: UpdateProductInput): Promise<Product> {
     const tenantId = this.tenantDb.tenantId;
+    /** Objects dropped from the gallery, swept once the transaction commits. */
+    const orphanedKeys: string[] = [];
 
     const product = await this.tenantDb.transaction(async (tx) => {
       const existing = await tx.product.findFirst({
@@ -456,17 +492,26 @@ export class ProductsService {
       }
 
       // ---- images --------------------------------------------------------
+      // The payload is the complete gallery, so anything absent from it was
+      // removed. The rows go first; the objects they referenced are collected
+      // and swept after the transaction commits — deleting a file inside a
+      // transaction that may still roll back would destroy a live image.
       if (input.images) {
+        const kept = new Set(
+          input.images.map((img) => img.objectKey).filter((k): k is string => Boolean(k)),
+        );
+        const existingImages = await tx.productImage.findMany({
+          where: { productId: id },
+          select: { objectKey: true },
+        });
+        for (const image of existingImages) {
+          if (image.objectKey && !kept.has(image.objectKey)) orphanedKeys.push(image.objectKey);
+        }
+
         await tx.productImage.deleteMany({ where: { productId: id } });
         if (input.images.length) {
           await tx.productImage.createMany({
-            data: input.images.map((img, index) => ({
-              productId: id,
-              url: img.url,
-              alt: img.alt ?? null,
-              sortOrder: index,
-              isPrimary: img.isPrimary ?? index === 0,
-            })),
+            data: this.buildImageRows(tenantId, input.images).map((row) => ({ ...row, productId: id })),
           });
         }
       }
@@ -525,6 +570,9 @@ export class ProductsService {
       return tx.product.findUniqueOrThrow({ where: { id }, include: PRODUCT_INCLUDE });
     });
 
+    // Only now that the rows are committed: a file deleted before the commit
+    // would be gone even if the transaction rolled back.
+    await this.sweepObjects(tenantId, orphanedKeys);
     await this.cache.invalidateCatalog(tenantId);
 
     this.audit.record('tenant', {
@@ -533,7 +581,7 @@ export class ProductsService {
       resourceId: id,
     });
 
-    return mapProduct(product as never);
+    return mapProduct(product as never, await this.imageUrls([product as never]));
   }
 
   /**
@@ -598,7 +646,167 @@ export class ProductsService {
     });
 
     await this.cache.invalidateCatalog(tenantId);
-    return mapProduct(product as never);
+    return mapProduct(product as never, await this.imageUrls([product as never]));
+  }
+
+  // ============================================================ images ==
+
+  /**
+   * Appends already-uploaded objects to a product's gallery.
+   *
+   * The objects exist by this point — the client uploaded them straight to the
+   * bucket with a presigned PUT and confirmed them — so this is purely the
+   * database half. Ownership is checked twice over: the product must belong to
+   * the acting tenant (the connection itself is that tenant's database), and
+   * every key must sit under that tenant's prefix, which `buildImageRows`
+   * enforces through `StorageService.publicUrl`.
+   */
+  async addImages(
+    productId: string,
+    images: AddProductImagesInput['images'],
+  ): Promise<ProductImage[]> {
+    const tenantId = this.tenantDb.tenantId;
+
+    const rows = await this.tenantDb.transaction(async (tx) => {
+      const product = await tx.product.findFirst({
+        where: { id: productId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!product) throw Errors.notFound('Product', productId);
+
+      const existing = await tx.productImage.findMany({
+        where: { productId },
+        select: { id: true, isPrimary: true },
+        orderBy: { sortOrder: 'asc' },
+      });
+
+      if (existing.length + images.length > this.storage.maxFilesPerRequest) {
+        throw Errors.badRequest(
+          `A product can have at most ${this.storage.maxFilesPerRequest} images. ` +
+            `This one already has ${existing.length}.`,
+        );
+      }
+
+      // A gallery that already has a primary keeps it — appending an image is
+      // not a request to re-crown the product's main photo.
+      const hasPrimary = existing.some((i) => i.isPrimary);
+      const built = this.buildImageRows(tenantId, images).map((row, index) => ({
+        ...row,
+        productId,
+        sortOrder: existing.length + index,
+        isPrimary: hasPrimary ? false : row.isPrimary,
+      }));
+
+      await tx.productImage.createMany({ data: built, skipDuplicates: true });
+
+      return tx.productImage.findMany({
+        where: { productId },
+        orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+      });
+    });
+
+    await this.cache.invalidateCatalog(tenantId);
+    const resolveUrl = await this.media.resolver(tenantId, rows);
+    return rows.map((row) => mapImage(row, resolveUrl));
+  }
+
+  /**
+   * Reorders a gallery and/or moves the primary flag.
+   *
+   * Takes the complete list of ids, so the operation is idempotent and a
+   * dropped retry cannot leave a half-applied order. Ids that do not belong to
+   * this product are rejected rather than ignored: silently discarding one
+   * would reorder the gallery to something the merchant did not ask for.
+   */
+  async reorderImages(
+    productId: string,
+    input: ReorderProductImagesInput,
+  ): Promise<ProductImage[]> {
+    const tenantId = this.tenantDb.tenantId;
+
+    const rows = await this.tenantDb.transaction(async (tx) => {
+      const existing = await tx.productImage.findMany({
+        where: { productId, product: { deletedAt: null } },
+        select: { id: true },
+      });
+      if (existing.length === 0) throw Errors.notFound('Product', productId);
+
+      const known = new Set(existing.map((i) => i.id));
+      const unknown = input.imageIds.filter((id) => !known.has(id));
+      if (unknown.length > 0) {
+        throw Errors.badRequest('One or more images do not belong to this product');
+      }
+      if (input.imageIds.length !== existing.length) {
+        throw Errors.badRequest(
+          `Send every image id. This product has ${existing.length}; ${input.imageIds.length} were sent.`,
+        );
+      }
+      if (input.primaryImageId && !known.has(input.primaryImageId)) {
+        throw Errors.badRequest('The chosen primary image does not belong to this product');
+      }
+
+      const primaryId = input.primaryImageId ?? input.imageIds[0];
+      for (const [index, id] of input.imageIds.entries()) {
+        await tx.productImage.update({
+          where: { id },
+          data: { sortOrder: index, isPrimary: id === primaryId },
+        });
+      }
+
+      return tx.productImage.findMany({
+        where: { productId },
+        orderBy: [{ sortOrder: 'asc' }],
+      });
+    });
+
+    await this.cache.invalidateCatalog(tenantId);
+    const resolveUrl = await this.media.resolver(tenantId, rows);
+    return rows.map((row) => mapImage(row, resolveUrl));
+  }
+
+  /**
+   * Removes one image from a product, and its object from the bucket.
+   *
+   * The row goes inside the transaction and the file goes after it commits —
+   * the same ordering as everywhere else, for the same reason. Removing the
+   * primary promotes the next image rather than leaving the product with no
+   * main photo.
+   */
+  async deleteImage(productId: string, imageId: string): Promise<void> {
+    const tenantId = this.tenantDb.tenantId;
+
+    const removedKey = await this.tenantDb.transaction(async (tx) => {
+      const image = await tx.productImage.findFirst({
+        // Scoped by productId as well as id: an image id from another product
+        // (or another merchant's console) must not resolve to a delete.
+        where: { id: imageId, productId, product: { deletedAt: null } },
+      });
+      if (!image) throw Errors.notFound('Product image', imageId);
+
+      await tx.productImage.delete({ where: { id: imageId } });
+
+      if (image.isPrimary) {
+        const next = await tx.productImage.findFirst({
+          where: { productId },
+          orderBy: { sortOrder: 'asc' },
+        });
+        if (next) {
+          await tx.productImage.update({ where: { id: next.id }, data: { isPrimary: true } });
+        }
+      }
+
+      return image.objectKey;
+    });
+
+    if (removedKey) await this.sweepObjects(tenantId, [removedKey]);
+    await this.cache.invalidateCatalog(tenantId);
+
+    this.audit.record('tenant', {
+      action: AuditAction.PRODUCT_UPDATED,
+      resourceType: 'product',
+      resourceId: productId,
+      metadata: { imageDeleted: imageId },
+    });
   }
 
   // ========================================================== internals ==
@@ -644,5 +852,71 @@ export class ProductsService {
       select: { sku: true },
     });
     if (clash) throw Errors.duplicate(`SKU ${clash.sku}`, 'SKU');
+  }
+
+  /**
+   * Removes objects whose rows are already gone.
+   *
+   * Always after the commit, never inside it: a rolled-back transaction that
+   * had already deleted the file would leave a live image pointing at nothing.
+   * The reverse order — a deleted row whose file survives — costs storage and
+   * is recoverable, so that is the failure this leans towards.
+   */
+  private async sweepObjects(tenantId: string, keys: string[]): Promise<void> {
+    if (keys.length === 0) return;
+    try {
+      await this.storage.deleteMany(tenantId, keys);
+      this.media.forget(keys);
+    } catch (err) {
+      this.logger.warn('Could not remove orphaned product objects', {
+        tenantId,
+        count: keys.length,
+        error: (err as Error).message,
+      });
+    }
+  }
+
+  /**
+   * Turns image inputs into rows.
+   *
+   * Three invariants, all enforced here rather than trusted from the client:
+   * positions come from the payload's own order (or an explicit `sortOrder`),
+   * **exactly one** image is primary — the one flagged, or the first — and
+   * every row carries a usable `url` even when the client only sent a key.
+   *
+   * The stored `url` is deliberately the object's *canonical* address, never a
+   * presigned one: it is a durable column, and a signature that expires in
+   * fifteen minutes has no business in it. Presigned previews are minted at
+   * read time by `MediaUrlService`.
+   */
+  private buildImageRows(
+    tenantId: string,
+    images: readonly {
+      url?: string;
+      objectKey?: string;
+      alt?: string | null;
+      fileName?: string | null;
+      mimeType?: string | null;
+      size?: number | null;
+      sortOrder?: number;
+      isPrimary?: boolean;
+    }[],
+  ) {
+    const flagged = images.findIndex((img) => img.isPrimary);
+    const primaryIndex = flagged === -1 ? 0 : flagged;
+
+    return images.map((img, index) => ({
+      // One of the two is guaranteed present by `productImageInputSchema`;
+      // `publicUrl` also re-checks that the key belongs to this tenant.
+      url: img.objectKey ? this.storage.publicUrl(tenantId, img.objectKey) : img.url!,
+      objectKey: img.objectKey ?? null,
+      bucket: img.objectKey ? this.storage.bucket : null,
+      alt: img.alt ?? null,
+      fileName: img.fileName ?? null,
+      mimeType: img.mimeType ?? null,
+      sizeBytes: img.size ?? null,
+      sortOrder: img.sortOrder ?? index,
+      isPrimary: index === primaryIndex,
+    }));
   }
 }

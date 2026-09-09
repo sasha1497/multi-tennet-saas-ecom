@@ -32,12 +32,26 @@ export interface Brand {
   updatedAt: string;
 }
 
+/**
+ * One product photograph.
+ *
+ * `url` is what you render. On a private bucket it is a presigned GET the API
+ * mints per response and it *expires* — treat it as a value for this render,
+ * never as an identifier to persist or compare. `objectKey` is the stable
+ * identity of the underlying object; `id` is the stable identity of the row.
+ */
 export interface ProductImage {
   id: string;
   url: string;
   alt: string | null;
   sortOrder: number;
   isPrimary: boolean;
+  /** Null for images uploaded before object references existed. */
+  objectKey: string | null;
+  fileName: string | null;
+  mimeType: string | null;
+  /** Bytes, as reported by the object store. */
+  size: number | null;
 }
 
 /** A single option axis, e.g. `Size: [7, 8, 9]`. */

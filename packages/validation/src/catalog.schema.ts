@@ -17,11 +17,94 @@ export const productOptionSchema = z.object({
   values: z.array(shortText(60)).min(1, 'Add at least one value').max(50),
 });
 
-export const productImageInputSchema = z.object({
-  url: httpUrlSchema,
-  alt: z.string().trim().max(200).nullish(),
-  isPrimary: z.boolean().default(false),
+/**
+ * An object-store key, as minted by `StorageService.buildKey`.
+ *
+ * Shape-checked here so an obviously wrong value is rejected with a field
+ * error rather than reaching storage. It is *not* an authorisation check —
+ * the tenant segment is verified server-side against the acting tenant on
+ * every operation, because a client can write any string it likes here.
+ */
+export const objectKeySchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(1024)
+  .regex(/^tenants\/[^/]+\/[A-Za-z0-9._/-]+$/, 'Not a valid storage key')
+  .refine((key) => !key.split('/').includes('..'), 'Not a valid storage key');
+
+/**
+ * One image on a product.
+ *
+ * Accepts either half of the pair: `objectKey` for anything uploaded through
+ * the presigned flow, `url` for images that predate it and for the multipart
+ * route. At least one must be present — a row with neither would reference
+ * nothing at all.
+ */
+export const productImageInputSchema = z
+  .object({
+    url: httpUrlSchema.optional(),
+    objectKey: objectKeySchema.optional(),
+    alt: z.string().trim().max(200).nullish(),
+    fileName: z.string().trim().max(255).nullish(),
+    mimeType: z.string().trim().max(120).nullish(),
+    size: z.number().int().min(0).max(100_000_000).nullish(),
+    /** Position in the gallery. Omitted means "keep the order sent". */
+    sortOrder: z.number().int().min(0).max(999).optional(),
+    isPrimary: z.boolean().default(false),
+  })
+  .refine((img) => Boolean(img.url ?? img.objectKey), {
+    message: 'An image needs either a URL or a storage key',
+    path: ['objectKey'],
+  });
+
+/** One file a client is asking for an upload URL for. */
+export const presignUploadFileSchema = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.string().trim().min(1).max(120),
+  size: z.number().int().positive(),
 });
+
+export const presignUploadSchema = z.object({
+  files: z.array(presignUploadFileSchema).min(1).max(20),
+  /** Where the objects live. `products` also takes a `productId`. */
+  folder: z.enum(['products', 'categories', 'brands', 'store', 'banners']).default('products'),
+  /** Scopes the key to one product, so deleting that product is exact. */
+  productId: uuidSchema.optional(),
+});
+export type PresignUploadInput = z.infer<typeof presignUploadSchema>;
+
+export const confirmUploadSchema = z.object({
+  uploads: z
+    .array(
+      z.object({
+        objectKey: objectKeySchema,
+        fileName: z.string().trim().max(255).optional(),
+      }),
+    )
+    .min(1)
+    .max(20),
+});
+export type ConfirmUploadInput = z.infer<typeof confirmUploadSchema>;
+
+/** Adds already-uploaded objects to an existing product's gallery. */
+export const addProductImagesSchema = z.object({
+  images: z.array(productImageInputSchema).min(1).max(12),
+});
+export type AddProductImagesInput = z.infer<typeof addProductImagesSchema>;
+
+/**
+ * Reorders a product's gallery and/or moves the primary flag.
+ *
+ * Takes the complete list of image ids on purpose: a partial reorder has no
+ * well-defined meaning, and sending the whole list makes the operation
+ * idempotent and trivially safe to retry.
+ */
+export const reorderProductImagesSchema = z.object({
+  imageIds: z.array(uuidSchema).min(1).max(12),
+  primaryImageId: uuidSchema.optional(),
+});
+export type ReorderProductImagesInput = z.infer<typeof reorderProductImagesSchema>;
 
 export const upsertVariantSchema = z
   .object({

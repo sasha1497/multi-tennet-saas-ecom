@@ -8,6 +8,7 @@ import {
   type TenantTransactionClient,
 } from '@/core/database/tenant-database.service';
 import { AppLogger } from '@/core/logger/logger.service';
+import { MediaUrlService } from '@/core/storage/media-url.service';
 import { TokenHasher } from '@/core/security/credential-cipher.service';
 import { CouponsService } from '@/modules/coupons/coupons.service';
 import { StoreService } from '@/modules/store/store.service';
@@ -29,7 +30,11 @@ const CART_INCLUDE = {
               status: true,
               deletedAt: true,
               taxRateBps: true,
-              images: { where: { isPrimary: true }, take: 1, select: { url: true } },
+              images: {
+                where: { isPrimary: true },
+                take: 1,
+                select: { url: true, objectKey: true },
+              },
             },
           },
         },
@@ -66,6 +71,7 @@ export class CartService {
     private readonly store: StoreService,
     private readonly coupons: CouponsService,
     private readonly hasher: TokenHasher,
+    private readonly media: MediaUrlService,
     logger: AppLogger,
   ) {
     this.logger = logger.withContext('CartService');
@@ -325,6 +331,13 @@ export class CartService {
   private async build(cart: CartRow): Promise<Cart> {
     const settings = await this.store.getPricingConfig();
 
+    // Line thumbnails come from the product gallery, which on a private bucket
+    // needs a presigned GET. Resolved in one pass for the whole cart.
+    const resolveUrl = await this.media.resolver(
+      this.tenantDb.tenantId,
+      cart.items.flatMap((item) => item.variant.product.images),
+    );
+
     const issues: CartIssue[] = [];
     const lines: PricingLine[] = [];
     const items: CartItem[] = [];
@@ -381,7 +394,8 @@ export class CartService {
         productSlug: product.slug,
         variantLabel: variant.label,
         sku: variant.sku,
-        imageUrl: variant.imageUrl ?? product.images[0]?.url ?? null,
+        imageUrl:
+          variant.imageUrl ?? (product.images[0] ? resolveUrl(product.images[0]) : null),
         unitPrice: variant.price,
         mrp: variant.mrp,
         quantity: item.quantity,
@@ -488,7 +502,7 @@ type CartRow = {
         status: string;
         deletedAt: Date | null;
         taxRateBps: number | null;
-        images: { url: string }[];
+        images: { url: string; objectKey: string | null }[];
       };
     };
   }[];

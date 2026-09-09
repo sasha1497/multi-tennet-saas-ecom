@@ -19,8 +19,10 @@ import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 import { FeatureKey, Permission, TokenAudience } from '@retailos/types';
 import {
+  addProductImagesSchema,
   adjustInventorySchema,
   bulkAdjustInventorySchema,
+  confirmUploadSchema,
   createBrandSchema,
   createCategorySchema,
   createCouponSchema,
@@ -31,7 +33,9 @@ import {
   merchantUpdateCustomerSchema,
   moderateReviewSchema,
   orderQuerySchema,
+  presignUploadSchema,
   productQuerySchema,
+  reorderProductImagesSchema,
   reportQuerySchema,
   updateBrandSchema,
   updateCategorySchema,
@@ -89,6 +93,10 @@ class ProductQueryDto extends createZodDto(productQuerySchema) {}
 class CreateProductDto extends createZodDto(createProductSchema) {}
 class UpdateProductDto extends createZodDto(updateProductSchema) {}
 class PublishDto extends createZodDto(z.object({ publish: z.boolean() })) {}
+class PresignUploadDto extends createZodDto(presignUploadSchema) {}
+class ConfirmUploadDto extends createZodDto(confirmUploadSchema) {}
+class AddProductImagesDto extends createZodDto(addProductImagesSchema) {}
+class ReorderProductImagesDto extends createZodDto(reorderProductImagesSchema) {}
 class CreateCategoryDto extends createZodDto(createCategorySchema) {}
 class UpdateCategoryDto extends createZodDto(updateCategorySchema) {}
 class CreateBrandDto extends createZodDto(createBrandSchema) {}
@@ -715,7 +723,123 @@ export class MerchantController {
     return this.reports.inventoryReport();
   }
 
+  // ======================================================= product images ==
+
+  @Post('products/:id/images')
+  @RequirePermissions(Permission.PRODUCTS_UPDATE)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Add images to a product',
+    description:
+      'Takes objects already uploaded through the presigned flow and appends them to the ' +
+      "product's gallery. Existing images and the current primary are left alone.",
+  })
+  addProductImages(@Param('id') id: string, @Body() dto: AddProductImagesDto) {
+    return this.products.addImages(id, dto.images);
+  }
+
+  @Patch('products/:id/images')
+  @RequirePermissions(Permission.PRODUCTS_UPDATE)
+  @ApiOperation({
+    summary: 'Reorder a gallery and set the primary image',
+    description:
+      'Send every image id in the order you want. Idempotent, so a retried request is safe.',
+  })
+  reorderProductImages(@Param('id') id: string, @Body() dto: ReorderProductImagesDto) {
+    return this.products.reorderImages(id, dto);
+  }
+
+  @Delete('products/:id/images/:imageId')
+  @RequirePermissions(Permission.PRODUCTS_UPDATE)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete one product image',
+    description:
+      'Removes the row and the object behind it. Deleting the primary promotes the next image.',
+  })
+  async deleteProductImage(
+    @Param('id') id: string,
+    @Param('imageId') imageId: string,
+  ): Promise<void> {
+    await this.products.deleteImage(id, imageId);
+  }
+
   // ================================================================ files ==
+
+  /**
+   * Step 1 of the direct-upload flow.
+   *
+   * The response contains time-limited PUT URLs and nothing else — no bucket
+   * credentials, no account keys, nothing the browser could reuse for a second
+   * object or another tenant. Each URL is signed for one specific key under
+   * this tenant's prefix and one specific content type.
+   */
+  @Post('files/presign')
+  @RequirePermissions(Permission.FILES_UPLOAD)
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ limit: 120, ttl: 300, bucket: 'upload', by: 'user' })
+  @ApiOperation({
+    summary: 'Get presigned upload URLs for one or more files',
+    description:
+      'Validates count, declared type and declared size, then returns a presigned PUT per file. ' +
+      'The browser uploads straight to MinIO/S3 — the bytes never pass through the API — and ' +
+      'calls files/confirm afterwards.',
+  })
+  async presignUploads(@Body() dto: PresignUploadDto) {
+    if (dto.folder === 'products' && dto.productId) {
+      // Scoping a key to a product is a claim about ownership, so it is checked
+      // rather than trusted: an unknown id would mint keys under a prefix this
+      // merchant's product delete would never sweep.
+      await this.products.findByIdForMerchant(dto.productId);
+    }
+
+    const tickets = await this.storage.presignUploads({
+      tenantId: this.tenantDb.tenantId,
+      files: dto.files,
+      folder: dto.folder,
+      productId: dto.folder === 'products' ? dto.productId : undefined,
+    });
+
+    return { uploads: tickets };
+  }
+
+  /**
+   * Step 2 of the direct-upload flow.
+   *
+   * Confirms each object actually landed and that its bytes really are an image
+   * of the type claimed. Anything that fails is deleted from the bucket, so a
+   * rejected upload leaves nothing behind.
+   */
+  @Post('files/confirm')
+  @RequirePermissions(Permission.FILES_UPLOAD)
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ limit: 120, ttl: 300, bucket: 'upload', by: 'user' })
+  @ApiOperation({
+    summary: 'Confirm one or more direct uploads',
+    description:
+      "Verifies each object's size and magic number against what was promised, and returns the " +
+      'metadata to store on the product.',
+  })
+  async confirmUploads(@Body() dto: ConfirmUploadDto) {
+    const tenantId = this.tenantDb.tenantId;
+
+    const files = await Promise.all(
+      dto.uploads.map(async (upload) => {
+        const stored = await this.storage.finalise(tenantId, upload.objectKey, upload.fileName);
+        return {
+          url: stored.url,
+          key: stored.key,
+          objectKey: stored.key,
+          bucket: stored.bucket,
+          fileName: stored.fileName,
+          size: stored.size,
+          mimeType: stored.mimeType,
+        };
+      }),
+    );
+
+    return { files };
+  }
 
   @Post('files/upload')
   @RequirePermissions(Permission.FILES_UPLOAD)
@@ -723,10 +847,11 @@ export class MerchantController {
   @ApiConsumes('multipart/form-data')
   @RateLimit({ limit: 60, ttl: 300, bucket: 'upload', by: 'user' })
   @ApiOperation({
-    summary: 'Upload a product or branding image',
+    summary: 'Upload one image through the API (fallback path)',
     description:
-      'Validates size, MIME type *and* the file\'s magic number, then stores it under a ' +
-      'tenant-prefixed key in object storage.',
+      "Validates size, MIME type *and* the file's magic number, then stores it under a " +
+      'tenant-prefixed key in object storage. Kept for clients that cannot do a direct upload; ' +
+      'prefer files/presign + files/confirm, which does not push the bytes through the API.',
   })
   async upload(@UploadedFile() file?: UploadedImage) {
     if (!file) throw Errors.badRequest('No file was uploaded');
@@ -742,6 +867,11 @@ export class MerchantController {
     return {
       url: stored.url,
       key: stored.key,
+      // Same value as `key`, under the name the product image payload uses.
+      // Both are returned so the older callers keep working unchanged.
+      objectKey: stored.key,
+      bucket: stored.bucket,
+      fileName: stored.fileName,
       size: stored.size,
       mimeType: stored.mimeType,
     };

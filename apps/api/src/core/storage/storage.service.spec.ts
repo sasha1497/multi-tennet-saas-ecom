@@ -2,7 +2,12 @@ import { StorageService } from './storage.service';
 import { LocalStorageProvider } from './providers/local.provider';
 import { MinioStorageProvider } from './providers/minio.provider';
 import { S3StorageProvider } from './providers/s3.provider';
-import type { PutObjectInput, StorageProvider } from './storage.provider';
+import type {
+  ObjectMetadata,
+  PresignedUpload,
+  PutObjectInput,
+  StorageProvider,
+} from './storage.provider';
 import { AppException } from '@/common/errors/app.exception';
 
 /** A real 1x1 PNG — the service checks magic numbers, not just the MIME type. */
@@ -17,13 +22,17 @@ const TENANT_B = '22222222-2222-4222-8222-222222222222';
 /** In-memory provider: exercises StorageService without touching a network. */
 class FakeProvider implements StorageProvider {
   readonly name = 'fake';
-  readonly objects = new Map<string, Buffer>();
+  readonly bucket = 'test-bucket';
+  readonly objects = new Map<string, { body: Buffer; mimeType: string }>();
 
   async put(input: PutObjectInput): Promise<void> {
-    this.objects.set(input.key, input.body);
+    this.objects.set(input.key, { body: input.body, mimeType: input.mimeType });
   }
   async get(key: string): Promise<Buffer | null> {
-    return this.objects.get(key) ?? null;
+    return this.objects.get(key)?.body ?? null;
+  }
+  async getRange(key: string, length: number): Promise<Buffer | null> {
+    return this.objects.get(key)?.body.subarray(0, length) ?? null;
   }
   async delete(key: string): Promise<void> {
     this.objects.delete(key);
@@ -31,20 +40,52 @@ class FakeProvider implements StorageProvider {
   async exists(key: string): Promise<boolean> {
     return this.objects.has(key);
   }
+  async head(key: string): Promise<ObjectMetadata | null> {
+    const object = this.objects.get(key);
+    return object ? { key, size: object.body.length, mimeType: object.mimeType } : null;
+  }
+  async list(prefix: string): Promise<string[]> {
+    return [...this.objects.keys()].filter((key) => key.startsWith(prefix));
+  }
+  async deletePrefix(prefix: string): Promise<number> {
+    if (!prefix.endsWith('/')) throw new Error('not a directory prefix');
+    const keys = await this.list(prefix);
+    for (const key of keys) this.objects.delete(key);
+    return keys.length;
+  }
   publicUrl(key: string): string {
     return `https://cdn.test/${key}`;
   }
   async signedUrl(key: string, expiresInSeconds: number): Promise<string> {
     return `https://cdn.test/${key}?exp=${expiresInSeconds}`;
   }
+  async signedUploadUrl(
+    key: string,
+    mimeType: string,
+    expiresInSeconds: number,
+  ): Promise<PresignedUpload> {
+    return {
+      url: `https://cdn.test/${key}?upload=1&exp=${expiresInSeconds}`,
+      headers: { 'Content-Type': mimeType },
+      expiresInSeconds,
+    };
+  }
   async healthCheck() {
     return { ok: true };
+  }
+
+  /** Test helper: simulates a browser PUTting bytes to a presigned URL. */
+  land(key: string, body: Buffer, mimeType: string): void {
+    this.objects.set(key, { body, mimeType });
   }
 }
 
 const config = {
   storage: {
     maxFileSize: 5 * 1024 * 1024,
+    maxFilesPerRequest: 12,
+    presignedUrlExpiry: 900,
+    publicRead: true,
     allowedMime: ['image/jpeg', 'image/png', 'image/webp', 'image/avif'],
     localDir: './.storage-test',
   },
@@ -230,6 +271,224 @@ describe('StorageService', () => {
       const read = await storage.get(TENANT_A, stored.key);
       expect(read?.equals(PNG)).toBe(true);
     });
+  });
+
+  /**
+   * The direct-upload path. What matters here is that a presigned PUT is a
+   * permission to write one key, and that redeeming it proves nothing on its
+   * own — `finalise` is where the object is actually judged.
+   */
+  describe('presigned uploads', () => {
+    const intent = { fileName: 'front.png', mimeType: 'image/png', size: PNG.length };
+
+    it('signs a key under the requesting tenant, scoped to the product', async () => {
+      const [ticket] = await storage.presignUploads({
+        tenantId: TENANT_A,
+        files: [intent],
+        folder: 'products',
+        productId: 'aaaa1111',
+      });
+
+      expect(ticket.objectKey.startsWith(`tenants/${TENANT_A}/products/aaaa1111/`)).toBe(true);
+      expect(ticket.uploadUrl).toContain('upload=1');
+      expect(ticket.headers['Content-Type']).toBe('image/png');
+      expect(ticket.bucket).toBe('test-bucket');
+    });
+
+    it('never hands out storage credentials', async () => {
+      const [ticket] = await storage.presignUploads({ tenantId: TENANT_A, files: [intent] });
+      const body = JSON.stringify(ticket);
+      for (const secret of ['secretKey', 'accessKey', 'AWS_SECRET', 'minioadmin']) {
+        expect(body).not.toContain(secret);
+      }
+    });
+
+    it('gives each file in a batch its own key', async () => {
+      const tickets = await storage.presignUploads({
+        tenantId: TENANT_A,
+        files: [intent, intent, intent],
+      });
+      expect(new Set(tickets.map((t) => t.objectKey)).size).toBe(3);
+    });
+
+    it('refuses more files than the configured maximum', async () => {
+      await expect(
+        storage.presignUploads({ tenantId: TENANT_A, files: Array(13).fill(intent) }),
+      ).rejects.toThrow(AppException);
+    });
+
+    it('refuses a file larger than the limit before a byte is uploaded', async () => {
+      await expect(
+        storage.presignUploads({
+          tenantId: TENANT_A,
+          files: [{ ...intent, size: 6 * 1024 * 1024 }],
+        }),
+      ).rejects.toThrow(AppException);
+    });
+
+    it('refuses a disallowed type', async () => {
+      await expect(
+        storage.presignUploads({
+          tenantId: TENANT_A,
+          files: [{ fileName: 'x.svg', mimeType: 'image/svg+xml', size: 100 }],
+        }),
+      ).rejects.toThrow(AppException);
+    });
+
+    it('refuses a file whose extension contradicts its declared type', async () => {
+      await expect(
+        storage.presignUploads({
+          tenantId: TENANT_A,
+          files: [{ fileName: 'sneaky.html', mimeType: 'image/png', size: 100 }],
+        }),
+      ).rejects.toThrow(AppException);
+    });
+
+    it('refuses to sign anything without a tenant', async () => {
+      await expect(storage.presignUploads({ tenantId: '', files: [intent] })).rejects.toThrow(
+        AppException,
+      );
+    });
+  });
+
+  describe('confirming a direct upload', () => {
+    let key: string;
+
+    beforeEach(async () => {
+      const [ticket] = await storage.presignUploads({ tenantId: TENANT_A, files: [
+        { fileName: 'front.png', mimeType: 'image/png', size: PNG.length },
+      ] });
+      key = ticket.objectKey;
+    });
+
+    it('accepts an object whose bytes match the type its key promised', async () => {
+      provider.land(key, PNG, 'image/png');
+      const stored = await storage.finalise(TENANT_A, key, 'front.png');
+
+      expect(stored.key).toBe(key);
+      expect(stored.size).toBe(PNG.length);
+      expect(stored.mimeType).toBe('image/png');
+      expect(stored.fileName).toBe('front.png');
+    });
+
+    it('rejects — and deletes — HTML uploaded through a .png ticket', async () => {
+      provider.land(key, Buffer.from('<html><script>alert(1)</script></html>'), 'image/png');
+
+      await expect(storage.finalise(TENANT_A, key)).rejects.toThrow(AppException);
+      // The whole point: a rejected upload must not survive in the bucket.
+      expect(provider.objects.has(key)).toBe(false);
+    });
+
+    it('rejects — and deletes — an object that beat the declared size limit', async () => {
+      provider.land(key, Buffer.concat([PNG, Buffer.alloc(6 * 1024 * 1024)]), 'image/png');
+
+      await expect(storage.finalise(TENANT_A, key)).rejects.toThrow(AppException);
+      expect(provider.objects.has(key)).toBe(false);
+    });
+
+    it('rejects an empty object', async () => {
+      provider.land(key, Buffer.alloc(0), 'image/png');
+      await expect(storage.finalise(TENANT_A, key)).rejects.toThrow(AppException);
+    });
+
+    it('rejects a confirmation for an object that was never uploaded', async () => {
+      await expect(storage.finalise(TENANT_A, key)).rejects.toThrow(AppException);
+    });
+
+    it('REFUSES to confirm another tenant object', async () => {
+      provider.land(key, PNG, 'image/png');
+      await expect(storage.finalise(TENANT_B, key)).rejects.toThrow(AppException);
+      // …and leaves it alone, rather than deleting a stranger's file.
+      expect(provider.objects.has(key)).toBe(true);
+    });
+  });
+
+  describe('tenant purge', () => {
+    it('removes everything the tenant owns and nothing else', async () => {
+      const a1 = await upload(TENANT_A);
+      const a2 = await upload(TENANT_A, 'store');
+      const b1 = await upload(TENANT_B);
+
+      const removed = await storage.purgeTenant(TENANT_A);
+
+      expect(removed).toBe(2);
+      expect(provider.objects.has(a1.key)).toBe(false);
+      expect(provider.objects.has(a2.key)).toBe(false);
+      // The other merchant is untouched — the whole promise of the platform.
+      expect(provider.objects.has(b1.key)).toBe(true);
+    });
+
+    it('lists what it is about to remove', async () => {
+      await upload(TENANT_A);
+      await upload(TENANT_B);
+      const keys = await storage.listTenantObjects(TENANT_A);
+
+      expect(keys).toHaveLength(1);
+      expect(keys[0].startsWith(`tenants/${TENANT_A}/`)).toBe(true);
+    });
+
+    it('refuses an implausible tenant id rather than sweeping the whole bucket', async () => {
+      await upload(TENANT_A);
+      for (const id of ['', '/', '..', 'a']) {
+        await expect(storage.purgeTenant(id)).rejects.toThrow(AppException);
+      }
+      expect(provider.objects.size).toBe(1);
+    });
+  });
+
+  describe('deleteMany', () => {
+    it('refuses the whole batch when one key belongs to another tenant', async () => {
+      const mine = await upload(TENANT_A);
+      const theirs = await upload(TENANT_B);
+
+      await expect(storage.deleteMany(TENANT_A, [mine.key, theirs.key])).rejects.toThrow(
+        AppException,
+      );
+      // Nothing is deleted: ownership is checked for every key before any go.
+      expect(provider.objects.has(mine.key)).toBe(true);
+      expect(provider.objects.has(theirs.key)).toBe(true);
+    });
+  });
+});
+
+describe('StorageService on a private bucket', () => {
+  const privateConfig = {
+    storage: {
+      maxFileSize: 5 * 1024 * 1024,
+      maxFilesPerRequest: 12,
+      presignedUrlExpiry: 900,
+      publicRead: false,
+      allowedMime: ['image/jpeg', 'image/png', 'image/webp', 'image/avif'],
+      localDir: './.storage-test',
+    },
+  } as never;
+
+  it('hands out a presigned GET rather than a public URL', async () => {
+    const provider = new FakeProvider();
+    const storage = new StorageService(privateConfig, provider, logger);
+
+    const stored = await storage.upload({
+      buffer: PNG,
+      originalName: 'p.png',
+      mimeType: 'image/png',
+      tenantId: TENANT_A,
+    });
+
+    expect(stored.url).toContain('exp=900');
+    expect(await storage.readUrl(TENANT_A, stored.key)).toContain('exp=');
+  });
+
+  it('REFUSES to mint a preview URL for another tenant object', async () => {
+    const provider = new FakeProvider();
+    const storage = new StorageService(privateConfig, provider, logger);
+    const stored = await storage.upload({
+      buffer: PNG,
+      originalName: 'p.png',
+      mimeType: 'image/png',
+      tenantId: TENANT_A,
+    });
+
+    await expect(storage.readUrl(TENANT_B, stored.key)).rejects.toThrow(AppException);
   });
 });
 

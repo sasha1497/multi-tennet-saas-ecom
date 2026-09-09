@@ -120,9 +120,13 @@ export function buildConfig(env: Env) {
       accessKey: env.AWS_ACCESS_KEY_ID ?? env.MINIO_ACCESS_KEY ?? env.S3_ACCESS_KEY,
       secretKey: env.AWS_SECRET_ACCESS_KEY ?? env.MINIO_SECRET_KEY ?? env.S3_SECRET_KEY,
       forcePathStyle: env.S3_FORCE_PATH_STYLE,
+      allowLocal: env.STORAGE_ALLOW_LOCAL,
       localDir: env.STORAGE_LOCAL_DIR,
       maxFileSize: env.UPLOAD_MAX_FILE_SIZE,
+      maxFilesPerRequest: env.UPLOAD_MAX_FILES,
       allowedMime: env.UPLOAD_ALLOWED_MIME,
+      presignedUrlExpiry: env.PRESIGNED_URL_EXPIRY,
+      publicRead: env.STORAGE_PUBLIC_READ,
     },
 
     payments: {

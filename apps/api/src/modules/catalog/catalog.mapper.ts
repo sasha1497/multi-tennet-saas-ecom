@@ -1,4 +1,8 @@
 import { discountPercent } from '@retailos/config';
+import {
+  passthroughMediaUrls,
+  type MediaUrlResolver,
+} from '@/core/storage/media-url.service';
 import type {
   Brand,
   Category,
@@ -77,19 +81,37 @@ export function mapVariant(row: VariantRow): ProductVariant {
   };
 }
 
-export function mapImage(row: {
+/**
+ * One product image row, as read from the database.
+ *
+ * The object-reference columns are optional so callers that only `select` the
+ * rendering fields still typecheck — they simply get the stored `url` back.
+ */
+export type ImageRow = {
   id: string;
   url: string;
   alt: string | null;
   sortOrder: number;
   isPrimary: boolean;
-}): ProductImage {
+  objectKey?: string | null;
+  fileName?: string | null;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+};
+
+export function mapImage(row: ImageRow, resolveUrl: MediaUrlResolver = passthroughMediaUrls): ProductImage {
   return {
     id: row.id,
-    url: row.url,
+    // On a private bucket this is a presigned GET minted for this response, not
+    // the stored column — see MediaUrlService.
+    url: resolveUrl({ objectKey: row.objectKey ?? null, url: row.url }),
     alt: row.alt,
     sortOrder: row.sortOrder,
     isPrimary: row.isPrimary,
+    objectKey: row.objectKey ?? null,
+    fileName: row.fileName ?? null,
+    mimeType: row.mimeType ?? null,
+    size: row.sizeBytes ?? null,
   };
 }
 
@@ -199,11 +221,14 @@ type ProductRow = {
   deletedAt: Date | null;
   category?: { id: string; name: string; slug: string } | null;
   brand?: { id: string; name: string; slug: string } | null;
-  images?: { id: string; url: string; alt: string | null; sortOrder: number; isPrimary: boolean }[];
+  images?: ImageRow[];
   variants?: VariantRow[];
 };
 
-export function mapProduct(row: ProductRow): Product {
+export function mapProduct(
+  row: ProductRow,
+  resolveUrl: MediaUrlResolver = passthroughMediaUrls,
+): Product {
   const variants = (row.variants ?? []).map(mapVariant);
   const totalStock = variants.reduce((sum, v) => sum + v.stock.available, 0);
 
@@ -218,7 +243,9 @@ export function mapProduct(row: ProductRow): Product {
     category: row.category ?? null,
     brandId: row.brandId,
     brand: row.brand ?? null,
-    images: (row.images ?? []).map(mapImage).sort((a, b) => a.sortOrder - b.sortOrder),
+    images: (row.images ?? [])
+      .map((image) => mapImage(image, resolveUrl))
+      .sort((a, b) => a.sortOrder - b.sortOrder),
     options: (row.options ?? []) as ProductOption[],
     variants,
     priceFrom: row.priceFrom,
@@ -251,8 +278,9 @@ export function mapProduct(row: ProductRow): Product {
  */
 export function mapProductListItem(
   row: ProductRow & { _count?: { variants: number } },
-  options: { includeAdminFields?: boolean } = {},
+  options: { includeAdminFields?: boolean; resolveUrl?: MediaUrlResolver } = {},
 ): ProductListItem {
+  const resolveUrl = options.resolveUrl ?? passthroughMediaUrls;
   const images = row.images ?? [];
   const primary = images.find((i) => i.isPrimary) ?? images[0];
   const totalStock = (row.variants ?? []).reduce(
@@ -265,7 +293,9 @@ export function mapProductListItem(
     name: row.name,
     slug: row.slug,
     shortDescription: row.shortDescription,
-    primaryImageUrl: primary?.url ?? null,
+    primaryImageUrl: primary
+      ? resolveUrl({ objectKey: primary.objectKey ?? null, url: primary.url })
+      : null,
     priceFrom: row.priceFrom,
     mrpFrom: row.mrpFrom,
     discountPercent: discountPercent(row.priceFrom, row.mrpFrom),

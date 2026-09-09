@@ -1,14 +1,21 @@
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
   type S3ClientConfig,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import type { PutObjectInput, StorageProvider } from '../storage.provider';
+import type {
+  ObjectMetadata,
+  PresignedUpload,
+  PutObjectInput,
+  StorageProvider,
+} from '../storage.provider';
 
 export interface S3CompatibleOptions {
   bucket: string;
@@ -41,24 +48,50 @@ export abstract class S3CompatibleProvider implements StorageProvider {
 
   protected readonly client: S3Client;
 
+  /**
+   * The client every *presigned* URL is generated from.
+   *
+   * SigV4 signs the Host header, so a URL signed for `http://minio:9000` fails
+   * verification the moment a browser sends it to `http://localhost:9100` —
+   * which is the only address a browser can reach under Docker. Signing with
+   * the public endpoint makes the host in the signature the host the request
+   * actually carries. When the two endpoints agree (real AWS, or a deployment
+   * where the API and the browser use the same URL) this is the same client.
+   */
+  protected readonly signingClient: S3Client;
+
+  get bucket(): string {
+    return this.options.bucket;
+  }
+
   constructor(protected readonly options: S3CompatibleOptions) {
+    this.client = new S3Client(this.clientConfig(options.endpoint));
+
+    const publicEndpoint = options.publicEndpoint ?? options.endpoint;
+    this.signingClient =
+      publicEndpoint === options.endpoint
+        ? this.client
+        : new S3Client(this.clientConfig(publicEndpoint));
+  }
+
+  private clientConfig(endpoint: string | undefined): S3ClientConfig {
     const config: S3ClientConfig = {
-      region: options.region,
-      forcePathStyle: options.forcePathStyle,
+      region: this.options.region,
+      forcePathStyle: this.options.forcePathStyle,
     };
-    if (options.endpoint) config.endpoint = options.endpoint;
+    if (endpoint) config.endpoint = endpoint;
 
     // Omitting credentials entirely is what makes the AWS SDK fall back to the
     // instance/task role. Passing empty strings would defeat that, so the
     // property is only set when both halves are actually present.
-    if (options.accessKey && options.secretKey) {
+    if (this.options.accessKey && this.options.secretKey) {
       config.credentials = {
-        accessKeyId: options.accessKey,
-        secretAccessKey: options.secretKey,
+        accessKeyId: this.options.accessKey,
+        secretAccessKey: this.options.secretKey,
       };
     }
 
-    this.client = new S3Client(config);
+    return config;
   }
 
   async put(input: PutObjectInput): Promise<void> {
@@ -90,14 +123,99 @@ export abstract class S3CompatibleProvider implements StorageProvider {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.options.bucket, Key: key }));
   }
 
-  async exists(key: string): Promise<boolean> {
+  async getRange(key: string, length: number): Promise<Buffer | null> {
     try {
-      await this.client.send(new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }));
-      return true;
+      const res = await this.client.send(
+        new GetObjectCommand({
+          Bucket: this.options.bucket,
+          Key: key,
+          // Inclusive on both ends, so `length` bytes means `0-(length-1)`.
+          Range: `bytes=0-${Math.max(0, length - 1)}`,
+        }),
+      );
+      if (!res.Body) return null;
+      return Buffer.from(await res.Body.transformToByteArray());
     } catch (err) {
-      if (this.isNotFound(err)) return false;
+      if (this.isNotFound(err)) return null;
       throw err;
     }
+  }
+
+  async exists(key: string): Promise<boolean> {
+    return (await this.head(key)) !== null;
+  }
+
+  async head(key: string): Promise<ObjectMetadata | null> {
+    try {
+      const res = await this.client.send(
+        new HeadObjectCommand({ Bucket: this.options.bucket, Key: key }),
+      );
+      return {
+        key,
+        size: res.ContentLength ?? 0,
+        mimeType: res.ContentType ?? 'application/octet-stream',
+        etag: res.ETag?.replace(/"/g, ''),
+        lastModified: res.LastModified,
+      };
+    } catch (err) {
+      if (this.isNotFound(err)) return null;
+      throw err;
+    }
+  }
+
+  async list(prefix: string): Promise<string[]> {
+    const keys: string[] = [];
+    let token: string | undefined;
+
+    do {
+      const res = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.options.bucket,
+          Prefix: prefix,
+          ContinuationToken: token,
+          MaxKeys: 1000,
+        }),
+      );
+      for (const item of res.Contents ?? []) {
+        if (item.Key) keys.push(item.Key);
+      }
+      token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (token);
+
+    return keys;
+  }
+
+  async deletePrefix(prefix: string): Promise<number> {
+    // A prefix that does not end in `/` would also match a sibling whose name
+    // merely starts with it — `tenants/abc` matching `tenants/abcdef`. Every
+    // caller means "this directory", so require the separator.
+    if (!prefix.endsWith('/')) {
+      throw new Error(`Refusing to bulk-delete a prefix that is not a directory: ${prefix}`);
+    }
+
+    const keys = await this.list(prefix);
+    if (keys.length === 0) return 0;
+
+    // DeleteObjects caps at 1000 keys per request.
+    for (let i = 0; i < keys.length; i += 1000) {
+      const batch = keys.slice(i, i + 1000);
+      const res = await this.client.send(
+        new DeleteObjectsCommand({
+          Bucket: this.options.bucket,
+          Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
+        }),
+      );
+      // A partial failure must not be reported as a clean purge — the caller
+      // records the step as failed and retries it.
+      if (res.Errors?.length) {
+        throw new Error(
+          `Failed to delete ${res.Errors.length} object(s) under ${prefix}: ` +
+            `${res.Errors[0].Code ?? 'unknown'} ${res.Errors[0].Message ?? ''}`.trim(),
+        );
+      }
+    }
+
+    return keys.length;
   }
 
   publicUrl(key: string): string {
@@ -113,10 +231,41 @@ export abstract class S3CompatibleProvider implements StorageProvider {
 
   async signedUrl(key: string, expiresInSeconds: number): Promise<string> {
     return getSignedUrl(
-      this.client,
+      this.signingClient,
       new GetObjectCommand({ Bucket: this.options.bucket, Key: key }),
       { expiresIn: expiresInSeconds },
     );
+  }
+
+  async signedUploadUrl(
+    key: string,
+    mimeType: string,
+    expiresInSeconds: number,
+  ): Promise<PresignedUpload> {
+    // Content-Type is signed, so the browser MUST send exactly this value. That
+    // is deliberate: it stops a caller who was granted a URL for a .webp from
+    // uploading an HTML document under the same key. It is not sufficient on
+    // its own — `StorageService.finalise` re-sniffs the stored bytes — but it
+    // makes the cheap attack fail at the object store.
+    const url = await getSignedUrl(
+      this.signingClient,
+      new PutObjectCommand({
+        Bucket: this.options.bucket,
+        Key: key,
+        ContentType: mimeType,
+        CacheControl: 'public, max-age=31536000, immutable',
+      }),
+      { expiresIn: expiresInSeconds },
+    );
+
+    return {
+      url,
+      headers: {
+        'Content-Type': mimeType,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+      },
+      expiresInSeconds,
+    };
   }
 
   async healthCheck(): Promise<{ ok: boolean; message?: string }> {

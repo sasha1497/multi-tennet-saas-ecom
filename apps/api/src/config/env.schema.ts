@@ -121,7 +121,9 @@ export const envSchema = z
      * deployments and .env files keep working.
      */
     STORAGE_PROVIDER: z.enum(['minio', 's3', 'local']).optional(),
-    STORAGE_DRIVER: z.enum(['s3', 'local']).default('local'),
+    // Defaults to object storage: a deployment that says nothing at all must
+    // not silently start writing user uploads to a container filesystem.
+    STORAGE_DRIVER: z.enum(['s3', 'local']).default('s3'),
 
     // MinIO (local development). Falls back to the S3_* names when unset, so a
     // single set of variables can drive either backend.
@@ -146,6 +148,37 @@ export const envSchema = z
     S3_ACCESS_KEY: z.string().optional(),
     S3_SECRET_KEY: z.string().optional(),
     S3_FORCE_PATH_STYLE: bool(true),
+
+    /**
+     * How long a presigned URL stays valid, in seconds. Applies to both
+     * directions: the PUT a browser uploads through, and the GET it previews
+     * with. Short enough that a leaked URL expires quickly, long enough that a
+     * slow mobile upload of a 5 MB image finishes.
+     */
+    PRESIGNED_URL_EXPIRY: int(900),
+
+    /** Ceiling on one presign request — also the per-product image cap. */
+    UPLOAD_MAX_FILES: int(12),
+
+    /**
+     * Whether the bucket serves objects to anonymous readers.
+     *
+     * Default false, which is the safe posture: the bucket stays private and
+     * every preview is a short-lived presigned GET. Set true only when the
+     * bucket policy really does allow public reads (a CDN origin, say), in
+     * which case previews use stable, cacheable URLs instead.
+     */
+    STORAGE_PUBLIC_READ: bool(false),
+
+    /**
+     * Opt-in required for the local-disk driver.
+     *
+     * User uploads must live in object storage — a container filesystem is not
+     * shared between replicas and does not survive a rebuild. The driver still
+     * exists for unit tests and for running with no Docker at all, but it is
+     * never reachable by accident.
+     */
+    STORAGE_ALLOW_LOCAL: bool(false),
     STORAGE_LOCAL_DIR: z.string().default('./.storage'),
     UPLOAD_MAX_FILE_SIZE: int(5_242_880),
     UPLOAD_ALLOWED_MIME: csv(['image/jpeg', 'image/png', 'image/webp', 'image/avif']),
@@ -197,6 +230,29 @@ export const envSchema = z
     SEED_SUPER_ADMIN_PASSWORD: z.string().default('SuperAdmin@123'),
     SEED_DEFAULT_PASSWORD: z.string().default('Password@123'),
   })
+  // Invariants that hold in every environment.
+  .superRefine((env, ctx) => {
+    /**
+     * Cached catalogue responses carry presigned preview URLs, so a URL must
+     * outlive the cache entry that holds it — otherwise a shopper can be served
+     * a still-warm product page whose images have already expired.
+     *
+     * `MediaUrlService` reissues a URL once half its life is gone, so the
+     * shortest life any URL is handed out with is `PRESIGNED_URL_EXPIRY / 2`.
+     * Requiring that to clear the cache TTL is what makes the two safe together.
+     */
+    if (env.PRESIGNED_URL_EXPIRY / 2 <= env.CACHE_TTL_CATALOG) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PRESIGNED_URL_EXPIRY'],
+        message:
+          `PRESIGNED_URL_EXPIRY (${env.PRESIGNED_URL_EXPIRY}s) must be more than twice ` +
+          `CACHE_TTL_CATALOG (${env.CACHE_TTL_CATALOG}s), or a cached product page can outlive ` +
+          `the image URLs inside it.`,
+      });
+    }
+
+  })
   // Production must not run with the shipped development placeholders.
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== 'production') return;
@@ -234,12 +290,13 @@ export const envSchema = z
       });
     }
 
-    if (env.STORAGE_DRIVER === 'local') {
+    if (env.STORAGE_DRIVER === 'local' || env.STORAGE_PROVIDER === 'local') {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['STORAGE_DRIVER'],
+        path: ['STORAGE_PROVIDER'],
         message:
-          'STORAGE_DRIVER=local is not supported in production; use s3 so uploads survive a container restart.',
+          'The local storage driver is not supported in production. Uploaded files must live in ' +
+          'object storage: set STORAGE_PROVIDER=s3 (or minio for an S3-compatible service).',
       });
     }
   });

@@ -20,6 +20,7 @@ import {
   type TenantTransactionClient,
 } from '@/core/database/tenant-database.service';
 import { AppLogger } from '@/core/logger/logger.service';
+import { MediaUrlService } from '@/core/storage/media-url.service';
 import { QueueService } from '@/core/queue/queue.service';
 import { AuditService } from '@/modules/audit/audit.service';
 import { CouponsService } from '@/modules/coupons/coupons.service';
@@ -51,9 +52,27 @@ export class OrdersService {
     private readonly queue: QueueService,
     private readonly audit: AuditService,
     @Inject(forwardRef(() => PaymentsService)) private readonly payments: PaymentsService,
+    private readonly media: MediaUrlService,
     logger: AppLogger,
   ) {
     this.logger = logger.withContext('OrdersService');
+  }
+
+  /**
+   * A URL resolver for the line thumbnails on a set of orders.
+   *
+   * Order lines snapshot *which* image was bought, not a fetchable URL — on a
+   * private bucket a fifteen-minute signature captured at checkout would be
+   * useless by the time anyone opened the order. So the URL is minted here, on
+   * read, from the key the line recorded.
+   */
+  private thumbnailUrls(rows: { items?: { imageKey?: string | null; imageUrl: string | null }[] }[]) {
+    const refs = rows.flatMap((row) =>
+      (row.items ?? [])
+        .filter((item) => item.imageUrl)
+        .map((item) => ({ objectKey: item.imageKey ?? null, url: item.imageUrl! })),
+    );
+    return this.media.resolver(this.tenantDb.tenantId, refs);
   }
 
   // ========================================================== checkout ==
@@ -88,7 +107,10 @@ export class OrdersService {
         orderId: existing.id,
         key: input.idempotencyKey,
       });
-      return { order: mapOrder(existing as never, 'customer'), payment: null };
+      return {
+        order: mapOrder(existing as never, 'customer', await this.thumbnailUrls([existing as never])),
+        payment: null,
+      };
     }
 
     const settings = await this.store.getPricingConfig();
@@ -119,7 +141,11 @@ export class OrdersService {
                         status: true,
                         deletedAt: true,
                         taxRateBps: true,
-                        images: { where: { isPrimary: true }, take: 1, select: { url: true } },
+                        images: {
+                          where: { isPrimary: true },
+                          take: 1,
+                          select: { url: true, objectKey: true },
+                        },
                       },
                     },
                   },
@@ -243,6 +269,10 @@ export class OrdersService {
               variantLabel: variant.label,
               sku: variant.sku,
               imageUrl: variant.imageUrl ?? variant.product.images[0]?.url ?? null,
+              // A variant's own imageUrl is a plain column with no object
+              // behind it, so a key is only recorded when the thumbnail came
+              // from the product gallery.
+              imageKey: variant.imageUrl ? null : (variant.product.images[0]?.objectKey ?? null),
               variantOptions: variant.options as never,
               unitPrice: line.unitPrice,
               mrp: line.mrp,
@@ -367,7 +397,14 @@ export class OrdersService {
       method: input.paymentMethod,
     });
 
-    return { order: mapOrder(created.order as never, 'customer'), payment: paymentIntent };
+    return {
+      order: mapOrder(
+        created.order as never,
+        'customer',
+        await this.thumbnailUrls([created.order as never]),
+      ),
+      payment: paymentIntent,
+    };
   }
 
   // ================================================ payment callbacks ==
@@ -677,7 +714,13 @@ export class OrdersService {
       ]),
     );
 
-    return paginate(rows.map((r) => mapOrderListItem(r as never)), total, page, limit);
+    const resolveUrl = await this.thumbnailUrls(rows as never);
+    return paginate(
+      rows.map((r) => mapOrderListItem(r as never, resolveUrl)),
+      total,
+      page,
+      limit,
+    );
   }
 
   async findByIdForMerchant(id: string): Promise<Order> {
@@ -685,7 +728,7 @@ export class OrdersService {
       db.order.findUnique({ where: { id }, include: ORDER_INCLUDE }),
     );
     if (!row) throw Errors.notFound('Order', id);
-    return mapOrder(row as never, 'merchant');
+    return mapOrder(row as never, 'merchant', await this.thumbnailUrls([row as never]));
   }
 
   /** Scoped by customer id, so one shopper can never read another's order. */
@@ -695,7 +738,7 @@ export class OrdersService {
       db.order.findFirst({ where: { id, customerId }, include: ORDER_INCLUDE }),
     );
     if (!row) throw Errors.notFound('Order', id);
-    return mapOrder(row as never, 'customer');
+    return mapOrder(row as never, 'customer', await this.thumbnailUrls([row as never]));
   }
 
   async tracking(orderNumber: string): Promise<OrderTracking> {
@@ -707,7 +750,9 @@ export class OrdersService {
       }),
     );
     if (!row) throw Errors.notFound('Order', orderNumber);
-    return buildTracking(mapOrder(row as never, 'customer'));
+    return buildTracking(
+      mapOrder(row as never, 'customer', await this.thumbnailUrls([row as never])),
+    );
   }
 
   async updateInternalNotes(orderId: string, notes: string | null): Promise<Order> {

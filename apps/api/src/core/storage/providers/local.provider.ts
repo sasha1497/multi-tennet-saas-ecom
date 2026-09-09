@@ -1,17 +1,25 @@
-import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
-import { dirname, resolve, sep } from 'node:path';
-import type { PutObjectInput, StorageProvider } from '../storage.provider';
+import { mkdir, readdir, readFile, rm, stat, unlink, writeFile } from 'node:fs/promises';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+import type {
+  ObjectMetadata,
+  PresignedUpload,
+  PutObjectInput,
+  StorageProvider,
+} from '../storage.provider';
 
 /**
  * Local-disk storage.
  *
- * For unit tests and for running the API without Docker. Not a production
- * backend — objects do not survive a container rebuild and cannot be shared
- * between replicas, which is why the factory logs a warning when it is selected
- * outside development.
+ * **Not a storage backend for anything a user uploaded.** It exists for unit
+ * tests and for running the API with no Docker at all; it cannot presign,
+ * objects do not survive a container rebuild and nothing is shared between
+ * replicas. Selecting it requires an explicit opt-in (`STORAGE_ALLOW_LOCAL`)
+ * and is refused outright in production — see `storage.module.ts` and
+ * `env.schema.ts`. Local development uses MinIO.
  */
 export class LocalStorageProvider implements StorageProvider {
   readonly name = 'local';
+  readonly bucket = 'local';
 
   constructor(private readonly rootDir: string) {}
 
@@ -38,14 +46,56 @@ export class LocalStorageProvider implements StorageProvider {
     await unlink(path).catch(() => undefined);
   }
 
+  async getRange(key: string, length: number): Promise<Buffer | null> {
+    const buffer = await this.get(key);
+    return buffer ? buffer.subarray(0, length) : null;
+  }
+
   async exists(key: string): Promise<boolean> {
+    return (await this.head(key)) !== null;
+  }
+
+  async head(key: string): Promise<ObjectMetadata | null> {
     const path = this.pathFor(key);
     try {
-      await stat(path);
-      return true;
+      const info = await stat(path);
+      return {
+        key,
+        size: info.size,
+        // A filesystem stores no content type; callers that need one sniff.
+        mimeType: 'application/octet-stream',
+        lastModified: info.mtime,
+      };
     } catch {
-      return false;
+      return null;
     }
+  }
+
+  async list(prefix: string): Promise<string[]> {
+    const root = resolve(this.rootDir);
+    const start = this.pathFor(prefix);
+    const out: string[] = [];
+
+    const walk = async (dir: string): Promise<void> => {
+      const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+      for (const entry of entries) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) await walk(full);
+        else out.push(relative(root, full).split(sep).join('/'));
+      }
+    };
+
+    await walk(start);
+    return out;
+  }
+
+  async deletePrefix(prefix: string): Promise<number> {
+    if (!prefix.endsWith('/')) {
+      throw new Error(`Refusing to bulk-delete a prefix that is not a directory: ${prefix}`);
+    }
+    const keys = await this.list(prefix);
+    await rm(this.pathFor(prefix), { recursive: true, force: true });
+    return keys.length;
   }
 
   publicUrl(key: string): string {
@@ -55,6 +105,15 @@ export class LocalStorageProvider implements StorageProvider {
   /** No signing to do on a local disk; the public path is the only path. */
   async signedUrl(key: string): Promise<string> {
     return this.publicUrl(key);
+  }
+
+  /**
+   * Direct upload has no meaning against a filesystem — there is no endpoint a
+   * browser could PUT to. Callers fall back to the multipart route, which is
+   * what the `StorageService` does when this throws.
+   */
+  async signedUploadUrl(): Promise<PresignedUpload> {
+    throw new Error('The local storage driver cannot issue presigned upload URLs. Use MinIO or S3.');
   }
 
   async healthCheck(): Promise<{ ok: boolean; message?: string }> {

@@ -1,6 +1,7 @@
 import { Global, Module, type Provider } from '@nestjs/common';
 import { AppConfigModule, AppConfigService } from '@/config/config.module';
 import { AppLogger } from '@/core/logger/logger.service';
+import { MediaUrlService } from './media-url.service';
 import { LocalStorageProvider } from './providers/local.provider';
 import { MinioStorageProvider } from './providers/minio.provider';
 import { S3StorageProvider } from './providers/s3.provider';
@@ -56,8 +57,23 @@ const storageProviderFactory: Provider = {
       }
 
       default: {
+        /**
+         * Local disk is not a storage backend for user uploads — it is not
+         * shared between replicas, does not survive a rebuild, and cannot
+         * presign anything. It stays available for unit tests and for running
+         * with no Docker, but only when someone asked for it in as many words.
+         */
+        if (!s.allowLocal) {
+          throw new Error(
+            'STORAGE_PROVIDER=local stores uploads on the application filesystem, which is not ' +
+              'supported: files would not survive a restart and would not be visible to other ' +
+              'replicas. Run MinIO locally (`pnpm docker:up:infra`) and set STORAGE_PROVIDER=minio, ' +
+              'or set STORAGE_ALLOW_LOCAL=true if this is a throwaway test process.',
+          );
+        }
         log.warn(
-          'Storage provider: local disk — uploads will not survive a container rebuild and are not shared between replicas',
+          'Storage provider: local disk — uploads will not survive a container rebuild, are not ' +
+            'shared between replicas, and direct uploads are unavailable',
         );
         return new LocalStorageProvider(s.localDir);
       }
@@ -68,7 +84,7 @@ const storageProviderFactory: Provider = {
 @Global()
 @Module({
   imports: [AppConfigModule],
-  providers: [storageProviderFactory, StorageService],
-  exports: [StorageService, STORAGE_PROVIDER_TOKEN],
+  providers: [storageProviderFactory, StorageService, MediaUrlService],
+  exports: [StorageService, MediaUrlService, STORAGE_PROVIDER_TOKEN],
 })
 export class StorageModule {}

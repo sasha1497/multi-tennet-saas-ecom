@@ -307,6 +307,12 @@ model Product {
   @@map("products")
 }
 
+/// A reference to one object in MinIO/S3 — never the image itself.
+///
+/// `objectKey` is the source of truth. `url` is kept populated for images that
+/// predate object references and as a rendering fallback; on a private bucket
+/// the URL a client receives is a short-lived presigned GET derived from the
+/// key at read time, not this column.
 model ProductImage {
   id        String  @id @default(uuid()) @db.Uuid
   productId String  @map("product_id") @db.Uuid
@@ -314,11 +320,24 @@ model ProductImage {
   alt       String? @db.VarChar(200)
   sortOrder Int     @default(0) @map("sort_order")
   isPrimary Boolean @default(false) @map("is_primary")
+
+  /// `tenants/<tenantId>/products/<productId>/<uuid>.webp`. Null only for
+  /// images uploaded before object references existed.
+  objectKey String? @unique @map("object_key") @db.VarChar(1024)
+  bucket    String? @db.VarChar(255)
+  /// The merchant's own file name. Display only — never used to build a key.
+  fileName  String? @map("file_name") @db.VarChar(255)
+  mimeType  String? @map("mime_type") @db.VarChar(120)
+  /// Reported by the object store after upload. Metadata, not content.
+  sizeBytes Int?    @map("size_bytes")
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId, sortOrder])
+  @@index([productId, isPrimary, sortOrder])
   @@map("product_images")
 }
 
@@ -596,6 +615,9 @@ model OrderItem {
   variantLabel   String @map("variant_label") @db.VarChar(160)
   sku            String @db.VarChar(64)
   imageUrl       String? @map("image_url") @db.VarChar(1024)
+  /// Object key for the thumbnail, so a private bucket can still render it.
+  /// Null for orders placed before object references existed.
+  imageKey       String? @map("image_key") @db.VarChar(1024)
   variantOptions Json    @default("{}") @map("variant_options")
 
   unitPrice      Int @map("unit_price")

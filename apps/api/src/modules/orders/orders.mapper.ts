@@ -1,4 +1,8 @@
 import { ORDER_STATUS_LABELS, ORDER_TIMELINE_STEPS } from '@retailos/config';
+import {
+  passthroughMediaUrls,
+  type MediaUrlResolver,
+} from '@/core/storage/media-url.service';
 import type {
   AddressSnapshot,
   Order,
@@ -55,6 +59,8 @@ type OrderItemRow = {
   variantLabel: string;
   sku: string;
   imageUrl: string | null;
+  /** Object key for the thumbnail. Null on orders placed before 0004. */
+  imageKey?: string | null;
   variantOptions: unknown;
   unitPrice: number;
   mrp: number;
@@ -97,7 +103,11 @@ type PaymentRow = {
  * `internalNotes` in particular is staff-private — a shopper must never see the
  * shop's note about their order.
  */
-export function mapOrder(row: OrderRow, scope: 'customer' | 'merchant' = 'merchant'): Order {
+export function mapOrder(
+  row: OrderRow,
+  scope: 'customer' | 'merchant' = 'merchant',
+  resolveUrl: MediaUrlResolver = passthroughMediaUrls,
+): Order {
   const payment = row.payments?.[0];
 
   const order: Order = {
@@ -110,7 +120,7 @@ export function mapOrder(row: OrderRow, scope: 'customer' | 'merchant' = 'mercha
     status: row.status as OrderStatus,
     paymentStatus: row.paymentStatus as PaymentStatus,
     paymentMethod: row.paymentMethod as Order['paymentMethod'],
-    items: (row.items ?? []).map(mapOrderItem),
+    items: (row.items ?? []).map((item) => mapOrderItem(item, resolveUrl)),
     subtotal: row.subtotal,
     discountAmount: row.discountAmount,
     taxAmount: row.taxAmount,
@@ -157,7 +167,10 @@ export function mapOrder(row: OrderRow, scope: 'customer' | 'merchant' = 'mercha
   return order;
 }
 
-export function mapOrderItem(row: OrderItemRow): OrderItem {
+export function mapOrderItem(
+  row: OrderItemRow,
+  resolveUrl: MediaUrlResolver = passthroughMediaUrls,
+): OrderItem {
   return {
     id: row.id,
     productId: row.productId,
@@ -166,7 +179,11 @@ export function mapOrderItem(row: OrderItemRow): OrderItem {
     productSlug: row.productSlug,
     variantLabel: row.variantLabel,
     sku: row.sku,
-    imageUrl: row.imageUrl,
+    // The snapshot records *which* image the line was placed with; the URL for
+    // it is minted now, because a presigned one would long since have expired.
+    imageUrl: row.imageUrl
+      ? resolveUrl({ objectKey: row.imageKey ?? null, url: row.imageUrl })
+      : null,
     variantOptions: (row.variantOptions ?? {}) as Record<string, string>,
     unitPrice: row.unitPrice,
     mrp: row.mrp,
@@ -193,6 +210,7 @@ export function mapStatusEntry(row: StatusRow): OrderStatusHistoryEntry {
 
 export function mapOrderListItem(
   row: OrderRow & { _count?: { items: number }; items?: OrderItemRow[] },
+  resolveUrl: MediaUrlResolver = passthroughMediaUrls,
 ): OrderListItem {
   return {
     id: row.id,
@@ -205,7 +223,9 @@ export function mapOrderListItem(
     itemCount: row._count?.items ?? row.items?.length ?? 0,
     currency: row.currency,
     placedAt: row.placedAt.toISOString(),
-    thumbnailUrl: row.items?.[0]?.imageUrl ?? null,
+    thumbnailUrl: row.items?.[0]?.imageUrl
+      ? resolveUrl({ objectKey: row.items[0].imageKey ?? null, url: row.items[0].imageUrl! })
+      : null,
   };
 }
 
