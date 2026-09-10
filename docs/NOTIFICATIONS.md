@@ -24,21 +24,21 @@ that an email bounced rather than wondering whether it was ever sent.
 
 Defined in `apps/api/src/modules/notifications/notification-templates.ts`:
 
-| Template | Trigger | To |
-| --- | --- | --- |
-| `order.placed` | Checkout completes | Customer |
-| `order.confirmed` | Payment received | Customer |
-| `order.shipped` | Status → SHIPPED | Customer |
+| Template                 | Trigger                   | To       |
+| ------------------------ | ------------------------- | -------- |
+| `order.placed`           | Checkout completes        | Customer |
+| `order.confirmed`        | Payment received          | Customer |
+| `order.shipped`          | Status → SHIPPED          | Customer |
 | `order.out_for_delivery` | Status → OUT_FOR_DELIVERY | Customer |
-| `order.delivered` | Status → DELIVERED | Customer |
-| `order.cancelled` | Order cancelled | Customer |
-| `payment.received` | Payment captured | Customer |
-| `payment.failed` | Payment failed | Customer |
-| `inventory.low_stock` | Stock below threshold | Merchant |
-| `merchant.new_order` | New order placed | Merchant |
-| `customer.welcome` | Customer registers | Customer |
-| `tenant.ready` | Provisioning completes | Merchant |
-| `staff.invite` | Staff member invited | Staff |
+| `order.delivered`        | Status → DELIVERED        | Customer |
+| `order.cancelled`        | Order cancelled           | Customer |
+| `payment.received`       | Payment captured          | Customer |
+| `payment.failed`         | Payment failed            | Customer |
+| `inventory.low_stock`    | Stock below threshold     | Merchant |
+| `merchant.new_order`     | New order placed          | Merchant |
+| `customer.welcome`       | Customer registers        | Customer |
+| `tenant.ready`           | Provisioning completes    | Merchant |
+| `staff.invite`           | Staff member invited      | Staff    |
 
 They are plain functions rather than a templating engine: there are a dozen
 messages, they need no logic beyond interpolation, and this way the whole
@@ -59,11 +59,11 @@ tenant's storefront URL. A customer of KickZone receives an email from KickZone.
 
 ## Channels and drivers
 
-| Channel | Drivers | Config |
-| --- | --- | --- |
-| Email | `smtp`, `log` | `MAIL_DRIVER`, `SMTP_*`, `MAIL_FROM` |
-| SMS | provider, `log` | `SMS_DRIVER`, `SMS_API_KEY`, `SMS_SENDER_ID` |
-| Push | `fcm`, `log` | `PUSH_DRIVER`, `FCM_*` |
+| Channel | Drivers         | Config                                       |
+| ------- | --------------- | -------------------------------------------- |
+| Email   | `smtp`, `log`   | `MAIL_DRIVER`, `SMTP_*`, `MAIL_FROM`         |
+| SMS     | provider, `log` | `SMS_DRIVER`, `SMS_API_KEY`, `SMS_SENDER_ID` |
+| Push    | `fcm`, `log`    | `PUSH_DRIVER`, `FCM_*`                       |
 
 **Every channel has a `log` driver**, and that is deliberate: the entire flow —
 templating, escaping, persistence, retry, the notification row the customer sees
@@ -100,7 +100,7 @@ generate failures forever.
 
 Low-stock alerts and new-order notifications go to the merchant. Low stock fires
 when a variant crosses the threshold set from the inventory screen — on the
-*transition*, not on every subsequent read, or a merchant with one slow-moving
+_transition_, not on every subsequent read, or a merchant with one slow-moving
 SKU would receive an alert on every order.
 
 ## Configuration

@@ -2,17 +2,17 @@
 
 ## Health endpoints
 
-| Endpoint | Use | Returns |
-| --- | --- | --- |
-| `GET /api/v1/health/live` | Liveness probe | Process up + uptime. Never touches a dependency |
-| `GET /api/v1/health/ready` | Readiness probe | Master database + Redis reachable |
-| `GET /api/v1/health` | Dashboards, paging | Full report: database, Redis, queues, storage |
-| `GET /api/v1/health/metrics` | Scraping | Counters and histograms |
+| Endpoint                     | Use                | Returns                                         |
+| ---------------------------- | ------------------ | ----------------------------------------------- |
+| `GET /api/v1/health/live`    | Liveness probe     | Process up + uptime. Never touches a dependency |
+| `GET /api/v1/health/ready`   | Readiness probe    | Master database + Redis reachable               |
+| `GET /api/v1/health`         | Dashboards, paging | Full report: database, Redis, queues, storage   |
+| `GET /api/v1/health/metrics` | Scraping           | Counters and histograms                         |
 
 The split matters. **Liveness must not check dependencies** — if it did, a brief
 database blip would make the orchestrator kill and restart every healthy API
 container, converting a recoverable dependency problem into a full outage.
-Readiness *should* check them, so a replica that cannot reach the database is
+Readiness _should_ check them, so a replica that cannot reach the database is
 taken out of rotation but left alive to recover.
 
 ```bash
@@ -56,10 +56,17 @@ single query rather than an investigation.
 
 ```json
 {
-  "level": "info", "context": "HTTP",
-  "requestId": "1d449231-…", "tenantId": "d32ce7bc-…", "tenantSlug": "kickzone",
-  "userId": null, "audience": null,
-  "method": "GET", "path": "/api/v1/store", "status": 200, "durationMs": 12
+  "level": "info",
+  "context": "HTTP",
+  "requestId": "1d449231-…",
+  "tenantId": "d32ce7bc-…",
+  "tenantSlug": "kickzone",
+  "userId": null,
+  "audience": null,
+  "method": "GET",
+  "path": "/api/v1/store",
+  "status": 200,
+  "durationMs": 12
 }
 ```
 
@@ -68,7 +75,7 @@ directly to the log line.
 
 **Never logged:** passwords, tokens, database credentials, payment signatures,
 full card data. Tenant credentials are decrypted in memory only and never reach
-a log line — and the malformed-selector warning deliberately logs the *source*
+a log line — and the malformed-selector warning deliberately logs the _source_
 of a bad value rather than the value itself.
 
 ## What to alert on
@@ -76,19 +83,19 @@ of a bad value rather than the value itself.
 Alert on symptoms users feel, not on every deviation. A pager that fires for
 things nobody would notice trains people to ignore it.
 
-| Alert | Condition | Why |
-| --- | --- | --- |
-| **API down** | `/health/ready` failing 2 min | Everything is broken |
-| **5xx rate** | > 1% of requests over 5 min | Something is broken for real users |
-| **p95 latency** | > 1 s over 10 min | Degrading before it fails |
-| **DB connections** | > 80% of `max_connections` | The first wall ([SCALING.md](SCALING.md)) |
-| **Queue depth rising** | Growing over 15 min | Workers stuck or too few |
-| **Provisioning failures** | Any failed job | A merchant cannot open their shop |
-| **Payment webhook failures** | > 3 in 10 min | Orders may not be confirming |
-| **Redis memory** | > 75% | `noeviction` means writes start failing |
-| **Disk** | > 80% | A full disk stops PostgreSQL |
-| **Backup missing** | No successful backup in 26 h | Silent until you need it |
-| **Certificate expiry** | < 14 days | A wildcard expiry takes every storefront down at once |
+| Alert                        | Condition                     | Why                                                   |
+| ---------------------------- | ----------------------------- | ----------------------------------------------------- |
+| **API down**                 | `/health/ready` failing 2 min | Everything is broken                                  |
+| **5xx rate**                 | > 1% of requests over 5 min   | Something is broken for real users                    |
+| **p95 latency**              | > 1 s over 10 min             | Degrading before it fails                             |
+| **DB connections**           | > 80% of `max_connections`    | The first wall ([SCALING.md](SCALING.md))             |
+| **Queue depth rising**       | Growing over 15 min           | Workers stuck or too few                              |
+| **Provisioning failures**    | Any failed job                | A merchant cannot open their shop                     |
+| **Payment webhook failures** | > 3 in 10 min                 | Orders may not be confirming                          |
+| **Redis memory**             | > 75%                         | `noeviction` means writes start failing               |
+| **Disk**                     | > 80%                         | A full disk stops PostgreSQL                          |
+| **Backup missing**           | No successful backup in 26 h  | Silent until you need it                              |
+| **Certificate expiry**       | < 14 days                     | A wildcard expiry takes every storefront down at once |
 
 The last two are the ones that bite: both fail silently and both are catastrophic
 at the moment they matter.

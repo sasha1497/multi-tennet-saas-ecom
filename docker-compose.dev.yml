@@ -139,7 +139,16 @@ services:
       start_period: 15s
     networks: [retailos]
 
-  # Creates the media bucket and makes it publicly readable, then exits.
+  # Creates the media bucket, then exits.
+  #
+  # The bucket is left PRIVATE, which is the posture production runs in and
+  # therefore the one local development should exercise. Every image a client
+  # sees is a presigned GET the API mints after checking who is asking; a
+  # publicly listable bucket here would mean the presigning path was only ever
+  # tested in production, and that a leaked key was enough to read a merchant's
+  # media. `anonymous set none` is applied explicitly rather than relied on as
+  # the default, so an existing volume that was made public by an earlier
+  # version of this file is closed again on the next start.
   minio-init:
     image: minio/mc:RELEASE.2024-10-08T09-37-26Z
     container_name: retailos-minio-init
@@ -149,8 +158,8 @@ services:
       /bin/sh -c "
       mc alias set local http://minio:9000 ${S3_ACCESS_KEY:-retailos} ${S3_SECRET_KEY:-retailos_dev_password} &&
       mc mb --ignore-existing local/${S3_BUCKET:-retailos-media} &&
-      mc anonymous set download local/${S3_BUCKET:-retailos-media} &&
-      echo 'MinIO bucket ready'
+      mc anonymous set none local/${S3_BUCKET:-retailos-media} &&
+      echo 'MinIO bucket ready (private; access is via presigned URLs)'
       "
     networks: [retailos]
     restart: 'no'

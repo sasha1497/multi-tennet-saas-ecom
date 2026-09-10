@@ -71,7 +71,7 @@ describe('Template switching (e2e)', () => {
       expect(res.status).toBe(200);
     }
 
-    const items = <T,>(body: { data: T[] | { items: T[] } }): T[] =>
+    const items = <T>(body: { data: T[] | { items: T[] } }): T[] =>
       Array.isArray(body.data) ? body.data : body.data.items;
 
     const store = settings.body.data as Record<string, unknown>;

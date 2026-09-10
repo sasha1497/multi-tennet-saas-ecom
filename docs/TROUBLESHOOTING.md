@@ -180,8 +180,7 @@ field message as the top-level message with the rest in `details`.
 ## Everything 500s with an id in the request
 
 A malformed identifier used to reach Prisma and raise a driver error. Now the
-tenant selector is shape-checked in the guard, and Prisma's `P2023` maps to a
-400. If you see a new 500 of this kind, the fix belongs at the boundary — add
+tenant selector is shape-checked in the guard, and Prisma's `P2023` maps to a 400. If you see a new 500 of this kind, the fix belongs at the boundary — add
 the validation — rather than in the filter.
 
 ---

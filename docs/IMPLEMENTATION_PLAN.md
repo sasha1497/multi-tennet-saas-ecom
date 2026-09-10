@@ -11,7 +11,7 @@ the guards, the connection management and the tests. So it came first, and every
 feature after it was built inside that constraint rather than retrofitted into
 it.
 
-The order was chosen so that each phase could be *verified* before the next
+The order was chosen so that each phase could be _verified_ before the next
 depended on it.
 
 ---
@@ -107,7 +107,7 @@ code.
 **Tenant role had no privileges on migrated tables.** Migrations run as the
 admin role, so tables were owned by admin and the application's least-privilege
 role could not read them — `permission denied for table store_settings`. Fixed
-by granting after every migration pass *and* setting `ALTER DEFAULT PRIVILEGES`
+by granting after every migration pass _and_ setting `ALTER DEFAULT PRIVILEGES`
 so future tables are granted automatically.
 
 **The order-total CHECK constraint was wrong for inclusive pricing.** It assumed
@@ -126,8 +126,8 @@ also sets, so both paths agree.
 
 **Tenant database addresses were environment-specific.** The seed recorded
 `localhost:5433` from the host machine, so the containerised API could not reach
-any tenant. Fixed by separating recorded *placement* from configured
-*reachability*. [ADR-016](DECISION_LOG.md#adr-016).
+any tenant. Fixed by separating recorded _placement_ from configured
+_reachability_. [ADR-016](DECISION_LOG.md#adr-016).
 
 **A malformed `X-Tenant-Id` produced a 500.** Found by the isolation suite's own
 injection block. Fixed at the boundary — shape-check in the guard, plus a `P2023`
@@ -149,16 +149,16 @@ right.
 
 ## Current state
 
-| Check | Result |
-| --- | --- |
-| Lint (10 packages) | Clean, zero warnings |
-| Typecheck (10 packages) | Clean |
-| Unit tests | 42 passed |
-| Cross-tenant isolation e2e | 34 passed |
-| End-to-end smoke | 44 passed |
-| Full Docker stack | 12 services healthy |
-| Production images | API and both web apps build and run |
-| Backup / restore | Exercised, single-tenant restore verified |
+| Check                      | Result                                    |
+| -------------------------- | ----------------------------------------- |
+| Lint (10 packages)         | Clean, zero warnings                      |
+| Typecheck (10 packages)    | Clean                                     |
+| Unit tests                 | 42 passed                                 |
+| Cross-tenant isolation e2e | 34 passed                                 |
+| End-to-end smoke           | 44 passed                                 |
+| Full Docker stack          | 12 services healthy                       |
+| Production images          | API and both web apps build and run       |
+| Backup / restore           | Exercised, single-tenant restore verified |
 
 Roughly 45,000 lines of TypeScript across 254 files in 11 workspace packages.
 

@@ -258,7 +258,10 @@ describe('Payment isolation (e2e)', () => {
       const res = await onApi(app)
         .post('/webhooks/payments/razorpay')
         .set('x-razorpay-signature', 'deadbeef')
-        .send({ event: 'payment.captured', payload: { payment: { entity: { order_id: 'nope' } } } });
+        .send({
+          event: 'payment.captured',
+          payload: { payment: { entity: { order_id: 'nope' } } },
+        });
 
       // Always 200: a webhook endpoint that reports what it recognises is a
       // free enumeration oracle. Nothing was applied.

@@ -6,22 +6,22 @@ money and stock.
 
 ## Threat model
 
-| Threat | Control |
-| --- | --- |
-| Tenant A reads or writes tenant B's data | Separate physical databases; connection-level isolation; verified tenant resolution; an automated isolation suite |
-| A client forges its tenant identity | Tenant is derived server-side only; body/query `tenant_id` ignored; header hints revalidated against membership |
-| A stolen shopper token used on another store | Customer tokens are bound to one tenant; the guard rejects a mismatch with the host |
-| A revoked staff member keeps working | Membership re-read per request (30s cache), not trusted from the token |
-| Stolen refresh token | Tokens stored hashed; rotation with reuse detection revokes the family |
-| Database dump discloses tenant credentials | AES-256-GCM at rest with a versioned payload |
-| Password database disclosure | scrypt with per-password salts |
-| Payment tampering / replay | Signature verification, webhook verification, event deduplication, idempotency keys |
-| Overselling under concurrency | Single conditional UPDATE + CHECK constraints |
-| Order history rewritten by a catalog edit | Order lines are immutable snapshots |
-| SQL injection | Parameterised queries throughout; validated + quoted identifiers in DDL |
-| Enumeration and brute force | Redis rate limiting, stricter on auth routes; uniform error messages |
-| Oversized payload DoS | Body-size cap ahead of parsing; upload limits and MIME allow-list |
-| Information disclosure via errors | Stable error codes, no stack traces in production |
+| Threat                                       | Control                                                                                                           |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Tenant A reads or writes tenant B's data     | Separate physical databases; connection-level isolation; verified tenant resolution; an automated isolation suite |
+| A client forges its tenant identity          | Tenant is derived server-side only; body/query `tenant_id` ignored; header hints revalidated against membership   |
+| A stolen shopper token used on another store | Customer tokens are bound to one tenant; the guard rejects a mismatch with the host                               |
+| A revoked staff member keeps working         | Membership re-read per request (30s cache), not trusted from the token                                            |
+| Stolen refresh token                         | Tokens stored hashed; rotation with reuse detection revokes the family                                            |
+| Database dump discloses tenant credentials   | AES-256-GCM at rest with a versioned payload                                                                      |
+| Password database disclosure                 | scrypt with per-password salts                                                                                    |
+| Payment tampering / replay                   | Signature verification, webhook verification, event deduplication, idempotency keys                               |
+| Overselling under concurrency                | Single conditional UPDATE + CHECK constraints                                                                     |
+| Order history rewritten by a catalog edit    | Order lines are immutable snapshots                                                                               |
+| SQL injection                                | Parameterised queries throughout; validated + quoted identifiers in DDL                                           |
+| Enumeration and brute force                  | Redis rate limiting, stricter on auth routes; uniform error messages                                              |
+| Oversized payload DoS                        | Body-size cap ahead of parsing; upload limits and MIME allow-list                                                 |
+| Information disclosure via errors            | Stable error codes, no stack traces in production                                                                 |
 
 ## Tenant isolation
 
@@ -96,8 +96,7 @@ passed through, which is what makes a `tenantId` smuggled into a request body a
 no-op rather than a question of whether some handler happens to read it.
 
 Identifiers that reach the database as UUIDs are shape-checked first, so a
-hand-crafted id produces a clean 400 rather than a driver error surfacing as a
-500.
+hand-crafted id produces a clean 400 rather than a driver error surfacing as a 500.
 
 Uploads are capped by size and restricted by MIME type; files are stored under
 generated keys, never under a client-supplied path.

@@ -1,7 +1,7 @@
 # Future roadmap
 
 What is deliberately missing, why it was left out, and what it would take. The
-gaps are listed before the ambitions, because knowing what a system does *not*
+gaps are listed before the ambitions, because knowing what a system does _not_
 do is more useful than knowing what it might.
 
 ---
@@ -144,7 +144,7 @@ local retailers, because it replaces software they already pay for.
 ## If you only do three things
 
 1. **Test a restore.** [BACKUP_AND_RECOVERY.md](BACKUP_AND_RECOVERY.md). The
-   scripts work; what is untested is *your* production copy of them.
+   scripts work; what is untested is _your_ production copy of them.
 2. **Wire up subscription billing.** The platform works; it does not yet earn.
 3. **Add the Playwright checkout suite.** The isolation suite protects tenant
    data; nothing currently protects the purchase flow from a front-end

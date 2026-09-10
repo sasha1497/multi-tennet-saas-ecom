@@ -80,27 +80,34 @@ notifications.
 
 **Merchant console** — dashboard with revenue/order charts, products and
 variants, categories, brands, image upload, inventory with stock adjustments and
-low-stock thresholds, orders with status workflow, customers, coupons, review
-moderation, sales/customer/inventory reports, store settings and branding, staff
-management with roles, subscription and billing.
+low-stock thresholds, multi-image product upload with drag-and-drop, per-file
+progress, retry, reordering and a primary image, orders with status workflow,
+customers, coupons, review moderation, sales/customer/inventory reports, store
+settings and branding, staff management with roles, subscription and billing.
 
-**Store design** — six storefront templates with genuinely different design
-languages, a gallery that previews any of them **on the merchant's own
-catalogue** before they commit, one-click switching that provably touches no
-business data, and a builder for showing, hiding, reordering and retitling the
-blocks on the home page. See [TEMPLATES.md](docs/TEMPLATES.md).
+**Store design** — ten storefront templates in two tiers: six standard designs
+with genuinely different design languages, and four premium ones built around a
+structural idea the standard tier does not have — a cinematic opening, a backlit
+product showcase, a storytelling scroll. A gallery previews any of them **on the
+merchant's own catalogue** before they commit, switching is one click and
+provably touches no business data, and a builder shows, hides, reorders and
+retitles the blocks on the home page. Premium motion is composited-only and
+disappears entirely under `prefers-reduced-motion`. See
+[TEMPLATES.md](docs/TEMPLATES.md).
 
 **Platform admin** — tenant directory, tenant creation and provisioning,
-subscription plans, entitlements, suspend/reactivate, per-tenant schema
-migration, audit log, service health and queue depth.
+subscription plans, entitlements, suspend/reactivate, permanent tenant deletion
+(database, object storage and control-plane records, as a resumable job),
+per-tenant schema migration, audit log, service health and queue depth.
 
 **Under the hood** — a storefront presentation layer kept strictly apart from
 business data, database-per-tenant provisioning state machine, versioned
 tenant migrations with advisory locking, JWT access tokens with refresh rotation
 and reuse detection, granular `resource.action` RBAC, a payment-provider
 abstraction with signature and webhook verification, idempotent checkout,
-atomic inventory reservation, BullMQ workers, S3-compatible storage, structured
-logging and Prometheus metrics.
+atomic inventory reservation, BullMQ workers, S3-compatible object storage with
+presigned direct upload and preview against a private bucket, structured logging
+and Prometheus metrics.
 
 ---
 
@@ -146,6 +153,7 @@ Start with the first three.
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, request lifecycle, module map |
 | [TENANCY.md](docs/TENANCY.md) | How tenants are resolved, isolated and provisioned |
 | [TEMPLATES.md](docs/TEMPLATES.md) | The storefront template system and why switching one is safe |
+| [STORAGE.md](docs/STORAGE.md) | Object storage, presigned uploads and previews, tenant isolation |
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md) | Local setup, day-to-day workflows |
 | [REQUIREMENTS.md](docs/REQUIREMENTS.md) | Functional and non-functional scope |
 | [DATABASE.md](docs/DATABASE.md) | Master and tenant schemas, indexes, constraints |
@@ -206,6 +214,7 @@ pnpm test:e2e             # cross-tenant isolation suite (needs the databases)
 pnpm db:migrate           # create a master migration
 pnpm db:migrate:deploy    # apply master migrations
 pnpm db:tenant:migrate    # apply tenant migrations to every tenant database
+pnpm db:storage:migrate   # move any local-disk uploads into object storage
 pnpm db:seed              # demo tenants and data
 pnpm db:studio            # Prisma Studio on the master database
 

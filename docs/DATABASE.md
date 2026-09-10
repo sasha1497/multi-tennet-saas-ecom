@@ -13,23 +13,23 @@ PostgreSQL 16 is the primary engine for both.
 
 15 models. No shop data.
 
-| Model | Purpose |
-| --- | --- |
-| `User` | Platform and merchant staff accounts (not shoppers) |
-| `Session` | Refresh-token families with rotation and reuse detection |
-| `VerificationToken` | Email verification and password reset |
-| `Tenant` | A merchant: slug, name, status, plan |
-| `TenantUser` | Membership: which user may act on which tenant, in what role |
-| `Domain` | Hostnames mapped to tenants (subdomain and custom) |
-| `TenantDatabase` | Placement + encrypted credentials for a tenant's database |
-| `TenantProvisioningJob` | Provisioning state machine progress |
-| `Plan` | Subscription plans and their limits |
-| `Subscription` | A tenant's current plan and billing period |
-| `FeatureEntitlement` | Per-tenant feature flags and quota overrides |
-| `PaymentRoute` | Per-tenant payment provider configuration |
-| `WebhookEvent` | Received provider events, for deduplication |
-| `PlatformAuditLog` | Who did what across the platform |
-| `TenantMigrationRecord` | Mirrored ledger of tenant migrations applied |
+| Model                   | Purpose                                                      |
+| ----------------------- | ------------------------------------------------------------ |
+| `User`                  | Platform and merchant staff accounts (not shoppers)          |
+| `Session`               | Refresh-token families with rotation and reuse detection     |
+| `VerificationToken`     | Email verification and password reset                        |
+| `Tenant`                | A merchant: slug, name, status, plan                         |
+| `TenantUser`            | Membership: which user may act on which tenant, in what role |
+| `Domain`                | Hostnames mapped to tenants (subdomain and custom)           |
+| `TenantDatabase`        | Placement + encrypted credentials for a tenant's database    |
+| `TenantProvisioningJob` | Provisioning state machine progress                          |
+| `Plan`                  | Subscription plans and their limits                          |
+| `Subscription`          | A tenant's current plan and billing period                   |
+| `FeatureEntitlement`    | Per-tenant feature flags and quota overrides                 |
+| `PaymentRoute`          | Per-tenant payment provider configuration                    |
+| `WebhookEvent`          | Received provider events, for deduplication                  |
+| `PlatformAuditLog`      | Who did what across the platform                             |
+| `TenantMigrationRecord` | Mirrored ledger of tenant migrations applied                 |
 
 Shoppers are deliberately **not** in the master database. A customer of
 KickZone is a row in `tenant_kickzone.customers` and nowhere else — the platform
@@ -40,15 +40,15 @@ learn that a customer also shops elsewhere.
 
 26 models.
 
-| Group | Models |
-| --- | --- |
-| Customers | `Customer`, `CustomerSession`, `Address`, `WishlistItem` |
-| Catalog | `Category`, `Brand`, `Product`, `ProductImage`, `ProductVariant` |
-| Inventory | `Inventory`, `InventoryTransaction` |
-| Commerce | `Cart`, `CartItem`, `Coupon`, `CouponRedemption` |
-| Orders | `Order`, `OrderItem`, `OrderStatusHistory`, `Payment` |
-| Content | `Review`, `StoreSettings` |
-| Ops | `StaffProfile`, `Notification`, `PushToken`, `TenantAuditLog`, `SchemaMigration` |
+| Group     | Models                                                                           |
+| --------- | -------------------------------------------------------------------------------- |
+| Customers | `Customer`, `CustomerSession`, `Address`, `WishlistItem`                         |
+| Catalog   | `Category`, `Brand`, `Product`, `ProductImage`, `ProductVariant`                 |
+| Inventory | `Inventory`, `InventoryTransaction`                                              |
+| Commerce  | `Cart`, `CartItem`, `Coupon`, `CouponRedemption`                                 |
+| Orders    | `Order`, `OrderItem`, `OrderStatusHistory`, `Payment`                            |
+| Content   | `Review`, `StoreSettings`                                                        |
+| Ops       | `StaffProfile`, `Notification`, `PushToken`, `TenantAuditLog`, `SchemaMigration` |
 
 ### Order lines are snapshots
 
@@ -110,19 +110,19 @@ ALTER TABLE orders
 The `tax_inclusive` branch is essential. Indian retail quotes tax-inclusive
 prices: the shelf price of ₹1,180 already contains ₹180 of GST. Adding the tax
 again would double-count it. Exclusive pricing adds tax on top. One column on
-the order records which convention was in force *at the time*, so the constraint
+the order records which convention was in force _at the time_, so the constraint
 stays true even if the store later changes its setting.
 
 Other constraints:
 
-| Constraint | Guarantees |
-| --- | --- |
+| Constraint                           | Guarantees                                          |
+| ------------------------------------ | --------------------------------------------------- |
 | `inventory_reserved_within_quantity` | Reserved never exceeds stock; neither goes negative |
-| `product_variants_mrp_gte_price` | A "discount" is never an increase |
-| `customers_contact_present` | A customer has an email or a phone |
-| `addresses_one_default_per_customer` | Partial unique index: at most one default address |
-| `product_images_one_primary` | Partial unique index: at most one primary image |
-| `carts_one_per_customer` | Partial unique index: one active cart |
+| `product_variants_mrp_gte_price`     | A "discount" is never an increase                   |
+| `customers_contact_present`          | A customer has an email or a phone                  |
+| `addresses_one_default_per_customer` | Partial unique index: at most one default address   |
+| `product_images_one_primary`         | Partial unique index: at most one primary image     |
+| `carts_one_per_customer`             | Partial unique index: one active cart               |
 
 ## Indexes
 
@@ -163,7 +163,7 @@ pnpm db:tenant:migrate    # apply to every tenant database
 
 ## Privileges
 
-Migrations run as the admin role, which means tables are *owned* by the admin
+Migrations run as the admin role, which means tables are _owned_ by the admin
 role. The per-tenant least-privilege role (`tu_<slug>`) that the application
 actually connects with therefore has no rights on them by default — this
 manifested during development as `permission denied for table store_settings`.
@@ -171,7 +171,7 @@ manifested during development as `permission denied for table store_settings`.
 `TenantDdlService.grantTenantPrivileges()` runs after every migration pass and
 grants the tenant role rights on all tables and sequences;
 `grantSchemaPrivileges()` additionally sets `ALTER DEFAULT PRIVILEGES` so tables
-created by *future* migrations are granted automatically.
+created by _future_ migrations are granted automatically.
 
 Every identifier used in DDL is validated against a strict pattern and quoted.
 No user-supplied string is ever interpolated into DDL.
@@ -183,7 +183,7 @@ authoritative data and the application does not read from it on any request
 path.
 
 It exists because local Indian retail software — the billing and inventory
-packages merchants are migrating *from* — is overwhelmingly MySQL-based. The
+packages merchants are migrating _from_ — is overwhelmingly MySQL-based. The
 service gives us a place to land a legacy import, mirror a tenant directory for
 an on-premise tool that can only speak MySQL, and prove the connection in CI.
 `infrastructure/docker/mysql/init/01-init.sql` creates

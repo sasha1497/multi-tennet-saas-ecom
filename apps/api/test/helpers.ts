@@ -104,9 +104,7 @@ export async function loginAdmin(
   const res = await onApi(app).post('/auth/login').send({ email, password });
 
   if (res.status !== 200) {
-    throw new Error(
-      `Admin login failed for ${email}: ${res.status} ${JSON.stringify(res.body)}`,
-    );
+    throw new Error(`Admin login failed for ${email}: ${res.status} ${JSON.stringify(res.body)}`);
   }
   return {
     token: res.body.data.tokens.accessToken as string,

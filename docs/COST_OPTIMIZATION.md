@@ -15,9 +15,9 @@ optimise.
 
 ## Where the money actually goes
 
-| Tier | Monthly | Largest line |
-| --- | --- | --- |
-| Single VM (Model A) | $30–40 | Compute |
+| Tier                         | Monthly  | Largest line    |
+| ---------------------------- | -------- | --------------- |
+| Single VM (Model A)          | $30–40   | Compute         |
 | ECS + RDS Multi-AZ (Model B) | $350–470 | Database (~50%) |
 
 At Model B, RDS Multi-AZ alone is roughly half the bill. Optimising the API tier
@@ -97,13 +97,13 @@ is why stock is never served from cache.
 
 Roughly, at Model B with a few hundred tenants:
 
-| Item | Per tenant per month |
-| --- | --- |
-| Database storage (~200 MB) | ~$0.03 |
-| Backup storage | ~$0.02 |
-| Media (~500 MB) | ~$0.02 |
-| Compute share | $0.50–2.00 |
-| **Total** | **≈ $0.60–2.10** |
+| Item                       | Per tenant per month |
+| -------------------------- | -------------------- |
+| Database storage (~200 MB) | ~$0.03               |
+| Backup storage             | ~$0.02               |
+| Media (~500 MB)            | ~$0.02               |
+| Compute share              | $0.50–2.00           |
+| **Total**                  | **≈ $0.60–2.10**     |
 
 Against ₹1,500–3,000/month per merchant (~$18–36), gross margin is comfortable.
 The economics of this architecture are fine; the risk is fixed cost at low
@@ -123,13 +123,13 @@ reliability decision to save money is how outages become incidents.
 
 ## Free and cheap alternatives worth knowing
 
-| Instead of | Consider | Note |
-| --- | --- | --- |
-| S3 egress | Cloudflare R2 | No egress fee — significant for image-heavy stores |
-| SES / Mailgun | Brevo, Zoho free tiers | Generous free volumes for transactional mail |
-| CloudWatch dashboards | Grafana Cloud free tier | Enough for a single-VM deployment |
-| Managed Redis | Redis on the same VM | Fine at Model A; not fine once jobs matter |
-| ALB | nginx on the instance | Saves $20/month at Model A, costs you failover |
+| Instead of            | Consider                | Note                                               |
+| --------------------- | ----------------------- | -------------------------------------------------- |
+| S3 egress             | Cloudflare R2           | No egress fee — significant for image-heavy stores |
+| SES / Mailgun         | Brevo, Zoho free tiers  | Generous free volumes for transactional mail       |
+| CloudWatch dashboards | Grafana Cloud free tier | Enough for a single-VM deployment                  |
+| Managed Redis         | Redis on the same VM    | Fine at Model A; not fine once jobs matter         |
+| ALB                   | nginx on the instance   | Saves $20/month at Model A, costs you failover     |
 
 ## Reviewing costs
 

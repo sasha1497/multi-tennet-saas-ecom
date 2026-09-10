@@ -8,7 +8,7 @@ would be worse than saying so.
 ## 1. Database connections (the first real wall)
 
 **Why it is first.** Every other layer scales by adding instances. Connections
-scale *down* as you add instances, because each one holds its own pool.
+scale _down_ as you add instances, because each one holds its own pool.
 
 The arithmetic:
 
@@ -114,12 +114,12 @@ platform reporting reads those. It is deliberately not built yet — see
 
 Reasoned estimates, not benchmarks.
 
-| Tier | Tenants | Shape |
-| --- | --- | --- |
-| Single VM (4 vCPU / 8 GB) | up to ~50 | Everything on one box |
-| Single VM + managed DB | ~50–200 | Move PostgreSQL to RDS first |
-| ECS + RDS Multi-AZ | ~200–2,000 | Model B in [AWS_ARCHITECTURE.md](AWS_ARCHITECTURE.md) |
-| Multi-cluster | 2,000+ | Shard tenants across clusters by `cluster_id` |
+| Tier                      | Tenants    | Shape                                                 |
+| ------------------------- | ---------- | ----------------------------------------------------- |
+| Single VM (4 vCPU / 8 GB) | up to ~50  | Everything on one box                                 |
+| Single VM + managed DB    | ~50–200    | Move PostgreSQL to RDS first                          |
+| ECS + RDS Multi-AZ        | ~200–2,000 | Model B in [AWS_ARCHITECTURE.md](AWS_ARCHITECTURE.md) |
+| Multi-cluster             | 2,000+     | Shard tenants across clusters by `cluster_id`         |
 
 ## Sharding, when it comes
 
@@ -134,14 +134,14 @@ downtime for anyone else.
 
 ## What to watch
 
-| Metric | Act when |
-| --- | --- |
-| PostgreSQL connections in use | > 70% of `max_connections` |
-| API p95 latency | > 500 ms sustained |
-| BullMQ queue depth | Growing over a 15-minute window |
-| Redis memory | > 75% of `maxmemory` |
-| Backup duration | > half the interval between backups |
-| Tenant migration duration | Longer than your acceptable deploy window |
-| Disk usage | > 75% |
+| Metric                        | Act when                                  |
+| ----------------------------- | ----------------------------------------- |
+| PostgreSQL connections in use | > 70% of `max_connections`                |
+| API p95 latency               | > 500 ms sustained                        |
+| BullMQ queue depth            | Growing over a 15-minute window           |
+| Redis memory                  | > 75% of `maxmemory`                      |
+| Backup duration               | > half the interval between backups       |
+| Tenant migration duration     | Longer than your acceptable deploy window |
+| Disk usage                    | > 75%                                     |
 
 See [MONITORING.md](MONITORING.md).

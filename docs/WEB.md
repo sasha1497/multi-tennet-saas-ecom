@@ -106,7 +106,7 @@ nothing from SSR.
 
 There is no tenant hostname here, so the tenant comes from the caller's
 membership. An owner with several stores gets a switcher, which sets
-`X-Tenant-Id` on subsequent requests. That header is a *hint*: the API
+`X-Tenant-Id` on subsequent requests. That header is a _hint_: the API
 revalidates it against membership and it can never widen access
 ([TENANCY.md](TENANCY.md)).
 

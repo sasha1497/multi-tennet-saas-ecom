@@ -91,11 +91,41 @@ export const SEED_TENANTS: SeedTenant[] = [
           { name: 'Colour', values: ['Black/Volt', 'White/Blue'] },
         ],
         variants: [
-          { sku: 'KZ-PACE3-7-BLK', options: { Size: '7', Colour: 'Black/Volt' }, price: 419900, mrp: 549900, stock: 12 },
-          { sku: 'KZ-PACE3-8-BLK', options: { Size: '8', Colour: 'Black/Volt' }, price: 419900, mrp: 549900, stock: 18 },
-          { sku: 'KZ-PACE3-9-BLK', options: { Size: '9', Colour: 'Black/Volt' }, price: 419900, mrp: 549900, stock: 4 },
-          { sku: 'KZ-PACE3-8-WHT', options: { Size: '8', Colour: 'White/Blue' }, price: 439900, mrp: 549900, stock: 9 },
-          { sku: 'KZ-PACE3-10-WHT', options: { Size: '10', Colour: 'White/Blue' }, price: 439900, mrp: 549900, stock: 2 },
+          {
+            sku: 'KZ-PACE3-7-BLK',
+            options: { Size: '7', Colour: 'Black/Volt' },
+            price: 419900,
+            mrp: 549900,
+            stock: 12,
+          },
+          {
+            sku: 'KZ-PACE3-8-BLK',
+            options: { Size: '8', Colour: 'Black/Volt' },
+            price: 419900,
+            mrp: 549900,
+            stock: 18,
+          },
+          {
+            sku: 'KZ-PACE3-9-BLK',
+            options: { Size: '9', Colour: 'Black/Volt' },
+            price: 419900,
+            mrp: 549900,
+            stock: 4,
+          },
+          {
+            sku: 'KZ-PACE3-8-WHT',
+            options: { Size: '8', Colour: 'White/Blue' },
+            price: 439900,
+            mrp: 549900,
+            stock: 9,
+          },
+          {
+            sku: 'KZ-PACE3-10-WHT',
+            options: { Size: '10', Colour: 'White/Blue' },
+            price: 439900,
+            mrp: 549900,
+            stock: 2,
+          },
         ],
       },
       {
@@ -167,10 +197,34 @@ export const SEED_TENANTS: SeedTenant[] = [
           { name: 'Colour', values: ['Red', 'Blue'] },
         ],
         variants: [
-          { sku: 'KZ-JR-1-RED', options: { Size: '1', Colour: 'Red' }, price: 149900, mrp: 199900, stock: 20 },
-          { sku: 'KZ-JR-2-RED', options: { Size: '2', Colour: 'Red' }, price: 149900, mrp: 199900, stock: 17 },
-          { sku: 'KZ-JR-2-BLU', options: { Size: '2', Colour: 'Blue' }, price: 149900, mrp: 199900, stock: 5 },
-          { sku: 'KZ-JR-3-BLU', options: { Size: '3', Colour: 'Blue' }, price: 159900, mrp: 199900, stock: 13 },
+          {
+            sku: 'KZ-JR-1-RED',
+            options: { Size: '1', Colour: 'Red' },
+            price: 149900,
+            mrp: 199900,
+            stock: 20,
+          },
+          {
+            sku: 'KZ-JR-2-RED',
+            options: { Size: '2', Colour: 'Red' },
+            price: 149900,
+            mrp: 199900,
+            stock: 17,
+          },
+          {
+            sku: 'KZ-JR-2-BLU',
+            options: { Size: '2', Colour: 'Blue' },
+            price: 149900,
+            mrp: 199900,
+            stock: 5,
+          },
+          {
+            sku: 'KZ-JR-3-BLU',
+            options: { Size: '3', Colour: 'Blue' },
+            price: 159900,
+            mrp: 199900,
+            stock: 13,
+          },
         ],
       },
       {
@@ -230,8 +284,20 @@ export const SEED_TENANTS: SeedTenant[] = [
         image: img('abc-tiffin'),
         options: [{ name: 'Capacity', values: ['750ml', '1000ml'] }],
         variants: [
-          { sku: 'ABC-TIF-750', options: { Capacity: '750ml' }, price: 64900, mrp: 89900, stock: 40 },
-          { sku: 'ABC-TIF-1000', options: { Capacity: '1000ml' }, price: 79900, mrp: 109900, stock: 26 },
+          {
+            sku: 'ABC-TIF-750',
+            options: { Capacity: '750ml' },
+            price: 64900,
+            mrp: 89900,
+            stock: 40,
+          },
+          {
+            sku: 'ABC-TIF-1000',
+            options: { Capacity: '1000ml' },
+            price: 79900,
+            mrp: 109900,
+            stock: 26,
+          },
         ],
       },
       {
@@ -258,9 +324,7 @@ export const SEED_TENANTS: SeedTenant[] = [
         tags: ['skincare', 'daily'],
         image: img('abc-facewash'),
         options: [],
-        variants: [
-          { sku: 'ABC-FW-150', options: {}, price: 24900, mrp: 32000, stock: 60 },
-        ],
+        variants: [{ sku: 'ABC-FW-150', options: {}, price: 24900, mrp: 32000, stock: 60 }],
       },
       {
         name: 'HomeCraft Non-Stick Tawa 28cm',
@@ -330,8 +394,20 @@ export const SEED_TENANTS: SeedTenant[] = [
         image: img('kumar-n12'),
         options: [{ name: 'Colour', values: ['Midnight', 'Aurora'] }],
         variants: [
-          { sku: 'KM-N12-MID', options: { Colour: 'Midnight' }, price: 1699900, mrp: 1999900, stock: 7 },
-          { sku: 'KM-N12-AUR', options: { Colour: 'Aurora' }, price: 1699900, mrp: 1999900, stock: 4 },
+          {
+            sku: 'KM-N12-MID',
+            options: { Colour: 'Midnight' },
+            price: 1699900,
+            mrp: 1999900,
+            stock: 7,
+          },
+          {
+            sku: 'KM-N12-AUR',
+            options: { Colour: 'Aurora' },
+            price: 1699900,
+            mrp: 1999900,
+            stock: 4,
+          },
         ],
       },
       {
@@ -347,8 +423,20 @@ export const SEED_TENANTS: SeedTenant[] = [
         image: img('kumar-buds'),
         options: [{ name: 'Colour', values: ['White', 'Black'] }],
         variants: [
-          { sku: 'KM-BUDS-WHT', options: { Colour: 'White' }, price: 249900, mrp: 349900, stock: 18 },
-          { sku: 'KM-BUDS-BLK', options: { Colour: 'Black' }, price: 249900, mrp: 349900, stock: 2 },
+          {
+            sku: 'KM-BUDS-WHT',
+            options: { Colour: 'White' },
+            price: 249900,
+            mrp: 349900,
+            stock: 18,
+          },
+          {
+            sku: 'KM-BUDS-BLK',
+            options: { Colour: 'Black' },
+            price: 249900,
+            mrp: 349900,
+            stock: 2,
+          },
         ],
       },
       {
@@ -378,7 +466,12 @@ export const SEED_TENANTS: SeedTenant[] = [
       },
     ],
     customers: [
-      { firstName: 'Karthik', lastName: 'Reddy', email: 'karthik@example.com', phone: '9866666666' },
+      {
+        firstName: 'Karthik',
+        lastName: 'Reddy',
+        email: 'karthik@example.com',
+        phone: '9866666666',
+      },
       { firstName: 'Divya', lastName: 'Menon', email: 'divya@example.com', phone: '9877777777' },
     ],
   },
@@ -459,7 +552,12 @@ export const SEED_PLANS = [
       multi_branch: false,
       white_label_app: false,
     },
-    limits: { max_products: 5000, max_staff: 15, max_orders_per_month: 20000, max_storage_mb: 10000 },
+    limits: {
+      max_products: 5000,
+      max_staff: 15,
+      max_orders_per_month: 20000,
+      max_storage_mb: 10000,
+    },
   },
   {
     code: 'ENTERPRISE',

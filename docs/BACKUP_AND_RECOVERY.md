@@ -9,13 +9,13 @@ it only exists if the backups are per tenant too, so they are.
 
 ## What to back up
 
-| Asset | Why | How |
-| --- | --- | --- |
-| Master database | Tenants, users, memberships, plans, **encrypted tenant credentials** | `pg_dump -Fc` |
-| Every tenant database | All shop data | `pg_dump -Fc`, one file each |
-| Roles and grants | A restored database with no role cannot be connected to | `pg_dumpall --globals-only` |
-| `CREDENTIALS_ENCRYPTION_KEY` | Decrypts every tenant DB password | Secrets manager, **not** the backup bucket |
-| Uploaded media | Product images | Object-storage versioning or lifecycle copy |
+| Asset                        | Why                                                                  | How                                         |
+| ---------------------------- | -------------------------------------------------------------------- | ------------------------------------------- |
+| Master database              | Tenants, users, memberships, plans, **encrypted tenant credentials** | `pg_dump -Fc`                               |
+| Every tenant database        | All shop data                                                        | `pg_dump -Fc`, one file each                |
+| Roles and grants             | A restored database with no role cannot be connected to              | `pg_dumpall --globals-only`                 |
+| `CREDENTIALS_ENCRYPTION_KEY` | Decrypts every tenant DB password                                    | Secrets manager, **not** the backup bucket  |
+| Uploaded media               | Product images                                                       | Object-storage versioning or lifecycle copy |
 
 **The encryption key is the one people forget.** Backups of the master database
 contain tenant passwords encrypted with it. Restore the databases without the
@@ -97,11 +97,11 @@ with production credentials. Enable it on the bucket.
 
 Pick these deliberately and then measure against them.
 
-| Deployment | RPO (data loss) | RTO (time to serve) |
-| --- | --- | --- |
-| Single VM, nightly backup | up to 24 h | 1–2 h |
-| Single VM, 6-hourly backup | up to 6 h | 1–2 h |
-| Managed PostgreSQL with PITR | ~5 min | 15–30 min |
+| Deployment                   | RPO (data loss) | RTO (time to serve) |
+| ---------------------------- | --------------- | ------------------- |
+| Single VM, nightly backup    | up to 24 h      | 1–2 h               |
+| Single VM, 6-hourly backup   | up to 6 h       | 1–2 h               |
+| Managed PostgreSQL with PITR | ~5 min          | 15–30 min           |
 
 If a merchant's Saturday of sales is worth more than the cost of managed
 PostgreSQL, the nightly-dump tier is the wrong tier. That is a business
@@ -114,7 +114,7 @@ incident.
 finer-grained recovery you need WAL archiving — managed PostgreSQL (RDS, Aurora,
 Cloud SQL) gives it with a checkbox, or self-manage with `pgBackRest` or WAL-G.
 
-Worth noting: PITR on a shared cluster restores the *whole* cluster to a point
+Worth noting: PITR on a shared cluster restores the _whole_ cluster to a point
 in time. Restoring one tenant to yesterday while everyone else stays current
 still means a per-database dump — so keep both.
 

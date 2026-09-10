@@ -49,36 +49,86 @@ template it is in, and no template has its own copy of a product.
 
 ## Where the pieces live
 
-| Layer | Location | What it is |
-| --- | --- | --- |
-| Catalogue | `packages/templates` | Pure data + pure functions. No React, no DB. |
-| Storage | `store_settings` (tenant DB) | Three presentation columns. |
-| API | `StoreService.updateTemplate` | The only write that changes a store's design. |
-| Renderer | `apps/storefront-web/src/templates` | Section and variant components. |
-| Console | `apps/merchant-web/src/app/(console)/store` | Design, gallery, builder. |
+| Layer     | Location                                    | What it is                                    |
+| --------- | ------------------------------------------- | --------------------------------------------- |
+| Catalogue | `packages/templates`                        | Pure data + pure functions. No React, no DB.  |
+| Storage   | `store_settings` (tenant DB)                | Three presentation columns.                   |
+| API       | `StoreService.updateTemplate`               | The only write that changes a store's design. |
+| Renderer  | `apps/storefront-web/src/templates`         | Section and variant components.               |
+| Console   | `apps/merchant-web/src/app/(console)/store` | Design, gallery, builder.                     |
 
 `@retailos/templates` is deliberately dependency-free so the API, the console and
-the storefront can all agree on what a template *is* without depending on each
+the storefront can all agree on what a template _is_ without depending on each
 other.
 
 ---
 
 ## The templates
 
-Six design languages, not six colour schemes. They differ in type, density,
-grid, card shape, product-detail layout and which sections exist at all.
+Ten design languages, not ten colour schemes. They differ in header
+arrangement, type, density, grid, card shape, product-detail layout, which
+sections exist at all, and how — or whether — the page moves as you scroll.
 
-| Id | Name | For | Character |
-| --- | --- | --- | --- |
-| `urban-luxe` | Urban Luxe | Men's wear, footwear, sports | Full-bleed hero, uppercase display type, square corners, tall 3:4 portrait grid, sticky buy box |
-| `silk-editorial` | Silk Editorial | Women's wear, textile, saree, boutique, jewellery | Serif headings, centred rules, airy rhythm, 3-column gallery, stacked product gallery |
-| `spec-grid` | Spec Grid | Mobile shop, electronics, computer accessories | Utility header, EMI strip, brand tiles, dense 5-column grid, specification sheet |
-| `glow-beauty` | Glow | Cosmetics, beauty and personal care | Soft curves, warm neutrals, routine editorial, rounded cards |
-| `daily-cart` | Daily Cart | Grocery, general store, fancy store, stationery | Search-first hero, aisle chips, compact 6-column grid, shortest path to basket |
-| `pawsome` | Pawsome | Pet shop, gift shop, kids wear, toys | Pill shapes, bubble categories, playful colour |
+### Standard
 
-`daily-cart` is the fallback: the most neutral of the six, so any catalogue reads
+The six a merchant can pick up and use today. Light, pointer-only motion: a
+hover state, no scroll observers, no parallax. A shop that wants to be quick
+should be quick.
+
+| Id               | Name           | For                                                   | Character                                                                                                                             |
+| ---------------- | -------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `urban-luxe`     | Urban Luxe     | Men's wear, footwear, sports                          | Full-bleed hero, uppercase display type, square corners, magazine blocks that break the grid, tall 3:4 portrait cards, sticky buy box |
+| `spec-grid`      | Spec Grid      | Mobile shop, electronics, computer accessories        | Utility header, EMI strip, brand tiles, comparison rail, dense 5-column grid, specification sheet                                     |
+| `glow-beauty`    | Glow           | Cosmetics, beauty and personal care                   | Soft curved opening, warm neutrals, benefit pills, routine editorial, rounded cards                                                   |
+| `pawsome`        | Pawsome        | Pet shop, pet supplies, aquarium, veterinary          | Paw-print field, browse-by-companion cards, vet-and-ingredients care strip, treat-shaped badges, pill shapes                          |
+| `daily-cart`     | Daily Cart     | Grocery, supermarket, general store, daily essentials | Aisle mega-strip above a search-dominant bar, delivery promise, deal rails, 6-across shelf grid with the price and basket in reach    |
+| `silk-editorial` | Silk Editorial | Jewellery, saree, textile, boutique, luxury           | Almost no interface: wordmark, a typographic index of collections, captioned photographs instead of cards, serif at display size      |
+
+`daily-cart` is the fallback: the most neutral of them, so any catalogue reads
 acceptably in it.
+
+### Premium
+
+Four designs built around a structural idea the standard tier does not have.
+**Not the six above with animation switched on** — different layouts, different
+sections, different chrome. They happen to render the same business data
+through the same components, which is the entire point of the split.
+
+| Id               | Name           | For                             | The idea                                                                                                                                                    |
+| ---------------- | -------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `atelier-noir`   | Atelier Noir   | Fashion labels, boutiques       | A full-height film still whose headline unmasks word by word, then the collection told in asymmetric chapters. Cards cross-fade to their second photograph. |
+| `lumen-tech`     | Lumen          | Flagship electronics, gadgets   | A dark backlit showcase. Feature panels arrive as you reach them; navigation appears only once you have started reading.                                    |
+| `companion-club` | Companion Club | Pet shops                       | Playful motion held to a premium standard. Companion cards that lift, a drifting paw-print field, product rows that arrive in sequence.                     |
+| `maison`         | Maison         | Jewellery, watches, accessories | The quietest thing in the catalogue. One held image, type at display size, slow transitions, almost no interface.                                           |
+
+A store **never starts** on a premium template. Provisioning picks the highest
+standard match for the business category; premium is a choice made in the
+gallery. A cinematic opening is the wrong first impression for a store that has
+not uploaded a photograph yet.
+
+### Motion
+
+Premium templates declare a motion personality — reveal style, stagger,
+parallax, hover, sticky navigation — and the storefront implements it once, in
+`apps/storefront-web/src/templates/motion.tsx`, under four rules:
+
+1. **Only `transform`, `opacity` and `clip-path` animate.** All composited;
+   none trigger layout or paint.
+2. **One shared `IntersectionObserver`**, not one per element, and elements
+   unsubscribe as soon as they have appeared.
+3. **No scroll handlers.** Parallax reads scroll position inside
+   `requestAnimationFrame`, and only while the element is on screen.
+4. **`prefers-reduced-motion` is honoured at the source.** Not a shorter
+   animation — no animation. The observer is never attached and the stylesheet
+   renders everything in its final state.
+
+Server-rendered markup is always the _finished_ state; the starting state is
+applied by CSS only once the client has confirmed motion is wanted. A page with
+JavaScript disabled shows its content rather than a column of invisible
+sections.
+
+Standard templates emit no reveal attributes at all, so `Reveal` collapses to
+its children and they pay nothing for a feature they do not use.
 
 ### Anatomy
 
@@ -99,7 +149,7 @@ existing variants needs no component changes at all.
 ## Theming
 
 The storefront's design system already reads from CSS custom properties, so a
-template change is a change of *values*, not of components. `templateCssVariables`
+template change is a change of _values_, not of components. `templateCssVariables`
 resolves the palette, type and rhythm onto `<html>` during the server render —
 there is no flash of the wrong design on first paint.
 
@@ -124,14 +174,14 @@ visibility / order / headings, or both. Presentation only.
 **Customisation is stored unfiltered and sanitised on read.** A merchant who
 hides "testimonials", switches to a template that has no such section, and
 switches back finds it still hidden. The stored value keeps every preference;
-`sanitiseCustomization` filters the *applied* value to what the active template
+`sanitiseCustomization` filters the _applied_ value to what the active template
 can honour. (Reading the sanitised view and writing it back would silently
 delete preferences the outgoing template happened not to use — the bug this
 design exists to prevent, and the one `template-switching.e2e-spec.ts` catches.)
 
 **Versions are pinned.** A store records the version it adopted, so publishing a
 new version of a template cannot restyle a live shop. A store pinned to a
-version that has since been withdrawn falls *forward* to the newest version of
+version that has since been withdrawn falls _forward_ to the newest version of
 the same template rather than losing its design.
 
 ---
@@ -174,16 +224,16 @@ the storefront itself and this deployment's console, and nothing else.
 `apps/api/test/template-switching.e2e-spec.ts` boots the real application against
 the real databases:
 
-| Guarantee | Test |
-| --- | --- |
-| Products, categories, orders, customers, inventory and settings are byte-identical across a switch | `leaves … identical` |
-| Orders are not renumbered and ids are not reissued | `does not renumber orders or reissue ids` |
-| One store's switch does not touch another's storefront | `does not change another store's storefront` |
-| A merchant cannot switch a store they do not belong to | `refuses a merchant switching a store they do not belong to` |
-| Preview never changes the stored template | `never changes the stored template` |
-| A → B → C → A returns the store to exactly where it started | `returns the store to exactly where it started` |
-| A merchant's layout survives a round trip | `remembers a merchant's section layout` |
-| An unknown template is rejected rather than stored | `are rejected rather than stored` |
+| Guarantee                                                                                          | Test                                                         |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Products, categories, orders, customers, inventory and settings are byte-identical across a switch | `leaves … identical`                                         |
+| Orders are not renumbered and ids are not reissued                                                 | `does not renumber orders or reissue ids`                    |
+| One store's switch does not touch another's storefront                                             | `does not change another store's storefront`                 |
+| A merchant cannot switch a store they do not belong to                                             | `refuses a merchant switching a store they do not belong to` |
+| Preview never changes the stored template                                                          | `never changes the stored template`                          |
+| A → B → C → A returns the store to exactly where it started                                        | `returns the store to exactly where it started`              |
+| A merchant's layout survives a round trip                                                          | `remembers a merchant's section layout`                      |
+| An unknown template is rejected rather than stored                                                 | `are rejected rather than stored`                            |
 
 `packages/templates/src/resolve.spec.ts` covers the resolver: version pinning,
 recommendations, sanitisation and section ordering.
@@ -198,9 +248,14 @@ recommendations, sanitisation and section ordering.
    `apps/storefront-web/src/templates/sections/*` switch.
 3. List the business categories it suits in `businessTypes`; that is what drives
    the "Recommended for you" rail.
-4. Run `pnpm --filter @retailos/templates test` — the registry has invariants
-   (unique ids, at least one non-removable section, every product row has a
-   source and a limit).
+4. Set `tier`. Standard unless the design is genuinely a different class of
+   experience; adding motion to an existing layout is not.
+5. Declare `motion`. `restrainedMotion(hover)` for the standard tier.
+6. Run `pnpm --filter @retailos/templates test`. The registry has invariants,
+   and the interesting ones are about **distinctness**: no two templates may
+   share a structure, a header/footer/card combination, or an opening. Sameness
+   is a build failure, because reusing a layout is always the cheapest change
+   and a catalogue drifts towards it on its own.
 
 **Never edit the `sections[].id` of a published template.** Merchants' stored
 customisation refers to those ids. To change a template's structure, publish it
@@ -235,3 +290,6 @@ template version must keep working when the catalogue moves on.
    switching reversible.
 5. **Published section ids are permanent.** Change structure by publishing a new
    version.
+6. **Motion is never required to understand the page.** Every animation is an
+   enhancement over content that already renders. If turning motion off would
+   hide something, that is a bug in the section, not in the preference.

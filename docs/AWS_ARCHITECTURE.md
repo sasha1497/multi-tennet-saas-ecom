@@ -28,16 +28,16 @@ stack you develop against.
                     S3 (media + backups)
 ```
 
-| Component | Choice | ~USD/month |
-| --- | --- | --- |
-| Compute | EC2 t4g.medium, 1-year savings plan | $17–24 |
-| Storage | 60 GB gp3 | $5 |
-| Elastic IP | attached | $0 |
-| S3 | 50 GB + requests | $2 |
-| Route 53 | hosted zone + queries | $1 |
-| Data transfer | ~50 GB out | $4 |
-| TLS | Let's Encrypt wildcard | $0 |
-| **Total** | | **≈ $30–40** |
+| Component     | Choice                              | ~USD/month   |
+| ------------- | ----------------------------------- | ------------ |
+| Compute       | EC2 t4g.medium, 1-year savings plan | $17–24       |
+| Storage       | 60 GB gp3                           | $5           |
+| Elastic IP    | attached                            | $0           |
+| S3            | 50 GB + requests                    | $2           |
+| Route 53      | hosted zone + queries               | $1           |
+| Data transfer | ~50 GB out                          | $4           |
+| TLS           | Let's Encrypt wildcard              | $0           |
+| **Total**     |                                     | **≈ $30–40** |
 
 Graviton (`t4g`) is roughly 20% cheaper than the equivalent x86 instance and the
 images build cleanly for ARM — worth taking.
@@ -78,21 +78,21 @@ For hundreds to thousands of merchants, where downtime costs real money.
       replica          Multi-AZ
 ```
 
-| Component | Choice | ~USD/month |
-| --- | --- | --- |
-| ALB | 1 | $20 |
-| ECS Fargate | api 2×0.5vCPU/1GB, worker 1×, web 2×0.25vCPU | $70–110 |
-| RDS PostgreSQL | db.t4g.medium Multi-AZ, 200 GB gp3 | $180–220 |
-| ElastiCache Redis | cache.t4g.small Multi-AZ | $35 |
-| S3 + CloudFront | 500 GB + transfer | $25–45 |
-| Secrets Manager | ~10 secrets | $4 |
-| CloudWatch | logs + metrics + alarms | $15–30 |
-| Route 53 | zone + queries | $2 |
-| **Total** | | **≈ $350–470** |
+| Component         | Choice                                       | ~USD/month     |
+| ----------------- | -------------------------------------------- | -------------- |
+| ALB               | 1                                            | $20            |
+| ECS Fargate       | api 2×0.5vCPU/1GB, worker 1×, web 2×0.25vCPU | $70–110        |
+| RDS PostgreSQL    | db.t4g.medium Multi-AZ, 200 GB gp3           | $180–220       |
+| ElastiCache Redis | cache.t4g.small Multi-AZ                     | $35            |
+| S3 + CloudFront   | 500 GB + transfer                            | $25–45         |
+| Secrets Manager   | ~10 secrets                                  | $4             |
+| CloudWatch        | logs + metrics + alarms                      | $15–30         |
+| Route 53          | zone + queries                               | $2             |
+| **Total**         |                                              | **≈ $350–470** |
 
 At ₹2,000/month per merchant, roughly 20 merchants cover this.
 
-### Notes that matter for *this* application
+### Notes that matter for _this_ application
 
 **Wildcard TLS on the ALB.** Request `*.ourdomain.in` in ACM (DNS validation)
 and attach it to the listener. This is what makes a new merchant free to

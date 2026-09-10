@@ -22,6 +22,7 @@
     "db:migrate": "pnpm --filter @retailos/database master:migrate",
     "db:migrate:deploy": "pnpm --filter @retailos/database master:deploy",
     "db:tenant:migrate": "ts-node -r tsconfig-paths/register src/cli/migrate-tenants.ts",
+    "db:storage:migrate": "ts-node -r tsconfig-paths/register src/cli/migrate-storage.ts",
     "db:seed": "ts-node -r tsconfig-paths/register src/cli/seed.ts",
     "db:reset": "pnpm --filter @retailos/database master:reset && pnpm db:seed",
     "clean": "rm -rf dist .turbo coverage *.tsbuildinfo"

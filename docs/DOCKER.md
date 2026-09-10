@@ -2,11 +2,11 @@
 
 Three compose files, layered.
 
-| File | Role |
-| --- | --- |
-| `docker-compose.yml` | The base stack. Every service, healthchecks, networking, volumes. No published database ports, no dev tooling |
-| `docker-compose.dev.yml` | Development overlay. Publishes ports, bind-mounts source, adds MinIO, Mailpit, Adminer and Redis Commander |
-| `docker-compose.prod.yml` | Production overlay. Memory limits, log rotation, `restart: always`, API replicas, no exposed databases |
+| File                      | Role                                                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `docker-compose.yml`      | The base stack. Every service, healthchecks, networking, volumes. No published database ports, no dev tooling |
+| `docker-compose.dev.yml`  | Development overlay. Publishes ports, bind-mounts source, adds MinIO, Mailpit, Adminer and Redis Commander    |
+| `docker-compose.prod.yml` | Production overlay. Memory limits, log rotation, `restart: always`, API replicas, no exposed databases        |
 
 ```bash
 pnpm docker:up        # base + dev  — the whole stack, nginx on :80
@@ -18,20 +18,20 @@ pnpm docker:down      # stop, keep volumes
 
 ## Services
 
-| Service | Image | Purpose |
-| --- | --- | --- |
-| `postgres` | postgres:16-alpine | Master database + every tenant database |
-| `mysql` | mysql:8.4 | Secondary compatibility service (see below) |
-| `redis` | redis:7-alpine | Cache, rate limits, locks, BullMQ |
-| `api` | built | The REST API |
-| `worker` | built (same image) | BullMQ processors |
-| `storefront-web` | built | Customer storefront |
-| `merchant-web` | built | Merchant console + platform admin |
-| `nginx` | nginx:1.27-alpine | Reverse proxy, wildcard subdomain routing |
-| `minio` + `minio-init` | quay.io/minio | S3-compatible storage (dev) |
-| `mailpit` | axllent/mailpit | Catches outbound email (dev) |
-| `adminer` | adminer | Database browser (dev) |
-| `redis-commander` | rediscommander | Redis browser (dev) |
+| Service                | Image              | Purpose                                     |
+| ---------------------- | ------------------ | ------------------------------------------- |
+| `postgres`             | postgres:16-alpine | Master database + every tenant database     |
+| `mysql`                | mysql:8.4          | Secondary compatibility service (see below) |
+| `redis`                | redis:7-alpine     | Cache, rate limits, locks, BullMQ           |
+| `api`                  | built              | The REST API                                |
+| `worker`               | built (same image) | BullMQ processors                           |
+| `storefront-web`       | built              | Customer storefront                         |
+| `merchant-web`         | built              | Merchant console + platform admin           |
+| `nginx`                | nginx:1.27-alpine  | Reverse proxy, wildcard subdomain routing   |
+| `minio` + `minio-init` | quay.io/minio      | S3-compatible storage (dev)                 |
+| `mailpit`              | axllent/mailpit    | Catches outbound email (dev)                |
+| `adminer`              | adminer            | Database browser (dev)                      |
+| `redis-commander`      | rediscommander     | Redis browser (dev)                         |
 
 Every long-running service has a healthcheck, and dependants wait on
 `condition: service_healthy` rather than merely `service_started` — so the API
@@ -52,7 +52,7 @@ and risk drift.
 `bookworm-slim` rather than Alpine: Prisma's query engine ships a glibc build,
 and the musl variant is an extra download and a recurring source of surprises.
 
-**`infrastructure/docker/web.Dockerfile`** — one file builds *both* Next.js
+**`infrastructure/docker/web.Dockerfile`** — one file builds _both_ Next.js
 apps; they differ only in `APP_NAME` and `APP_PORT`, passed as build args. Uses
 Next's `output: 'standalone'`, so the runtime stage carries a self-contained
 server plus exactly the traced dependencies rather than a full install.
@@ -76,27 +76,27 @@ nginx is the only service that needs to be reachable from outside in production.
 Published host ports are parameterised so RetailOS can run alongside other
 projects. Defaults in `.env`:
 
-| Variable | Default | Service |
-| --- | --- | --- |
-| `POSTGRES_HOST_PORT` | 5433 | PostgreSQL |
-| `MYSQL_HOST_PORT` | 3307 | MySQL |
-| `REDIS_HOST_PORT` | 6379 | Redis |
-| `MINIO_HOST_PORT` / `MINIO_CONSOLE_HOST_PORT` | 9100 / 9101 | MinIO |
-| `ADMINER_HOST_PORT` | 8082 | Adminer |
-| `REDIS_COMMANDER_HOST_PORT` | 8083 | Redis Commander |
-| `NGINX_HTTP_PORT` | 80 | nginx |
+| Variable                                      | Default     | Service         |
+| --------------------------------------------- | ----------- | --------------- |
+| `POSTGRES_HOST_PORT`                          | 5433        | PostgreSQL      |
+| `MYSQL_HOST_PORT`                             | 3307        | MySQL           |
+| `REDIS_HOST_PORT`                             | 6379        | Redis           |
+| `MINIO_HOST_PORT` / `MINIO_CONSOLE_HOST_PORT` | 9100 / 9101 | MinIO           |
+| `ADMINER_HOST_PORT`                           | 8082        | Adminer         |
+| `REDIS_COMMANDER_HOST_PORT`                   | 8083        | Redis Commander |
+| `NGINX_HTTP_PORT`                             | 80          | nginx           |
 
 In production, `docker-compose.prod.yml` publishes **no** database ports at all.
 
 ## Volumes
 
-| Volume | Contents |
-| --- | --- |
+| Volume          | Contents                        |
+| --------------- | ------------------------------- |
 | `postgres-data` | Master and all tenant databases |
-| `mysql-data` | Compatibility schema |
-| `redis-data` | Redis persistence |
-| `minio-data` | Uploaded media |
-| `api-storage` | Local-driver file storage |
+| `mysql-data`    | Compatibility schema            |
+| `redis-data`    | Redis persistence               |
+| `minio-data`    | Uploaded media                  |
+| `api-storage`   | Local-driver file storage       |
 
 `pnpm docker:down` keeps them. `pnpm docker:down:volumes` deletes everything,
 including every tenant database.

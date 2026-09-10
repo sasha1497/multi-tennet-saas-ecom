@@ -107,7 +107,7 @@ query string. In summary:
   is bound to one tenant and must agree with the host.
 - **Merchant console traffic** — there is no tenant hostname, so the tenant
   comes from the caller's verified `tenant_users` membership. An `X-Tenant-Id`
-  header may *select* among stores the caller already belongs to; it can never
+  header may _select_ among stores the caller already belongs to; it can never
   add one.
 - **Mobile** — sends `X-Tenant-Slug`, which resolves a storefront exactly as a
   hostname would and grants nothing beyond that.
@@ -130,42 +130,42 @@ The master client is a plain singleton — there is only ever one master databas
 
 `apps/api/src/`
 
-| Path | Responsibility |
-| --- | --- |
-| `config/` | Env parsing and validation; fails fast at boot |
-| `core/context/` | AsyncLocalStorage request context |
-| `core/database/` | Master client, tenant connection manager, tenant DDL |
-| `core/tenant/` | Host resolution, tenant lookup, membership checks |
-| `core/security/` | Password hashing, credential encryption, token hashing |
-| `core/cache/` | Redis cache with tenant-scoped keys |
-| `core/queue/` | BullMQ queues and job producers |
-| `core/storage/` | S3-compatible and local file storage |
-| `core/logger/` | Structured pino logging with request correlation |
-| `core/observability/` | Prometheus metrics, health probes |
-| `common/guards/` | Rate limit, JWT, tenant, permissions, feature |
-| `common/filters/` | The single exception filter |
-| `common/interceptors/` | Logging, response envelope |
-| `modules/auth/` | Registration, login, refresh rotation, tenant switching |
-| `modules/storefront/` | Public catalog reads |
-| `modules/cart/` | Cart mutations and the pricing calculator |
-| `modules/orders/` | Checkout, order lifecycle, reservations |
-| `modules/payments/` | Provider abstraction, verification, webhooks |
-| `modules/customers/` | Profile, addresses, wishlist, notifications |
-| `modules/merchant/` | The console API (catalog, inventory, orders, staff…) |
-| `modules/inventory/` | Stock movements and thresholds |
-| `modules/catalog/` | Product/category/brand writes |
-| `modules/coupons/` | Coupon definition and redemption |
-| `modules/reviews/` | Review submission and moderation |
-| `modules/reports/` | Sales, customer and inventory reporting |
-| `modules/staff/` | Staff invitation and role assignment |
-| `modules/store/` | Store settings and branding |
-| `modules/tenants/` | Tenant provisioning and migration orchestration |
-| `modules/platform/` | Super-admin surface |
-| `modules/entitlements/` | Plan limits and feature flags |
-| `modules/audit/` | Audit trail |
-| `modules/notifications/` | Email/SMS/push dispatch |
-| `modules/health/` | Liveness, readiness, metrics |
-| `worker/` | BullMQ processors: provisioning, notifications, maintenance |
+| Path                     | Responsibility                                              |
+| ------------------------ | ----------------------------------------------------------- |
+| `config/`                | Env parsing and validation; fails fast at boot              |
+| `core/context/`          | AsyncLocalStorage request context                           |
+| `core/database/`         | Master client, tenant connection manager, tenant DDL        |
+| `core/tenant/`           | Host resolution, tenant lookup, membership checks           |
+| `core/security/`         | Password hashing, credential encryption, token hashing      |
+| `core/cache/`            | Redis cache with tenant-scoped keys                         |
+| `core/queue/`            | BullMQ queues and job producers                             |
+| `core/storage/`          | S3-compatible and local file storage                        |
+| `core/logger/`           | Structured pino logging with request correlation            |
+| `core/observability/`    | Prometheus metrics, health probes                           |
+| `common/guards/`         | Rate limit, JWT, tenant, permissions, feature               |
+| `common/filters/`        | The single exception filter                                 |
+| `common/interceptors/`   | Logging, response envelope                                  |
+| `modules/auth/`          | Registration, login, refresh rotation, tenant switching     |
+| `modules/storefront/`    | Public catalog reads                                        |
+| `modules/cart/`          | Cart mutations and the pricing calculator                   |
+| `modules/orders/`        | Checkout, order lifecycle, reservations                     |
+| `modules/payments/`      | Provider abstraction, verification, webhooks                |
+| `modules/customers/`     | Profile, addresses, wishlist, notifications                 |
+| `modules/merchant/`      | The console API (catalog, inventory, orders, staff…)        |
+| `modules/inventory/`     | Stock movements and thresholds                              |
+| `modules/catalog/`       | Product/category/brand writes                               |
+| `modules/coupons/`       | Coupon definition and redemption                            |
+| `modules/reviews/`       | Review submission and moderation                            |
+| `modules/reports/`       | Sales, customer and inventory reporting                     |
+| `modules/staff/`         | Staff invitation and role assignment                        |
+| `modules/store/`         | Store settings and branding                                 |
+| `modules/tenants/`       | Tenant provisioning and migration orchestration             |
+| `modules/platform/`      | Super-admin surface                                         |
+| `modules/entitlements/`  | Plan limits and feature flags                               |
+| `modules/audit/`         | Audit trail                                                 |
+| `modules/notifications/` | Email/SMS/push dispatch                                     |
+| `modules/health/`        | Liveness, readiness, metrics                                |
+| `worker/`                | BullMQ processors: provisioning, notifications, maintenance |
 
 ## Workers
 
@@ -203,7 +203,7 @@ See [WEB.md](WEB.md) and [MOBILE.md](MOBILE.md).
 - **Money** is stored as integer minor units. No floats anywhere in a price path.
 - **Order lines are snapshots.** Editing a product later never rewrites history.
 - **Stock** is reserved by a single conditional `UPDATE … WHERE quantity -
-  reserved >= n`, with CHECK constraints as a backstop, so overselling is
+reserved >= n`, with CHECK constraints as a backstop, so overselling is
   impossible even under concurrency.
 - **Checkout is idempotent** on an `Idempotency-Key`, and the payment gateway
   call happens outside the database transaction so a slow gateway cannot hold

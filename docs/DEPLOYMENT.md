@@ -91,7 +91,7 @@ METRICS_ENABLED=true
 
 Set `TENANT_CLUSTER_ID` deliberately and do not change it casually: tenants
 provisioned under one cluster id are reached at the configured address, and
-tenants recorded under a *different* cluster id are reached at their recorded
+tenants recorded under a _different_ cluster id are reached at their recorded
 address (see [ADR-016](DECISION_LOG.md#adr-016)).
 
 ## Deploying with Compose
@@ -124,7 +124,7 @@ pnpm db:tenant:migrate
 
 Tenant migrations are applied by the runtime runner under an advisory lock, so
 running the command while the API is serving traffic is safe — two instances
-cannot apply the same migration twice. Provisioning a *new* tenant during a
+cannot apply the same migration twice. Provisioning a _new_ tenant during a
 tenant-migration run is also safe: the new database gets the full set.
 
 **Write migrations to be backward compatible** across a rolling deploy. Add
@@ -190,7 +190,7 @@ Application code rolls back by redeploying the previous image tag.
 **Schema changes do not roll back automatically.** This is why migrations must
 be backward compatible: rolling the code back must leave the database in a state
 the old code can still use. Destructive migrations (dropping a column, tightening
-a constraint) should ship at least one release *after* the code that stopped
+a constraint) should ship at least one release _after_ the code that stopped
 depending on the old shape.
 
 ## Post-deploy checks

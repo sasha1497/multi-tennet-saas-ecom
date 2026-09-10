@@ -55,7 +55,7 @@ encrypted, never in plain text.
 **Layer 2 — the Host header decides the tenant.** Each hostname gets its own
 store and its own catalog; a product slug from one tenant 404s on another;
 unknown hostnames, reserved subdomains and nested subdomains that merely
-*contain* a tenant slug (`evil.kickzone.localhost`) are all refused.
+_contain_ a tenant slug (`evil.kickzone.localhost`) are all refused.
 
 **Layer 3 — a shopper token works in exactly one store.** The token works on its
 own store and is rejected on every other, across the orders list, the address
@@ -70,7 +70,7 @@ rejected; each owner sees only their own catalog and customers.
 **Layer 5 — audience and privilege boundaries.** Shopper tokens are refused on
 merchant routes and merchant tokens on shopper routes; merchant tokens are
 refused on platform routes; unauthenticated and forged tokens are refused; RBAC
-holds *within* a tenant (a MANAGER cannot manage staff); a super admin can read
+holds _within_ a tenant (a MANAGER cannot manage staff); a super admin can read
 across tenants and only a super admin can.
 
 **Malicious `tenant_id` injection attempts.** A `tenantId` in the request body is
@@ -96,7 +96,7 @@ server.
 
 `apps/api/src/modules/cart/pricing.service.spec.ts` — the money calculator.
 Subtotals, inclusive vs exclusive tax, per-product tax rates, free-shipping
-thresholds measured against the *post-discount* value, percentage caps,
+thresholds measured against the _post-discount_ value, percentage caps,
 discounts that never exceed the goods' value, proportional line distribution
 that re-sums exactly, and an all-integers assertion. It ends with
 `assertConsistent`, which mirrors the `orders_total_consistent` CHECK constraint

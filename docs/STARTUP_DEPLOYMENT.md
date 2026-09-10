@@ -32,16 +32,16 @@ Everything in Docker Compose on a single VM. Media goes to object storage
 
 Indicative monthly figures for an Indian-market startup, in USD:
 
-| Item | Choice | Cost |
-| --- | --- | --- |
-| VM | Hetzner CPX31 / DO 4 GB+ / Lightsail 4 GB | $12–24 |
-| Object storage | R2 / S3, ~50 GB | $1–2 |
-| Backup storage | Same bucket, 30 days retention | $1–2 |
-| Domain | `.in` domain | ~$1 |
-| TLS | Let's Encrypt wildcard | $0 |
-| Email | Brevo/Zoho free tier, then ~$10 | $0–10 |
-| SMS | Pay per message | usage |
-| **Total** | | **≈ $15–40/month** |
+| Item           | Choice                                    | Cost               |
+| -------------- | ----------------------------------------- | ------------------ |
+| VM             | Hetzner CPX31 / DO 4 GB+ / Lightsail 4 GB | $12–24             |
+| Object storage | R2 / S3, ~50 GB                           | $1–2               |
+| Backup storage | Same bucket, 30 days retention            | $1–2               |
+| Domain         | `.in` domain                              | ~$1                |
+| TLS            | Let's Encrypt wildcard                    | $0                 |
+| Email          | Brevo/Zoho free tier, then ~$10           | $0–10              |
+| SMS            | Pay per message                           | usage              |
+| **Total**      |                                           | **≈ $15–40/month** |
 
 At ₹1,500–3,000/month, one paying merchant covers the whole platform.
 

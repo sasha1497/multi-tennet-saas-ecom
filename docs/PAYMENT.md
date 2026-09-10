@@ -9,7 +9,7 @@ to a gateway SDK. Two adapters ship:
 - **Razorpay** — UPI, cards, net banking, wallets. The default for the Indian
   market.
 - **Mock** — a development provider that signs and verifies with the same
-  algorithm shape as the real one, so the *verification path* is exercised
+  algorithm shape as the real one, so the _verification path_ is exercised
   locally rather than stubbed out.
 
 Cash on delivery is handled as a payment method rather than a provider: no
@@ -27,7 +27,10 @@ interface PaymentProviderAdapter {
   verifySignature(params: VerifySignatureParams): boolean;
 
   /** Receives the RAW body — signatures are over exact bytes. */
-  parseWebhook(raw: Buffer, headers: Record<string, string | undefined>): NormalisedPaymentEvent | null;
+  parseWebhook(
+    raw: Buffer,
+    headers: Record<string, string | undefined>,
+  ): NormalisedPaymentEvent | null;
 
   refund(params: RefundParams): Promise<ProviderRefund>;
 }

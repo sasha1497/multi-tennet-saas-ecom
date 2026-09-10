@@ -2,7 +2,7 @@
   "name": "retailos",
   "version": "0.1.0",
   "private": true,
-  "description": "RetailOS — Multi-Tenant Local Retail E-Commerce SaaS platform",
+  "description": "RetailOS \u2014 Multi-Tenant Local Retail E-Commerce SaaS platform",
   "packageManager": "pnpm@9.15.9",
   "engines": {
     "node": ">=20.11.0",
@@ -23,6 +23,7 @@
     "db:migrate": "./database/node_modules/.bin/prisma migrate dev --schema=database/master/schema.prisma",
     "db:migrate:deploy": "./database/node_modules/.bin/prisma migrate deploy --schema=database/master/schema.prisma",
     "db:tenant:migrate": "pnpm --filter @retailos/api db:tenant:migrate",
+    "db:storage:migrate": "pnpm --filter @retailos/api db:storage:migrate",
     "db:seed": "pnpm --filter @retailos/api db:seed",
     "db:reset": "./database/node_modules/.bin/prisma migrate reset --schema=database/master/schema.prisma --force --skip-seed && pnpm db:seed",
     "db:studio": "./database/node_modules/.bin/prisma studio --schema=database/master/schema.prisma",

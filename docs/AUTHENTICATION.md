@@ -4,7 +4,7 @@ There are two distinct populations, and they never share a token.
 
 - **Admin audience** — platform staff and merchant staff. Rows in the master
   database's `users` table, linked to tenants through `tenant_users`.
-- **Customer audience** — shoppers. Rows in a *tenant's* `customers` table. A
+- **Customer audience** — shoppers. Rows in a _tenant's_ `customers` table. A
   customer of KickZone exists only in `tenant_kickzone`.
 
 A token carries its audience, and the guards refuse to honour one on the other's
@@ -30,7 +30,7 @@ does not yield usable refresh tokens.
 ### Rotation with reuse detection
 
 Every refresh issues a new refresh token and supersedes the old one. If a
-*superseded* token is ever presented again, the entire session family is
+_superseded_ token is ever presented again, the entire session family is
 revoked immediately.
 
 The reasoning: a superseded refresh token being replayed means either the
@@ -71,13 +71,13 @@ Registered globally in `apps/api/src/app.module.ts`. **Order is load-bearing.**
 RateLimitGuard → JwtAuthGuard → TenantGuard → PermissionsGuard → FeatureGuard
 ```
 
-| Guard | Responsibility |
-| --- | --- |
-| `RateLimitGuard` | Per-IP and per-route counters in Redis; stricter on auth routes |
-| `JwtAuthGuard` | Verifies the bearer token. **Deny by default** — a route is private unless explicitly marked `@Public()` |
-| `TenantGuard` | Establishes *and verifies* the tenant (see [TENANCY.md](TENANCY.md)) |
-| `PermissionsGuard` | Checks the route's required `resource.action` against the caller's permissions |
-| `FeatureGuard` | Checks the tenant's plan entitlements |
+| Guard              | Responsibility                                                                                           |
+| ------------------ | -------------------------------------------------------------------------------------------------------- |
+| `RateLimitGuard`   | Per-IP and per-route counters in Redis; stricter on auth routes                                          |
+| `JwtAuthGuard`     | Verifies the bearer token. **Deny by default** — a route is private unless explicitly marked `@Public()` |
+| `TenantGuard`      | Establishes _and verifies_ the tenant (see [TENANCY.md](TENANCY.md))                                     |
+| `PermissionsGuard` | Checks the route's required `resource.action` against the caller's permissions                           |
+| `FeatureGuard`     | Checks the tenant's plan entitlements                                                                    |
 
 Deny-by-default matters more than it sounds: with an allow-by-default guard, a
 new controller written on a Friday is public until someone remembers to protect
@@ -86,13 +86,13 @@ harmless failure instead of a silent leak.
 
 ## Roles
 
-| Role | Who | Scope |
-| --- | --- | --- |
-| `SUPER_ADMIN` | Platform operator | Every permission, cross-tenant, audited |
-| `OWNER` | The merchant | Every tenant-scoped permission for their own store |
-| `MANAGER` | Senior staff | Everything operational except staff management, store settings and subscription |
-| `STAFF` | Shop floor | Read the catalog, update inventory, read and progress orders |
-| `CUSTOMER` | Shopper | Their own cart, orders, addresses, reviews |
+| Role          | Who               | Scope                                                                           |
+| ------------- | ----------------- | ------------------------------------------------------------------------------- |
+| `SUPER_ADMIN` | Platform operator | Every permission, cross-tenant, audited                                         |
+| `OWNER`       | The merchant      | Every tenant-scoped permission for their own store                              |
+| `MANAGER`     | Senior staff      | Everything operational except staff management, store settings and subscription |
+| `STAFF`       | Shop floor        | Read the catalog, update inventory, read and progress orders                    |
+| `CUSTOMER`    | Shopper           | Their own cart, orders, addresses, reviews                                      |
 
 Roles are resolved to a permission set at token issue and re-checked against the
 live membership on every request, so a demotion takes effect within the

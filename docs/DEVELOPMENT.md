@@ -27,16 +27,16 @@ Docker, Compose supplies the in-network addresses (`postgres:5432`,
 RetailOS deliberately avoids the default ports so it can run alongside other
 projects on the same machine:
 
-| Service | Host port | In-network |
-| --- | --- | --- |
-| PostgreSQL | 5433 | `postgres:5432` |
-| MySQL | 3307 | `mysql:3306` |
-| Redis | 6379 | `redis:6379` |
-| MinIO API / console | 9100 / 9101 | `minio:9000` |
-| Mailpit | 8025 | `mailpit:1025` (SMTP) |
-| Adminer | 8082 | — |
-| Redis Commander | 8083 | — |
-| nginx | 80 | — |
+| Service             | Host port   | In-network            |
+| ------------------- | ----------- | --------------------- |
+| PostgreSQL          | 5433        | `postgres:5432`       |
+| MySQL               | 3307        | `mysql:3306`          |
+| Redis               | 6379        | `redis:6379`          |
+| MinIO API / console | 9100 / 9101 | `minio:9000`          |
+| Mailpit             | 8025        | `mailpit:1025` (SMTP) |
+| Adminer             | 8082        | —                     |
+| Redis Commander     | 8083        | —                     |
+| nginx               | 80          | —                     |
 
 All of them are overridable via `*_HOST_PORT` variables in `.env`.
 
@@ -45,10 +45,10 @@ All of them are overridable via `*_HOST_PORT` variables in `.env`.
 `pnpm db:seed` creates a super admin, three tenants with their own databases,
 and a realistic catalog for each:
 
-| Tenant | Domain | Sells | Owner | Customer |
-| --- | --- | --- | --- | --- |
-| KickZone | `kickzone.localhost` | footwear | `owner@kickzone.dev` | `priya@example.com` |
-| ABC Store | `abcstore.localhost` | stationery & home | `owner@abcstore.dev` | `vikram@example.com` |
+| Tenant             | Domain                 | Sells                | Owner                  | Customer              |
+| ------------------ | ---------------------- | -------------------- | ---------------------- | --------------------- |
+| KickZone           | `kickzone.localhost`   | footwear             | `owner@kickzone.dev`   | `priya@example.com`   |
+| ABC Store          | `abcstore.localhost`   | stationery & home    | `owner@abcstore.dev`   | `vikram@example.com`  |
 | Kumar Mobile Store | `kumarstore.localhost` | phones & accessories | `owner@kumarstore.dev` | `karthik@example.com` |
 
 Every seeded account uses `Password@123`; the super admin
@@ -105,9 +105,9 @@ migrations that actually run are versioned SQL files under
   --script > database/tenant/migrations/0003_your_change/migration.sql
 ```
 
-   In practice: keep a copy of the previous schema, diff against it, or diff
-   from the shadow database. Hand-written SQL is fine too — the runner does not
-   care where the file came from, only that it is versioned and checksummed.
+In practice: keep a copy of the previous schema, diff against it, or diff
+from the shadow database. Hand-written SQL is fine too — the runner does not
+care where the file came from, only that it is versioned and checksummed.
 
 3. Apply it to every tenant:
 

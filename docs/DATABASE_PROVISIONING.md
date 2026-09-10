@@ -32,7 +32,7 @@ create duplicate tenants or corrupted databases. Three mechanisms deliver that.
 and resumes at the first step not recorded — a crash between `RUN_MIGRATIONS`
 and `SEED_DEFAULTS` does not re-run migrations.
 
-**2. Idempotent primitives.** Even if a step *does* run twice, nothing breaks:
+**2. Idempotent primitives.** Even if a step _does_ run twice, nothing breaks:
 `CREATE DATABASE` and `CREATE ROLE` are existence-checked, the migration runner
 consults its own ledger, and seeding uses upserts.
 
@@ -115,7 +115,7 @@ What the runner does:
    `tenant_migration_records` in the master database, so the platform can see
    every tenant's schema version without connecting to each one.
 
-The SQL itself is *generated* from `database/tenant/schema.prisma` with
+The SQL itself is _generated_ from `database/tenant/schema.prisma` with
 `prisma migrate diff`, so the schema stays the single source of truth and we
 still get reviewable, checksummed SQL.
 

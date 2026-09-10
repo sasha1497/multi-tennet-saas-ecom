@@ -47,7 +47,7 @@ also shares one database's connection limit, WAL and backup unit.
 **Consequences accepted.** More connections to manage (hence the pooled
 connection manager); migrations run N times (hence the migration runner);
 cross-tenant analytics needs a separate rollup path. In exchange, isolation is a
-property of the *connection*, and a coding mistake degrades from "data breach"
+property of the _connection_, and a coding mistake degrades from "data breach"
 to "wrong rows within the right store". Per-tenant backup, restore, relocation
 and true deletion come free.
 
@@ -71,7 +71,7 @@ richer CHECK constraints; and clean `CREATE DATABASE` ergonomics for per-tenant
 provisioning.
 
 **Why MySQL is still there.** The software Indian local retailers are migrating
-*from* is overwhelmingly MySQL-based. The service is a landing zone for legacy
+_from_ is overwhelmingly MySQL-based. The service is a landing zone for legacy
 imports, a mirror for on-premise tools that can only speak MySQL, and proof that
 the connection works. It is behind a profile in production.
 
@@ -107,7 +107,7 @@ controller does, with no parallel plumbing.
 **Decision.** Three trusted inputs, each verified: the hostname (storefront), a
 live `tenant_users` membership (console), and a slug header that resolves a
 public storefront and grants nothing (mobile). A tenant id in a request body or
-query string is ignored, always. `X-Tenant-Id` is a *hint* — shape-checked, then
+query string is ignored, always. `X-Tenant-Id` is a _hint_ — shape-checked, then
 run through the same membership check — that can only select among tenants the
 caller already belongs to.
 
@@ -150,7 +150,7 @@ have N, provisioned at different times, possibly mid-deploy.
 **Decision.** Tenant migrations are versioned SQL directories applied by our own
 runner: advisory lock, checksum verification, per-migration transaction, a
 ledger in the tenant's own `schema_migrations` table, and a mirrored ledger in
-the master database. The SQL is *generated* from `tenant/schema.prisma` with
+the master database. The SQL is _generated_ from `tenant/schema.prisma` with
 `prisma migrate diff`, so the Prisma schema remains the source of truth.
 
 **Rejected: shelling out to `prisma migrate deploy` per tenant.** Slow (a process
@@ -299,7 +299,7 @@ destructive one.
 
 **Decision.** The checkout transaction re-validates lines, reserves stock,
 allocates the order number, snapshots line items, redeems the coupon, creates the
-payment record and clears the cart. The gateway call happens *after* it commits.
+payment record and clears the cart. The gateway call happens _after_ it commits.
 
 **Why.** A payment provider can take seconds or hang. Holding row locks on
 inventory for the duration would serialise every checkout behind the slowest
@@ -336,7 +336,7 @@ row is read by the API inside a container (`postgres:5432`), by a developer on
 the host (`localhost:5433`), and in production (an RDS endpoint). A single
 recorded address cannot be right for all three.
 
-**Decision.** `cluster_id` is the logical placement. For tenants on *this*
+**Decision.** `cluster_id` is the logical placement. For tenants on _this_
 deployment's own cluster (`TENANT_CLUSTER_ID`), the configured
 `TENANT_DB_HOST`/`TENANT_DB_PORT` win; tenants on any other cluster keep the
 recorded address.

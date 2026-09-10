@@ -107,7 +107,7 @@ curl -s -H 'Host: kickzone.localhost' -H "Authorization: Bearer $CTOK" \
 ```
 
 All amounts are paise. The store prices tax-inclusive, so `tax` is the GST
-*contained in* the subtotal, not an addition to it — which is why `total` equals
+_contained in_ the subtotal, not an addition to it — which is why `total` equals
 `subtotal` here.
 
 Apply a coupon:
@@ -247,7 +247,13 @@ curl -s -X POST $API/merchant/inventory/adjust -H "Authorization: Bearer $MTOK" 
 A stale version loses cleanly:
 
 ```json
-{ "success": false, "error": { "code": "CONCURRENT_MODIFICATION", "message": "The operation conflicted with another change. Please retry." } }
+{
+  "success": false,
+  "error": {
+    "code": "CONCURRENT_MODIFICATION",
+    "message": "The operation conflicted with another change. Please retry."
+  }
+}
 ```
 
 Progress an order:
@@ -278,7 +284,13 @@ curl -s $API/merchant/products -H "Authorization: Bearer $MTOK" \
 Pointing that header at a store you do not belong to:
 
 ```json
-{ "success": false, "error": { "code": "TENANT_MEMBERSHIP_REQUIRED", "message": "You do not have access to this store" } }
+{
+  "success": false,
+  "error": {
+    "code": "TENANT_MEMBERSHIP_REQUIRED",
+    "message": "You do not have access to this store"
+  }
+}
 ```
 
 ## 9. Platform admin
