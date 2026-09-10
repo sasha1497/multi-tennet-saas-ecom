@@ -9,6 +9,11 @@
  * The limiter itself is NOT disabled: `tenant-isolation.e2e-spec.ts` still
  * asserts that unauthenticated and forged requests are refused, and a limit of
  * 10_000 still trips on a genuine runaway loop.
+ *
+ * These two variables do not reach the auth routes — those carry their own
+ * per-action limits in the decorator (ten logins per five minutes, five
+ * registrations per hour). `bootstrapTestApp` clears the rate-limit counters
+ * before each suite for that reason.
  */
 process.env.AUTH_RATE_LIMIT_LIMIT = process.env.AUTH_RATE_LIMIT_LIMIT ?? '10000';
 process.env.RATE_LIMIT_LIMIT = process.env.RATE_LIMIT_LIMIT ?? '10000';

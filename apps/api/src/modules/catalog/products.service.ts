@@ -761,12 +761,19 @@ export class ProductsService {
       }
 
       const primaryId = input.primaryImageId ?? input.imageIds[0];
+
+      // Three statements, in this order, because `product_images_one_primary`
+      // enforces exactly one primary per product as a partial unique index.
+      // Setting the new primary before clearing the old one leaves two rows
+      // flagged for an instant, and the constraint — correctly — refuses it.
+      await tx.productImage.updateMany({
+        where: { productId, isPrimary: true },
+        data: { isPrimary: false },
+      });
       for (const [index, id] of input.imageIds.entries()) {
-        await tx.productImage.update({
-          where: { id },
-          data: { sortOrder: index, isPrimary: id === primaryId },
-        });
+        await tx.productImage.update({ where: { id }, data: { sortOrder: index } });
       }
+      await tx.productImage.update({ where: { id: primaryId }, data: { isPrimary: true } });
 
       return tx.productImage.findMany({
         where: { productId },

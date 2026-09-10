@@ -1,6 +1,5 @@
 import {
   DeleteObjectCommand,
-  DeleteObjectsCommand,
   GetObjectCommand,
   HeadBucketCommand,
   HeadObjectCommand,
@@ -196,23 +195,41 @@ export abstract class S3CompatibleProvider implements StorageProvider {
     const keys = await this.list(prefix);
     if (keys.length === 0) return 0;
 
-    // DeleteObjects caps at 1000 keys per request.
-    for (let i = 0; i < keys.length; i += 1000) {
-      const batch = keys.slice(i, i + 1000);
-      const res = await this.client.send(
-        new DeleteObjectsCommand({
-          Bucket: this.options.bucket,
-          Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
-        }),
+    /**
+     * One request per object, not `DeleteObjects`.
+     *
+     * The batch API is the obvious choice and it is the wrong one here. S3
+     * requires a checksum header on `DeleteObjects`, and which checksum the SDK
+     * sends has changed between versions — recent releases default to CRC32,
+     * which MinIO rejects with "Missing required header for this request:
+     * Content-Md5". So the batch call works against AWS and fails against the
+     * S3-compatible service every developer runs locally, which is the worst
+     * possible place for a compatibility difference to live: the most
+     * destructive operation in the system, exercised least often.
+     *
+     * Individual deletes have no checksum requirement and behave identically on
+     * every implementation. The cost is request count on an operation that runs
+     * once in a tenant's lifetime, and the concurrency below keeps even a large
+     * tenant to a few seconds.
+     */
+    const CONCURRENCY = 16;
+    const failures: string[] = [];
+
+    for (let i = 0; i < keys.length; i += CONCURRENCY) {
+      const window = keys.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(window.map((key) => this.delete(key)));
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') failures.push(window[index]);
+      });
+    }
+
+    // A partial failure must not be reported as a clean purge — the caller
+    // records the step as failed and retries it, and a retry re-lists so
+    // anything already gone is simply not found again.
+    if (failures.length > 0) {
+      throw new Error(
+        `Failed to delete ${failures.length} of ${keys.length} object(s) under ${prefix}`,
       );
-      // A partial failure must not be reported as a clean purge — the caller
-      // records the step as failed and retries it.
-      if (res.Errors?.length) {
-        throw new Error(
-          `Failed to delete ${res.Errors.length} object(s) under ${prefix}: ` +
-            `${res.Errors[0].Code ?? 'unknown'} ${res.Errors[0].Message ?? ''}`.trim(),
-        );
-      }
     }
 
     return keys.length;

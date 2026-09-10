@@ -6,6 +6,7 @@ import request from 'supertest';
 import { API_PREFIX } from '@retailos/config';
 import { AppModule } from '@/app.module';
 import { installBigIntSerializer } from '@/common/utils/serialization';
+import { CacheService } from '@/core/cache/cache.service';
 
 installBigIntSerializer();
 
@@ -26,7 +27,33 @@ export async function bootstrapTestApp(): Promise<INestApplication> {
   const app = moduleRef.createNestApplication({ rawBody: true, logger: false });
   app.setGlobalPrefix(API_PREFIX);
   await app.init();
+
+  await clearRateLimits(app);
   return app;
+}
+
+/**
+ * Resets the rate-limit counters before a suite runs.
+ *
+ * Every suite signs in as several accounts from the same address, and the login
+ * bucket allows ten attempts per five minutes — a limit the suites collectively
+ * blow through well inside one window. Without this, adding a suite makes an
+ * unrelated one fail with a 429 that says nothing about what it was testing,
+ * and the failure moves around depending on execution order.
+ *
+ * Note this resets the *counter*, it does not disable the limiter: the
+ * behavioural assertions in `tenant-isolation.e2e-spec.ts` that unauthenticated
+ * and forged requests are refused still run against a live guard. Raising
+ * `AUTH_RATE_LIMIT_LIMIT` would not help — the auth routes carry their own
+ * per-action limits in the decorator, which that variable does not reach.
+ */
+async function clearRateLimits(app: INestApplication): Promise<void> {
+  try {
+    await app.get(CacheService).delByPattern('rl:*');
+  } catch {
+    // Redis unavailable is a problem the first real request will report far
+    // more clearly than a thrown error inside a bootstrap helper.
+  }
 }
 
 export const SEED_PASSWORD = 'Password@123';
