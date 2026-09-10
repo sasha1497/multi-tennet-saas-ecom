@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Eye, Sparkles } from 'lucide-react';
+import { Check, Eye, Gem, Sparkles } from 'lucide-react';
 import type { TemplateDefinition } from '@retailos/templates';
 import { Badge, Button, cn } from '@retailos/ui';
 
@@ -61,6 +61,15 @@ export function TemplateCard({
             Recommended
           </span>
         )}
+
+        {/* Tier sits opposite the recommendation so the two never collide,
+            and reads as a property of the design rather than a sales badge. */}
+        {template.tier === 'premium' && (
+          <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-neutral-900/85 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">
+            <Gem className="h-3 w-3" />
+            Premium
+          </span>
+        )}
       </button>
 
       <div className="flex flex-1 flex-col p-4">
@@ -80,13 +89,27 @@ export function TemplateCard({
         <p className="mt-1 text-sm text-content-muted">{template.tagline}</p>
 
         <div className="mt-3 flex flex-wrap gap-1.5">
+          <Badge tone={template.tier === 'premium' ? 'primary' : 'neutral'}>
+            {template.tier === 'premium' ? 'Premium' : 'Standard'}
+          </Badge>
           <Badge tone="neutral">{template.group}</Badge>
-          {template.badges?.map((badge) => (
-            <Badge key={badge} tone={badge === 'New' ? 'success' : 'info'}>
-              {badge}
-            </Badge>
-          ))}
+          {/* `Premium` is already the tier badge; showing it twice reads as
+              two different claims about the same thing. */}
+          {template.badges
+            ?.filter((badge) => badge !== 'Premium')
+            .map((badge) => (
+              <Badge key={badge} tone={badge === 'New' ? 'success' : 'info'}>
+                {badge}
+              </Badge>
+            ))}
         </div>
+
+        {template.tier === 'premium' && (
+          <p className="mt-2.5 text-xs leading-relaxed text-content-subtle">
+            Animated sections, scroll transitions and a cinematic opening. Motion switches itself
+            off for visitors who ask for less of it.
+          </p>
+        )}
 
         <div className="mt-4 flex gap-2 pt-1">
           <Button variant="outline" size="sm" onClick={onPreview} className="flex-1">
@@ -117,7 +140,19 @@ export function TemplateCard({
 function TemplateThumbnail({ template }: { template: TemplateDefinition }) {
   const { theme, layout } = template;
   const columns = layout.gridColumns.lg;
-  const radius = layout.productCard === 'soft' ? 8 : layout.productCard === 'editorial' ? 0 : 4;
+  const radius =
+    layout.productCard === 'soft'
+      ? 8
+      : layout.productCard === 'editorial' || layout.productCard === 'overlay'
+        ? 0
+        : 4;
+
+  // A miniature that showed the same hero for every template would undo the
+  // point of the gallery, so the three arrangements that actually differ are
+  // drawn differently: minimal chrome over white, a dark cinematic block, or
+  // the ordinary gradient panel.
+  const minimalChrome = layout.header === 'minimal';
+  const cinematic = layout.header === 'floating' || layout.header === 'editorial';
 
   return (
     <div
@@ -154,25 +189,42 @@ function TemplateThumbnail({ template }: { template: TemplateDefinition }) {
 
       {/* Hero */}
       <div
-        className="relative flex h-[38%] flex-col justify-end p-3"
+        className={
+          minimalChrome
+            ? 'relative flex h-[38%] flex-col items-center justify-center p-3'
+            : 'relative flex h-[38%] flex-col justify-end p-3'
+        }
         style={{
-          background:
-            layout.header === 'editorial'
+          background: minimalChrome
+            ? theme.surfaceColor
+            : cinematic
               ? theme.contentColor
               : `linear-gradient(135deg, ${theme.primaryColor}, ${theme.accentColor})`,
         }}
       >
         <span
-          className="h-2 w-[45%]"
-          style={{ backgroundColor: '#ffffff', opacity: 0.95, borderRadius: 2 }}
+          className={minimalChrome ? 'h-2 w-[55%]' : 'h-2 w-[45%]'}
+          style={{
+            backgroundColor: minimalChrome ? theme.contentColor : '#ffffff',
+            opacity: 0.95,
+            borderRadius: 2,
+          }}
         />
         <span
-          className="mt-1.5 h-1.5 w-[30%]"
-          style={{ backgroundColor: '#ffffff', opacity: 0.55, borderRadius: 2 }}
+          className={minimalChrome ? 'mt-1.5 h-1.5 w-[35%]' : 'mt-1.5 h-1.5 w-[30%]'}
+          style={{
+            backgroundColor: minimalChrome ? theme.contentColor : '#ffffff',
+            opacity: 0.45,
+            borderRadius: 2,
+          }}
         />
         <span
           className="mt-2.5 h-3 w-12"
-          style={{ backgroundColor: '#ffffff', borderRadius: radius === 8 ? 999 : radius }}
+          style={{
+            backgroundColor: minimalChrome ? 'transparent' : '#ffffff',
+            border: minimalChrome ? `1px solid ${theme.contentColor}` : undefined,
+            borderRadius: radius === 8 ? 999 : radius,
+          }}
         />
       </div>
 

@@ -41,11 +41,138 @@ describe('template registry', () => {
   });
 });
 
+/**
+ * The catalogue's reason for existing.
+ *
+ * "Six templates" is worthless if two of them are the same page in different
+ * colours — which is exactly what a design system drifts towards, because
+ * reusing a layout is always the cheapest change. These assertions make
+ * sameness a build failure rather than something someone notices in a demo.
+ */
+describe('templates are genuinely different designs', () => {
+  /** Everything about a template except its palette. */
+  const structure = (t: (typeof TEMPLATES)[number]) =>
+    JSON.stringify({
+      layout: t.layout,
+      density: t.theme.density,
+      radius: t.theme.radius,
+      transform: t.theme.headingTransform,
+      sections: t.sections.map((s) => `${s.kind}:${s.variant}`),
+    });
+
+  it('gives no two templates the same structure', () => {
+    const seen = new Map<string, string>();
+    for (const template of TEMPLATES) {
+      const key = structure(template);
+      const clash = seen.get(key);
+      expect(clash ? `${clash} and ${template.name} are the same design` : null).toBeNull();
+      seen.set(key, template.name);
+    }
+  });
+
+  it('gives no two templates the same header, footer and card combination', () => {
+    const seen = new Map<string, string>();
+    for (const template of TEMPLATES) {
+      const { header, footer, productCard, productDetail } = template.layout;
+      const key = `${header}/${footer}/${productCard}/${productDetail}`;
+      const clash = seen.get(key);
+      expect(clash ? `${clash} and ${template.name} share a chrome` : null).toBeNull();
+      seen.set(key, template.name);
+    }
+  });
+
+  it('keeps the two fashion templates structurally distinct', () => {
+    // The specific complaint that prompted the redesign: these two used to
+    // read as one template with a different palette.
+    const urban = getTemplate('urban-luxe')!;
+    const silk = getTemplate('silk-editorial')!;
+
+    expect(urban.layout.header).not.toBe(silk.layout.header);
+    expect(urban.layout.footer).not.toBe(silk.layout.footer);
+    expect(urban.layout.productCard).not.toBe(silk.layout.productCard);
+    expect(urban.theme.headingTransform).not.toBe(silk.theme.headingTransform);
+    expect(urban.layout.gridColumns).not.toEqual(silk.layout.gridColumns);
+    expect(structure(urban)).not.toBe(structure(silk));
+  });
+
+  it('gives each template its own opening', () => {
+    const heroes = TEMPLATES.map((t) => t.sections.find((s) => s.kind === 'hero')?.variant);
+    expect(heroes.every(Boolean)).toBe(true);
+    // Two templates may share a hero variant only if they are different tiers
+    // of the same industry — Pawsome and Companion Club, by design.
+    const counts = new Map<string, number>();
+    for (const hero of heroes) counts.set(hero!, (counts.get(hero!) ?? 0) + 1);
+    for (const [, count] of counts) expect(count).toBeLessThanOrEqual(2);
+  });
+});
+
+describe('tiers', () => {
+  it('ships both tiers', () => {
+    expect(TEMPLATES.some((t) => t.tier === 'standard')).toBe(true);
+    expect(TEMPLATES.some((t) => t.tier === 'premium')).toBe(true);
+  });
+
+  it('keeps the original six standard templates in the catalogue', () => {
+    // Adding a premium tier must never remove what merchants already use.
+    for (const id of [
+      'urban-luxe',
+      'spec-grid',
+      'glow-beauty',
+      'pawsome',
+      'daily-cart',
+      'silk-editorial',
+    ]) {
+      expect(getTemplate(id)).not.toBeNull();
+      expect(getTemplate(id)!.tier).toBe('standard');
+    }
+  });
+
+  it('gives every premium template real motion, and standard templates none that needs scroll', () => {
+    for (const template of TEMPLATES) {
+      if (template.tier === 'premium') {
+        expect(template.motion.reveal).not.toBe('none');
+      } else {
+        // Standard templates may have a hover state; they must not pay for
+        // scroll observers, parallax or a scroll-reactive header.
+        expect(template.motion.reveal).toBe('none');
+        expect(template.motion.parallax).toBe(false);
+        expect(template.motion.stickyNav).toBe(false);
+      }
+    }
+  });
+
+  it('declares a motion personality on every template', () => {
+    for (const template of TEMPLATES) {
+      expect(template.motion).toBeDefined();
+      expect(typeof template.motion.hover).toBe('string');
+    }
+  });
+});
+
 describe('recommendations', () => {
   it('puts templates built for the category first and still returns the rest', () => {
     const ranked = recommendedTemplates('Mobile Shop');
-    expect(ranked[0].id).toBe('spec-grid');
+    // Both the standard and the premium electronics design match, and both
+    // rank above every template that does not.
+    const matching = ranked.filter((t) => t.businessTypes.includes('Mobile Shop'));
+    expect(matching.length).toBeGreaterThan(1);
+    expect(ranked.slice(0, matching.length)).toEqual(matching);
     expect(ranked).toHaveLength(TEMPLATES.length);
+  });
+
+  it('ranks the standard tier above premium within a match', () => {
+    const ranked = recommendedTemplates('Mobile Shop');
+    expect(ranked[0].tier).toBe('standard');
+    expect(ranked[0].id).toBe('spec-grid');
+  });
+
+  it('never starts a new store on a premium template', () => {
+    // Premium is a choice made in the gallery, not something provisioning does
+    // on a merchant's behalf — a cinematic opening is the wrong first
+    // impression for a store with no photographs yet.
+    for (const category of ['Jewellery', 'Mobile Shop', 'Pet Shop', "Men's Wear", 'Grocery']) {
+      expect(defaultTemplateFor(category).tier).toBe('standard');
+    }
   });
 
   it('matches business categories case- and punctuation-insensitively', () => {
@@ -65,14 +192,22 @@ describe('recommendations', () => {
 });
 
 describe('version pinning', () => {
+  const current = getTemplate('urban-luxe')!.version;
+
   it('returns the pinned version when it exists', () => {
-    expect(getTemplate('urban-luxe', 1)!.version).toBe(1);
+    expect(getTemplate('urban-luxe', current)!.version).toBe(current);
   });
 
   it('falls forward to the newest version when the pin is withdrawn', () => {
+    // A store pinned to a version no longer published keeps its template and
+    // gains the newest revision of it, rather than losing its design.
     const resolved = getTemplate('urban-luxe', 99);
     expect(resolved!.id).toBe('urban-luxe');
-    expect(resolved!.version).toBe(1);
+    expect(resolved!.version).toBe(current);
+  });
+
+  it('never falls back to an older version than the one pinned', () => {
+    expect(getTemplate('urban-luxe', 1)!.version).toBeGreaterThanOrEqual(1);
   });
 
   it('returns null for an unknown id', () => {
@@ -154,7 +289,11 @@ describe('customisation survives template switching', () => {
 
     const a = resolveTemplate({ templateId: 'urban-luxe', templateVersion: 1, customization });
     const b = resolveTemplate({ templateId: 'spec-grid', templateVersion: 1, customization });
-    const backToA = resolveTemplate({ templateId: 'urban-luxe', templateVersion: 1, customization });
+    const backToA = resolveTemplate({
+      templateId: 'urban-luxe',
+      templateVersion: 1,
+      customization,
+    });
 
     expect(a.sections.map((s) => s.id)).toEqual(backToA.sections.map((s) => s.id));
     expect(backToA.sections.find((s) => s.id === 'trending')?.title).toBe('Hot this week');

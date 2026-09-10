@@ -24,7 +24,15 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useErrorToast } from '@/lib/hooks';
 
-type Filter = 'all' | 'recommended' | (typeof TEMPLATE_GROUPS)[number];
+/**
+ * Gallery filters.
+ *
+ * Tier sits in the same rail as industry rather than in a separate control:
+ * a merchant filtering the catalogue is answering one question — "show me the
+ * ones like this" — and splitting it across two widgets makes them answer it
+ * twice.
+ */
+type Filter = 'all' | 'recommended' | 'standard' | 'premium' | (typeof TEMPLATE_GROUPS)[number];
 
 /**
  * The template gallery.
@@ -84,12 +92,23 @@ export default function TemplateGalleryPage() {
 
     return catalogue.templates.filter((template) => {
       if (filter === 'recommended' && !recommended.has(template.id)) return false;
-      if (filter !== 'all' && filter !== 'recommended' && template.group !== filter) return false;
+      if (filter === 'standard' && template.tier !== 'standard') return false;
+      if (filter === 'premium' && template.tier !== 'premium') return false;
+      if (
+        filter !== 'all' &&
+        filter !== 'recommended' &&
+        filter !== 'standard' &&
+        filter !== 'premium' &&
+        template.group !== filter
+      ) {
+        return false;
+      }
       if (!needle) return true;
       return (
         template.name.toLowerCase().includes(needle) ||
         template.tagline.toLowerCase().includes(needle) ||
         template.group.toLowerCase().includes(needle) ||
+        template.tier.includes(needle) ||
         template.businessTypes.some((type) => type.toLowerCase().includes(needle))
       );
     });
@@ -109,7 +128,13 @@ export default function TemplateGalleryPage() {
   }
 
   const recommended = new Set(catalogue.recommendedIds);
-  const filters: Filter[] = ['all', ...(recommended.size > 0 ? (['recommended'] as Filter[]) : []), ...TEMPLATE_GROUPS];
+  const filters: Filter[] = [
+    'all',
+    ...(recommended.size > 0 ? (['recommended'] as Filter[]) : []),
+    'standard',
+    'premium',
+    ...TEMPLATE_GROUPS,
+  ];
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -164,7 +189,11 @@ export default function TemplateGalleryPage() {
                 ? 'All designs'
                 : option === 'recommended'
                   ? 'Recommended for you'
-                  : option}
+                  : option === 'standard'
+                    ? 'Standard'
+                    : option === 'premium'
+                      ? 'Premium'
+                      : option}
             </button>
           ))}
         </div>

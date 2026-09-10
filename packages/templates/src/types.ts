@@ -10,14 +10,19 @@
  * `resolve.ts` and `docs/TEMPLATES.md`.
  */
 
+/**
+ * Standard or premium.
+ *
+ * A tier is a promise about the *experience*, not a feature flag: premium
+ * templates are separate designs with their own layouts and motion, never an
+ * existing template with animation switched on. Both tiers render the same
+ * business data through the same components — see `docs/TEMPLATES.md`.
+ */
+export type TemplateTier = 'standard' | 'premium';
+
 /** Top-level grouping used by the template gallery's filter rail. */
 export type TemplateGroup =
-  | 'Fashion'
-  | 'Retail'
-  | 'Technology'
-  | 'Beauty'
-  | 'Lifestyle'
-  | 'Specialised';
+  'Fashion' | 'Retail' | 'Technology' | 'Beauty' | 'Lifestyle' | 'Specialised';
 
 export const TEMPLATE_GROUPS: readonly TemplateGroup[] = [
   'Fashion',
@@ -107,10 +112,100 @@ export interface TemplateTheme {
   density: 'compact' | 'regular' | 'airy';
 }
 
-export type HeaderVariant = 'editorial' | 'classic' | 'utility' | 'soft' | 'playful';
-export type FooterVariant = 'editorial' | 'columns' | 'compact' | 'soft';
-export type ProductCardVariant = 'editorial' | 'portrait' | 'spec' | 'soft' | 'compact';
-export type ProductDetailVariant = 'gallerySplit' | 'stickyPanel' | 'stackedGallery' | 'specSheet';
+export type HeaderVariant =
+  /** Wordmark centred over a wide-tracked nav rail. Fashion editorial. */
+  | 'editorial'
+  /** Serif wordmark, centred nav, hairline rules. Boutique. */
+  | 'classic'
+  /** Search-forward single bar with a category strip. Marketplace. */
+  | 'utility'
+  /** Rounded, pill-shaped, low contrast. Beauty. */
+  | 'soft'
+  /** Chunky, colour-blocked, oversized targets. Pet. */
+  | 'playful'
+  /** Aisle-first: a category mega-strip above a dense utility bar. Grocery. */
+  | 'aisle'
+  /** Almost nothing: wordmark, one menu affordance. Luxury. */
+  | 'minimal'
+  /** Transparent over the hero, solidifying on scroll. Premium. */
+  | 'floating';
+
+export type FooterVariant =
+  | 'editorial'
+  | 'columns'
+  | 'compact'
+  | 'soft'
+  /** Oversized wordmark over a thin link row. Luxury and premium. */
+  | 'statement';
+
+export type ProductCardVariant =
+  /** No chrome, type-led, image does the work. */
+  | 'editorial'
+  /** Framed and centred, serif title. */
+  | 'portrait'
+  /** Bordered, rating and EMI line, contained image. */
+  | 'spec'
+  /** Rounded, shadowed, warm. */
+  | 'soft'
+  /** Minimum height per product. */
+  | 'compact'
+  /** Price and add-to-basket forward, unit line. Grocery. */
+  | 'grocery'
+  /** Overlaid caption on a tall image, no border at all. Luxury. */
+  | 'overlay'
+  /** Image swaps to the second photograph on hover. Premium. */
+  | 'reveal';
+
+export type ProductDetailVariant =
+  | 'gallerySplit'
+  | 'stickyPanel'
+  | 'stackedGallery'
+  | 'specSheet'
+  /** Full-bleed imagery with the buy panel floating over it. Premium. */
+  | 'immersive';
+
+/** How a section arrives as it scrolls into view. */
+export type RevealStyle =
+  /** No motion at all. The standard tier's default. */
+  | 'none'
+  /** Opacity only. The quietest option that still reads as intentional. */
+  | 'fade'
+  /** Opacity plus a short upward translate. */
+  | 'rise'
+  /** Opacity plus a scale — for imagery rather than text. */
+  | 'zoom'
+  /** The element is unmasked from below. Editorial and luxury. */
+  | 'clip';
+
+/** What happens when a pointer rests on a product card. */
+export type HoverStyle = 'none' | 'lift' | 'zoom' | 'glow';
+
+/**
+ * A template's motion personality.
+ *
+ * Every value here degrades to nothing under `prefers-reduced-motion` — that is
+ * handled once, in the storefront's motion module and stylesheet, rather than
+ * being each template's problem. See `templates/motion.tsx`.
+ */
+export interface TemplateMotion {
+  reveal: RevealStyle;
+  /** Whether items in a row arrive one after another rather than together. */
+  stagger: boolean;
+  /** Hero imagery drifts slower than the page. Heroes only. */
+  parallax: boolean;
+  hover: HoverStyle;
+  /** Navigation reacts to scroll position (shrinks, or gains a background). */
+  stickyNav: boolean;
+}
+
+/** Motion off. What every standard template gets unless it says otherwise. */
+export const NO_MOTION: TemplateMotion = {
+  reveal: 'none',
+  stagger: false,
+  parallax: false,
+  hover: 'none',
+  stickyNav: false,
+};
 
 export interface TemplateLayout {
   header: HeaderVariant;
@@ -135,6 +230,8 @@ export interface TemplateDefinition {
   name: string;
   version: number;
   group: TemplateGroup;
+  /** Standard or premium. Drives the gallery's tier rail. */
+  tier: TemplateTier;
   /** Short positioning line shown on the gallery card. */
   tagline: string;
   description: string;
@@ -147,6 +244,7 @@ export interface TemplateDefinition {
   swatches: readonly [string, string, string];
   theme: TemplateTheme;
   layout: TemplateLayout;
+  motion: TemplateMotion;
   sections: readonly TemplateSection[];
   /** Marketing flags for the gallery rails. */
   badges?: readonly ('New' | 'Popular' | 'Premium')[];

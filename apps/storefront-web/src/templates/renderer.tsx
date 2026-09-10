@@ -1,5 +1,6 @@
 import type { TemplateSection } from '@retailos/templates';
 import type { SectionData } from './data';
+import { Reveal } from './motion';
 import { CategoriesSection } from './sections/categories';
 import { HeroSection } from './sections/hero';
 import { catalogueIsEmpty, EmptyCatalogue, ProductRowSection } from './sections/product-row';
@@ -21,6 +22,12 @@ import {
  *
  * Unknown section kinds render nothing rather than throwing: a store pinned to
  * an older template version must keep working when the catalogue moves on.
+ *
+ * Every section below the first is wrapped in a `Reveal`. On a standard
+ * template that wrapper collapses to its children and costs nothing; on a
+ * premium one it is what makes the page arrive in chapters rather than all at
+ * once. The hero is excluded deliberately — it is above the fold, so animating
+ * it in would mean the first thing a visitor sees is an empty screen.
  */
 export function TemplateSections({
   sections,
@@ -35,10 +42,20 @@ export function TemplateSections({
 
   return (
     <>
-      {sections.map((section) => {
+      {sections.map((section, index) => {
         const rendered = renderSection(section, data);
         if (!rendered) return null;
-        return <div key={section.id}>{rendered}</div>;
+
+        // The hero renders its own internal motion and must paint immediately.
+        if (section.kind === 'hero' || index === 0) {
+          return <div key={section.id}>{rendered}</div>;
+        }
+
+        return (
+          <Reveal key={section.id} as="div">
+            {rendered}
+          </Reveal>
+        );
       })}
 
       {noCatalogue && <EmptyCatalogue storeName={data.store.storeName} />}

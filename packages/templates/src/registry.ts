@@ -1,35 +1,63 @@
-import type { TemplateDefinition } from './types';
+import { NO_MOTION, type TemplateDefinition, type TemplateMotion } from './types';
 
 /**
  * The template catalogue.
  *
- * Six design languages, not six colour schemes. A menswear store and a mobile
- * shop should not be the same website — so they differ in type, density, grid,
- * card shape, product-detail layout and which sections exist at all.
+ * Ten design languages, not ten colour schemes. A menswear shop, a mobile
+ * store, a pet shop and a jeweller should not be the same website, so they
+ * differ in the things that actually make a design: which header arrangement
+ * they use, how the product grid is shaped, what a product card even *is*,
+ * which sections exist at all and in what order, and how — or whether — the
+ * page moves as you scroll.
+ *
+ * ── Standard and premium ───────────────────────────────────────────────────
+ * The two tiers are not the same designs with animation toggled on. A premium
+ * template is its own layout with its own sections and its own motion; they
+ * happen to render the same business data through the same components, which
+ * is the whole point of the presentation split. Standard templates carry light,
+ * pointer-only motion — a hover state, at most a fade — because a shop that
+ * wants to be quick should be quick.
  *
  * Font stacks reference CSS custom properties the storefront app defines once
  * (`--font-sans`, `--font-serif`, …) and loads with `next/font`, so a template
  * change never costs a round trip to a font CDN at render time.
  *
  * ── Adding a template ──────────────────────────────────────────────────────
- * Append an entry. Never edit the `sections[].id` of a published template: a
+ * Append an entry. Nothing else. New templates need no changes to existing
+ * ones, and a template that reuses existing variants needs no component
+ * changes at all. Never edit the `sections[].id` of a published template: a
  * merchant's stored customisation refers to those ids. To change a template's
  * structure, publish it as a new `version` (see `resolve.ts`).
  */
+
+/**
+ * Standard-tier motion: a hover state and nothing else.
+ *
+ * Deliberately pointer-only. Scroll-triggered reveals on a template sold as the
+ * quick, practical option would be paying for polish with time-to-usable.
+ */
+const restrainedMotion = (hover: TemplateMotion['hover']): TemplateMotion => ({
+  ...NO_MOTION,
+  hover,
+});
+
 export const TEMPLATES: readonly TemplateDefinition[] = [
   // ═══════════════════════════════════════════════════════════ urban luxe ══
+  // T1 · Modern fashion. Editorial, full-bleed, asymmetric, uppercase.
   {
     id: 'urban-luxe',
     name: 'Urban Luxe',
-    version: 1,
+    version: 2,
+    tier: 'standard',
     group: 'Fashion',
     tagline: 'Editorial menswear with a runway opening',
     description:
-      'Full-bleed imagery, oversized type and a tall portrait grid. Built for a store that ' +
-      'wants its clothes to look like a lookbook rather than a listing page.',
+      'A full-bleed opening, oversized uppercase type and a magazine-style product grid where ' +
+      'every third block breaks the rhythm. Built for a store that wants its clothes to look ' +
+      'like a lookbook rather than a listing page.',
     businessTypes: ["Men's Wear", 'Menswear', 'Footwear', 'Sports', 'General Retail'],
     swatches: ['#12100e', '#c8a97e', '#f4f1ec'],
-    badges: ['Popular', 'Premium'],
+    badges: ['Popular'],
     theme: {
       primaryColor: '#12100e',
       accentColor: '#c8a97e',
@@ -37,7 +65,7 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
       contentColor: '#12100e',
       radius: 'none',
       headingFont: "var(--font-display), 'Helvetica Neue', Arial, sans-serif",
-      bodyFont: "var(--font-sans), system-ui, sans-serif",
+      bodyFont: 'var(--font-sans), system-ui, sans-serif',
       headingWeight: 800,
       headingTracking: '-0.02em',
       headingTransform: 'uppercase',
@@ -51,6 +79,7 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
       gridColumns: { base: 2, sm: 2, lg: 3, xl: 4 },
       productAspect: '3 / 4',
     },
+    motion: restrainedMotion('zoom'),
     sections: [
       { id: 'hero', kind: 'hero', variant: 'fullBleed', removable: false, defaultVisible: true },
       {
@@ -82,11 +111,12 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
       {
         id: 'trending',
         kind: 'productRow',
-        variant: 'editorialRow',
+        // The magazine block: one large product against a column of small ones.
+        variant: 'asymmetric',
         title: 'Trending now',
         subtitle: 'What the city is wearing',
         source: 'popular',
-        limit: 8,
+        limit: 7,
         removable: true,
         defaultVisible: true,
       },
@@ -101,7 +131,14 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
         removable: true,
         defaultVisible: true,
       },
-      { id: 'brands', kind: 'brands', variant: 'marquee', title: 'Brands we carry', removable: true, defaultVisible: true },
+      {
+        id: 'brands',
+        kind: 'brands',
+        variant: 'marquee',
+        title: 'Brands we carry',
+        removable: true,
+        defaultVisible: true,
+      },
       { id: 'offers', kind: 'offers', variant: 'ticker', removable: true, defaultVisible: true },
       {
         id: 'testimonials',
@@ -111,126 +148,29 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
         removable: true,
         defaultVisible: true,
       },
-      { id: 'trust', kind: 'trustStrip', variant: 'minimal', removable: true, defaultVisible: true },
-    ],
-  },
-
-  // ══════════════════════════════════════════════════════ silk editorial ══
-  {
-    id: 'silk-editorial',
-    name: 'Silk Editorial',
-    version: 1,
-    group: 'Fashion',
-    tagline: 'Elegant womenswear, styled like a magazine',
-    description:
-      'A serif voice, generous whitespace and collection-led browsing. Designed for sarees, ' +
-      'textiles and boutiques where the fabric is the argument.',
-    businessTypes: [
-      "Women's Wear",
-      'Womenswear',
-      'Textile',
-      'Saree',
-      'Boutique',
-      'Jewellery',
-      'Home & Lifestyle',
-    ],
-    swatches: ['#7b2d43', '#d9a7a0', '#fdf8f4'],
-    badges: ['Premium'],
-    theme: {
-      primaryColor: '#7b2d43',
-      accentColor: '#c98b7d',
-      surfaceColor: '#fdf9f5',
-      contentColor: '#2b2020',
-      radius: 'sm',
-      headingFont: "var(--font-serif), Georgia, 'Times New Roman', serif",
-      bodyFont: 'var(--font-sans), system-ui, sans-serif',
-      headingWeight: 500,
-      headingTracking: '-0.01em',
-      headingTransform: 'none',
-      density: 'airy',
-    },
-    layout: {
-      header: 'classic',
-      footer: 'columns',
-      productCard: 'portrait',
-      productDetail: 'stackedGallery',
-      gridColumns: { base: 2, sm: 2, lg: 3, xl: 3 },
-      productAspect: '4 / 5',
-    },
-    sections: [
-      { id: 'hero', kind: 'hero', variant: 'lifestyle', removable: false, defaultVisible: true },
       {
-        id: 'categories',
-        kind: 'categories',
-        variant: 'roundedRail',
-        title: 'Shop by collection',
+        id: 'trust',
+        kind: 'trustStrip',
+        variant: 'minimal',
         removable: true,
         defaultVisible: true,
       },
-      {
-        id: 'featured',
-        kind: 'productRow',
-        variant: 'gallery',
-        title: 'The featured edit',
-        subtitle: 'Chosen for this season',
-        source: 'featured',
-        limit: 6,
-        removable: true,
-        defaultVisible: true,
-      },
-      {
-        id: 'collection-banner',
-        kind: 'collectionBanner',
-        variant: 'centered',
-        removable: true,
-        defaultVisible: true,
-      },
-      {
-        id: 'new-arrivals',
-        kind: 'productRow',
-        variant: 'gallery',
-        title: 'New this week',
-        subtitle: 'Fresh off the loom',
-        source: 'newest',
-        limit: 6,
-        removable: true,
-        defaultVisible: true,
-      },
-      {
-        id: 'editorial',
-        kind: 'editorial',
-        variant: 'letter',
-        title: 'Our story',
-        removable: true,
-        defaultVisible: true,
-      },
-      {
-        id: 'best-sellers',
-        kind: 'productRow',
-        variant: 'gallery',
-        title: 'Most loved',
-        subtitle: 'What our customers keep coming back for',
-        source: 'popular',
-        limit: 6,
-        removable: true,
-        defaultVisible: true,
-      },
-      { id: 'offers', kind: 'offers', variant: 'cards', title: 'Seasonal offers', removable: true, defaultVisible: true },
-      { id: 'trust', kind: 'trustStrip', variant: 'bordered', removable: true, defaultVisible: true },
-      { id: 'newsletter', kind: 'newsletter', variant: 'centered', removable: true, defaultVisible: true },
     ],
   },
 
   // ═══════════════════════════════════════════════════════════ spec grid ══
+  // T2 · Electronics. Dense, structured, comparison-shaped, cool-toned.
   {
     id: 'spec-grid',
     name: 'Spec Grid',
-    version: 1,
+    version: 2,
+    tier: 'standard',
     group: 'Technology',
     tagline: 'Phones and electronics, specs first',
     description:
-      'Dense, scannable and comparison-friendly. Brand navigation, specification chips on ' +
-      'every card and an EMI-aware buy box — the way people actually shop for a handset.',
+      'Dense, scannable and comparison-friendly. Brand navigation, a specification strip under ' +
+      'every card, an EMI line on the price and a five-across grid — the way people actually ' +
+      'shop for a handset.',
     businessTypes: ['Mobile Shop', 'Electronics', 'Computer Accessories'],
     swatches: ['#0b57d0', '#00b4a6', '#f1f5f9'],
     badges: ['Popular'],
@@ -255,10 +195,18 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
       gridColumns: { base: 2, sm: 3, lg: 4, xl: 5 },
       productAspect: '1 / 1',
     },
+    motion: restrainedMotion('glow'),
     sections: [
       { id: 'hero', kind: 'hero', variant: 'deviceSplit', removable: false, defaultVisible: true },
       { id: 'trust', kind: 'trustStrip', variant: 'emi', removable: true, defaultVisible: true },
-      { id: 'brands', kind: 'brands', variant: 'tiles', title: 'Shop by brand', removable: true, defaultVisible: true },
+      {
+        id: 'brands',
+        kind: 'brands',
+        variant: 'tiles',
+        title: 'Shop by brand',
+        removable: true,
+        defaultVisible: true,
+      },
       {
         id: 'categories',
         kind: 'categories',
@@ -278,15 +226,23 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
         removable: true,
         defaultVisible: true,
       },
-      { id: 'offers', kind: 'offers', variant: 'cards', title: "Today's offers", removable: true, defaultVisible: true },
+      {
+        id: 'offers',
+        kind: 'offers',
+        variant: 'cards',
+        title: "Today's offers",
+        removable: true,
+        defaultVisible: true,
+      },
       {
         id: 'featured',
         kind: 'productRow',
-        variant: 'denseGrid',
+        // Side-by-side comparison framing rather than another grid.
+        variant: 'compare',
         title: 'Featured devices',
         subtitle: 'Recommended by the store',
         source: 'featured',
-        limit: 10,
+        limit: 8,
         removable: true,
         defaultVisible: true,
       },
@@ -312,15 +268,17 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
   },
 
   // ═════════════════════════════════════════════════════════════════ glow ══
+  // T3 · Beauty. Warm neutrals, rounded, ingredient-led, benefit copy.
   {
     id: 'glow-beauty',
     name: 'Glow',
-    version: 1,
+    version: 2,
+    tier: 'standard',
     group: 'Beauty',
     tagline: 'Beauty and skincare with a soft touch',
     description:
-      'Warm neutrals, rounded surfaces and an ingredient-led product story. Made for ' +
-      'cosmetics counters, skincare and personal care.',
+      'Warm neutrals, a curved opening, rounded surfaces and a benefits strip that reads like a ' +
+      'label rather than an advert. Made for cosmetics counters, skincare and personal care.',
     businessTypes: ['Cosmetics', 'Beauty & Personal Care'],
     swatches: ['#b0546a', '#f0c9c0', '#fffaf7'],
     badges: ['New'],
@@ -345,6 +303,7 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
       gridColumns: { base: 2, sm: 3, lg: 4, xl: 4 },
       productAspect: '1 / 1',
     },
+    motion: restrainedMotion('lift'),
     sections: [
       { id: 'hero', kind: 'hero', variant: 'softCurve', removable: false, defaultVisible: true },
       {
@@ -385,7 +344,14 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
         removable: true,
         defaultVisible: true,
       },
-      { id: 'brands', kind: 'brands', variant: 'tiles', title: 'Brands in store', removable: true, defaultVisible: true },
+      {
+        id: 'brands',
+        kind: 'brands',
+        variant: 'tiles',
+        title: 'Brands in store',
+        removable: true,
+        defaultVisible: true,
+      },
       {
         id: 'editorial',
         kind: 'editorial',
@@ -405,116 +371,38 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
         removable: true,
         defaultVisible: true,
       },
-      { id: 'offers', kind: 'offers', variant: 'cards', title: 'Offers', removable: true, defaultVisible: true },
-      { id: 'newsletter', kind: 'newsletter', variant: 'soft', removable: true, defaultVisible: true },
-    ],
-  },
-
-  // ══════════════════════════════════════════════════════════════ daily ═══
-  {
-    id: 'daily-cart',
-    name: 'Daily Cart',
-    version: 1,
-    group: 'Retail',
-    tagline: 'Everyday retail, built for speed',
-    description:
-      'Dense category chips, compact cards and a short path to the basket. For grocery, ' +
-      'stationery, fancy stores and general retail where people know what they came for.',
-    businessTypes: [
-      'Grocery',
-      'General Store',
-      'General Retail',
-      'Fancy Store',
-      'Stationery',
-      'Home & Kitchen',
-    ],
-    swatches: ['#0f7a3d', '#f5a524', '#f6f8f5'],
-    theme: {
-      primaryColor: '#0f7a3d',
-      accentColor: '#f5a524',
-      surfaceColor: '#f6f8f5',
-      contentColor: '#14231a',
-      radius: 'md',
-      headingFont: 'var(--font-sans), system-ui, sans-serif',
-      bodyFont: 'var(--font-sans), system-ui, sans-serif',
-      headingWeight: 700,
-      headingTracking: '-0.015em',
-      headingTransform: 'none',
-      density: 'compact',
-    },
-    layout: {
-      header: 'utility',
-      footer: 'compact',
-      productCard: 'compact',
-      productDetail: 'gallerySplit',
-      gridColumns: { base: 2, sm: 3, lg: 5, xl: 6 },
-      productAspect: '1 / 1',
-    },
-    sections: [
-      { id: 'hero', kind: 'hero', variant: 'compactSearch', removable: false, defaultVisible: true },
       {
-        id: 'categories',
-        kind: 'categories',
-        variant: 'chips',
-        title: 'Shop by aisle',
-        removable: true,
-        defaultVisible: true,
-      },
-      { id: 'offers', kind: 'offers', variant: 'ticker', removable: true, defaultVisible: true },
-      {
-        id: 'best-sellers',
-        kind: 'productRow',
-        variant: 'denseGrid',
-        title: 'Bought most often',
-        subtitle: 'Your neighbourhood staples',
-        source: 'popular',
-        limit: 12,
-        removable: true,
-        defaultVisible: true,
-      },
-      { id: 'trust', kind: 'trustStrip', variant: 'minimal', removable: true, defaultVisible: true },
-      {
-        id: 'featured',
-        kind: 'productRow',
-        variant: 'denseGrid',
-        title: "Today's picks",
-        subtitle: 'Fresh from the shop',
-        source: 'featured',
-        limit: 12,
+        id: 'offers',
+        kind: 'offers',
+        variant: 'cards',
+        title: 'Offers',
         removable: true,
         defaultVisible: true,
       },
       {
-        id: 'collection-banner',
-        kind: 'collectionBanner',
-        variant: 'wideStrip',
-        removable: true,
-        defaultVisible: true,
-      },
-      {
-        id: 'new-arrivals',
-        kind: 'productRow',
-        variant: 'denseGrid',
-        title: 'New on the shelf',
-        source: 'newest',
-        limit: 12,
+        id: 'newsletter',
+        kind: 'newsletter',
+        variant: 'soft',
         removable: true,
         defaultVisible: true,
       },
     ],
   },
 
-  // ════════════════════════════════════════════════════════════ pawsome ═══
+  // ══════════════════════════════════════════════════════════════ pawsome ══
+  // T4 · Pet shop. Must read as a pet shop within one screen: paw motifs,
+  // browse-by-companion, a care strip, and copy written for an owner.
   {
     id: 'pawsome',
     name: 'Pawsome',
-    version: 1,
+    version: 2,
+    tier: 'standard',
     group: 'Specialised',
-    tagline: 'Friendly and playful, for pets and gifting',
+    tagline: 'A proper pet shop — food, toys, care',
     description:
-      'Rounded shapes, warm colour and a browse-by-companion layout. Suits pet shops, gift ' +
-      'stores and kidswear, where the shopping is joyful rather than transactional.',
-    businessTypes: ['Pet Shop', 'Gift Shop', 'Kidswear', "Kids Wear", 'Toys'],
+      'Browse by companion rather than by category, a food-and-treats aisle, a care-reminder ' +
+      'strip and paw-print detailing throughout. Rounded, warm and unmistakably a pet store.',
+    businessTypes: ['Pet Shop', 'Pet Store', 'Pet Supplies', 'Aquarium', 'Veterinary'],
     swatches: ['#1f8a8c', '#f79c42', '#fef8ee'],
     badges: ['New'],
     theme: {
@@ -538,21 +426,31 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
       gridColumns: { base: 2, sm: 3, lg: 4, xl: 4 },
       productAspect: '1 / 1',
     },
+    motion: restrainedMotion('lift'),
     sections: [
-      { id: 'hero', kind: 'hero', variant: 'playful', removable: false, defaultVisible: true },
+      // Paw-print field behind the opening statement.
+      { id: 'hero', kind: 'hero', variant: 'pawPrints', removable: false, defaultVisible: true },
       {
         id: 'categories',
         kind: 'categories',
-        variant: 'bubbles',
+        // Companion cards — "for dogs", "for cats" — not a category grid.
+        variant: 'companions',
         title: 'Who are we shopping for?',
+        subtitle: 'Everything they need, sorted by who they are',
         removable: true,
         defaultVisible: true,
       },
-      { id: 'trust', kind: 'trustStrip', variant: 'pills', removable: true, defaultVisible: true },
+      {
+        id: 'trust',
+        kind: 'trustStrip',
+        variant: 'petCare',
+        removable: true,
+        defaultVisible: true,
+      },
       {
         id: 'best-sellers',
         kind: 'productRow',
-        variant: 'softGrid',
+        variant: 'parade',
         title: 'Tail-wagging favourites',
         subtitle: 'The things they ask for twice',
         source: 'popular',
@@ -571,26 +469,807 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
         id: 'featured',
         kind: 'productRow',
         variant: 'softGrid',
-        title: 'Featured picks',
-        subtitle: 'Chosen by the shop',
+        title: 'Food and treats',
+        subtitle: 'Chosen by the shop, approved by the regulars',
         source: 'featured',
         limit: 8,
         removable: true,
         defaultVisible: true,
       },
-      { id: 'offers', kind: 'offers', variant: 'cards', title: 'Treats and offers', removable: true, defaultVisible: true },
+      {
+        id: 'editorial',
+        kind: 'editorial',
+        variant: 'petCare',
+        title: 'Looking after them',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'offers',
+        kind: 'offers',
+        variant: 'cards',
+        title: 'Treats and offers',
+        removable: true,
+        defaultVisible: true,
+      },
       {
         id: 'new-arrivals',
         kind: 'productRow',
-        variant: 'softGrid',
+        variant: 'parade',
         title: 'Just unpacked',
         source: 'newest',
         limit: 8,
         removable: true,
         defaultVisible: true,
       },
-      { id: 'brands', kind: 'brands', variant: 'tiles', title: 'Brands we trust', removable: true, defaultVisible: true },
-      { id: 'newsletter', kind: 'newsletter', variant: 'soft', removable: true, defaultVisible: true },
+      {
+        id: 'brands',
+        kind: 'brands',
+        variant: 'tiles',
+        title: 'Brands we trust',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'newsletter',
+        kind: 'newsletter',
+        variant: 'soft',
+        removable: true,
+        defaultVisible: true,
+      },
+    ],
+  },
+
+  // ══════════════════════════════════════════════════════════════ daily ═══
+  // T5 · Grocery. Category-first, offer-led, shelf-shaped, mobile before all.
+  {
+    id: 'daily-cart',
+    name: 'Daily Cart',
+    version: 2,
+    tier: 'standard',
+    group: 'Retail',
+    tagline: 'Everyday groceries, built for speed',
+    description:
+      'An aisle bar above everything, a delivery promise in the opening, deal rails and a ' +
+      'six-across shelf grid with the price and basket button in reach. For grocery, daily ' +
+      'essentials and general stores, where people know what they came for.',
+    businessTypes: [
+      'Grocery',
+      'Supermarket',
+      'Organic Store',
+      'General Store',
+      'General Retail',
+      'Fancy Store',
+      'Stationery',
+      'Home & Kitchen',
+    ],
+    swatches: ['#0f7a3d', '#f5a524', '#f6f8f5'],
+    theme: {
+      primaryColor: '#0f7a3d',
+      accentColor: '#f5a524',
+      surfaceColor: '#f6f8f5',
+      contentColor: '#14231a',
+      radius: 'md',
+      headingFont: 'var(--font-sans), system-ui, sans-serif',
+      bodyFont: 'var(--font-sans), system-ui, sans-serif',
+      headingWeight: 700,
+      headingTracking: '-0.015em',
+      headingTransform: 'none',
+      density: 'compact',
+    },
+    layout: {
+      header: 'aisle',
+      footer: 'compact',
+      productCard: 'grocery',
+      productDetail: 'gallerySplit',
+      gridColumns: { base: 2, sm: 3, lg: 5, xl: 6 },
+      productAspect: '1 / 1',
+    },
+    motion: restrainedMotion('none'),
+    sections: [
+      { id: 'hero', kind: 'hero', variant: 'aisleSearch', removable: false, defaultVisible: true },
+      {
+        id: 'categories',
+        kind: 'categories',
+        variant: 'aisleGrid',
+        title: 'Shop by aisle',
+        removable: true,
+        defaultVisible: true,
+      },
+      { id: 'offers', kind: 'offers', variant: 'dealRail', removable: true, defaultVisible: true },
+      {
+        id: 'best-sellers',
+        kind: 'productRow',
+        variant: 'shelf',
+        title: 'Bought most often',
+        subtitle: 'Your neighbourhood staples',
+        source: 'popular',
+        limit: 12,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'trust',
+        kind: 'trustStrip',
+        variant: 'delivery',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'featured',
+        kind: 'productRow',
+        variant: 'shelf',
+        title: "Today's picks",
+        subtitle: 'Fresh from the shop',
+        source: 'featured',
+        limit: 12,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'collection-banner',
+        kind: 'collectionBanner',
+        variant: 'wideStrip',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'new-arrivals',
+        kind: 'productRow',
+        variant: 'shelf',
+        title: 'New on the shelf',
+        source: 'newest',
+        limit: 12,
+        removable: true,
+        defaultVisible: true,
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════════════ silk editorial ══
+  // T6 · Luxury boutique. Minimal chrome, enormous type, index navigation,
+  // captions over imagery instead of cards. As far from Urban Luxe as the
+  // vocabulary allows: no full-bleed photograph, no uppercase, no grid chrome.
+  {
+    id: 'silk-editorial',
+    name: 'Silk Editorial',
+    version: 2,
+    tier: 'standard',
+    group: 'Lifestyle',
+    tagline: 'A boutique house, quietly presented',
+    description:
+      'Almost no interface: a wordmark, an index of collections and a great deal of white. ' +
+      'Products are captioned photographs rather than cards. For jewellery, sarees, textiles ' +
+      'and boutiques where restraint is the argument.',
+    businessTypes: [
+      "Women's Wear",
+      'Womenswear',
+      'Textile',
+      'Saree',
+      'Boutique',
+      'Jewellery',
+      'Luxury',
+      'Home & Lifestyle',
+    ],
+    swatches: ['#7b2d43', '#d9a7a0', '#fdf8f4'],
+    badges: ['Premium'],
+    theme: {
+      primaryColor: '#7b2d43',
+      accentColor: '#c98b7d',
+      surfaceColor: '#fdf9f5',
+      contentColor: '#2b2020',
+      radius: 'none',
+      headingFont: "var(--font-serif), Georgia, 'Times New Roman', serif",
+      bodyFont: 'var(--font-serif), Georgia, serif',
+      headingWeight: 400,
+      headingTracking: '-0.005em',
+      headingTransform: 'none',
+      density: 'airy',
+    },
+    layout: {
+      header: 'minimal',
+      footer: 'statement',
+      productCard: 'overlay',
+      productDetail: 'stackedGallery',
+      gridColumns: { base: 1, sm: 2, lg: 3, xl: 3 },
+      productAspect: '4 / 5',
+    },
+    motion: restrainedMotion('zoom'),
+    sections: [
+      { id: 'hero', kind: 'hero', variant: 'statement', removable: false, defaultVisible: true },
+      {
+        id: 'categories',
+        kind: 'categories',
+        // A typographic index, not tiles. Reads as a contents page.
+        variant: 'indexList',
+        title: 'Collections',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'featured',
+        kind: 'productRow',
+        variant: 'gallery',
+        title: 'The featured edit',
+        subtitle: 'Chosen for this season',
+        source: 'featured',
+        limit: 6,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'collection-banner',
+        kind: 'collectionBanner',
+        variant: 'centered',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'editorial',
+        kind: 'editorial',
+        variant: 'letter',
+        title: 'Our story',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'new-arrivals',
+        kind: 'productRow',
+        variant: 'gallery',
+        title: 'New this week',
+        subtitle: 'Fresh off the loom',
+        source: 'newest',
+        limit: 6,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'best-sellers',
+        kind: 'productRow',
+        variant: 'gallery',
+        title: 'Most loved',
+        subtitle: 'What our customers keep coming back for',
+        source: 'popular',
+        limit: 6,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'offers',
+        kind: 'offers',
+        variant: 'cards',
+        title: 'Seasonal offers',
+        removable: true,
+        defaultVisible: false,
+      },
+      {
+        id: 'trust',
+        kind: 'trustStrip',
+        variant: 'bordered',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'newsletter',
+        kind: 'newsletter',
+        variant: 'centered',
+        removable: true,
+        defaultVisible: true,
+      },
+    ],
+  },
+
+  // ╔══════════════════════════════════════════════════════════════════════╗
+  // ║  PREMIUM COLLECTION                                                  ║
+  // ║                                                                      ║
+  // ║  Separate designs, not the six above with animation switched on.     ║
+  // ║  Each one is built around a structural idea the standard tier does   ║
+  // ║  not have: a cinematic opening, an interactive showcase, a           ║
+  // ║  storytelling scroll. Motion is part of the composition rather than  ║
+  // ║  decoration applied to it — and all of it degrades to a static page  ║
+  // ║  under `prefers-reduced-motion`.                                     ║
+  // ╚══════════════════════════════════════════════════════════════════════╝
+
+  // ══════════════════════════════════════════════════════════ atelier noir ══
+  {
+    id: 'atelier-noir',
+    name: 'Atelier Noir',
+    version: 1,
+    tier: 'premium',
+    group: 'Fashion',
+    tagline: 'Cinematic fashion, told as a story',
+    description:
+      'Opens on a full-height film-still with the headline unmasking word by word, then walks ' +
+      'the visitor through the collection in asymmetric chapters. Product images cross-fade to ' +
+      'their second photograph on hover. For a fashion label with something to say.',
+    businessTypes: ["Men's Wear", 'Menswear', "Women's Wear", 'Womenswear', 'Footwear', 'Boutique'],
+    swatches: ['#0a0a0a', '#b08d57', '#ffffff'],
+    badges: ['Premium', 'New'],
+    theme: {
+      primaryColor: '#0a0a0a',
+      accentColor: '#b08d57',
+      surfaceColor: '#ffffff',
+      contentColor: '#0a0a0a',
+      radius: 'none',
+      headingFont: "var(--font-display), 'Helvetica Neue', Arial, sans-serif",
+      bodyFont: 'var(--font-sans), system-ui, sans-serif',
+      headingWeight: 500,
+      headingTracking: '-0.045em',
+      headingTransform: 'none',
+      density: 'airy',
+    },
+    layout: {
+      header: 'floating',
+      footer: 'statement',
+      productCard: 'reveal',
+      productDetail: 'immersive',
+      gridColumns: { base: 1, sm: 2, lg: 3, xl: 3 },
+      productAspect: '3 / 4',
+    },
+    motion: {
+      reveal: 'clip',
+      stagger: true,
+      parallax: true,
+      hover: 'zoom',
+      stickyNav: true,
+    },
+    sections: [
+      { id: 'hero', kind: 'hero', variant: 'cinematic', removable: false, defaultVisible: true },
+      {
+        id: 'featured',
+        kind: 'productRow',
+        variant: 'asymmetric',
+        title: 'The edit',
+        subtitle: 'Seven pieces, chosen together',
+        source: 'featured',
+        limit: 7,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'categories',
+        kind: 'categories',
+        variant: 'marqueeTiles',
+        title: 'Chapters',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'editorial',
+        kind: 'editorial',
+        variant: 'manifesto',
+        title: 'The house',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'collection-banner',
+        kind: 'collectionBanner',
+        variant: 'cinematicBanner',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'new-arrivals',
+        kind: 'productRow',
+        variant: 'gallery',
+        title: 'Arriving now',
+        source: 'newest',
+        limit: 6,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'best-sellers',
+        kind: 'productRow',
+        variant: 'editorialRow',
+        title: 'Signatures',
+        subtitle: 'The pieces we are known for',
+        source: 'popular',
+        limit: 8,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'brands',
+        kind: 'brands',
+        variant: 'marquee',
+        title: 'Ateliers',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'testimonials',
+        kind: 'testimonials',
+        variant: 'quoteRow',
+        title: 'In their words',
+        removable: true,
+        defaultVisible: false,
+      },
+      { id: 'offers', kind: 'offers', variant: 'ticker', removable: true, defaultVisible: false },
+      {
+        id: 'newsletter',
+        kind: 'newsletter',
+        variant: 'centered',
+        removable: true,
+        defaultVisible: true,
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════════════════ lumen tech ══
+  {
+    id: 'lumen-tech',
+    name: 'Lumen',
+    version: 1,
+    tier: 'premium',
+    group: 'Technology',
+    tagline: 'A product launch, not a listing page',
+    description:
+      'A dark, backlit showcase where the hero device rises into frame and feature panels ' +
+      'arrive as you reach them. Specification chips, a comparison stage and a navigation bar ' +
+      'that only appears once you have started reading. For flagship electronics.',
+    businessTypes: ['Mobile Shop', 'Electronics', 'Computer Accessories', 'Gadgets'],
+    swatches: ['#0e1525', '#4f8cff', '#0a0f1a'],
+    badges: ['Premium', 'New'],
+    theme: {
+      primaryColor: '#4f8cff',
+      accentColor: '#22d3ee',
+      surfaceColor: '#0b1120',
+      contentColor: '#e8eefc',
+      radius: 'lg',
+      headingFont: 'var(--font-tech), var(--font-sans), system-ui, sans-serif',
+      bodyFont: 'var(--font-sans), system-ui, sans-serif',
+      headingWeight: 700,
+      headingTracking: '-0.035em',
+      headingTransform: 'none',
+      density: 'airy',
+    },
+    layout: {
+      header: 'floating',
+      footer: 'columns',
+      productCard: 'reveal',
+      productDetail: 'immersive',
+      gridColumns: { base: 2, sm: 2, lg: 3, xl: 4 },
+      productAspect: '1 / 1',
+    },
+    motion: {
+      reveal: 'rise',
+      stagger: true,
+      parallax: true,
+      hover: 'glow',
+      stickyNav: true,
+    },
+    sections: [
+      { id: 'hero', kind: 'hero', variant: 'showcase', removable: false, defaultVisible: true },
+      {
+        id: 'featured',
+        kind: 'productRow',
+        variant: 'stage',
+        title: 'In the spotlight',
+        subtitle: 'The devices worth looking at twice',
+        source: 'featured',
+        limit: 6,
+        removable: true,
+        defaultVisible: true,
+      },
+      { id: 'trust', kind: 'trustStrip', variant: 'emi', removable: true, defaultVisible: true },
+      {
+        id: 'categories',
+        kind: 'categories',
+        variant: 'marqueeTiles',
+        title: 'Explore',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'best-sellers',
+        kind: 'productRow',
+        variant: 'compare',
+        title: 'Side by side',
+        subtitle: 'What most people end up choosing',
+        source: 'popular',
+        limit: 8,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'collection-banner',
+        kind: 'collectionBanner',
+        variant: 'cinematicBanner',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'new-arrivals',
+        kind: 'productRow',
+        variant: 'denseGrid',
+        title: 'Just landed',
+        source: 'newest',
+        limit: 8,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'brands',
+        kind: 'brands',
+        variant: 'marquee',
+        title: 'Brands',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'offers',
+        kind: 'offers',
+        variant: 'cards',
+        title: 'Offers',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'newsletter',
+        kind: 'newsletter',
+        variant: 'centered',
+        removable: true,
+        defaultVisible: false,
+      },
+    ],
+  },
+
+  // ═════════════════════════════════════════════════════ companion club ════
+  {
+    id: 'companion-club',
+    name: 'Companion Club',
+    version: 1,
+    tier: 'premium',
+    group: 'Specialised',
+    tagline: 'A pet shop with a sense of humour',
+    description:
+      'Companion cards that tilt as you pass them, a drifting paw-print field, treat-shaped ' +
+      'offer badges and product rows that bounce into place. Playful motion held to a premium ' +
+      'standard — warm, never childish.',
+    businessTypes: ['Pet Shop', 'Pet Store', 'Pet Supplies', 'Aquarium', 'Veterinary', 'Gift Shop'],
+    swatches: ['#0f766e', '#fb923c', '#fffbf2'],
+    badges: ['Premium', 'New'],
+    theme: {
+      primaryColor: '#0f766e',
+      accentColor: '#fb923c',
+      surfaceColor: '#fffbf2',
+      contentColor: '#1c2b2a',
+      radius: 'full',
+      headingFont: 'var(--font-rounded), var(--font-sans), system-ui, sans-serif',
+      bodyFont: 'var(--font-rounded), var(--font-sans), system-ui, sans-serif',
+      headingWeight: 800,
+      headingTracking: '-0.03em',
+      headingTransform: 'none',
+      density: 'airy',
+    },
+    layout: {
+      header: 'playful',
+      footer: 'soft',
+      productCard: 'reveal',
+      productDetail: 'gallerySplit',
+      gridColumns: { base: 2, sm: 2, lg: 3, xl: 4 },
+      productAspect: '1 / 1',
+    },
+    motion: {
+      reveal: 'rise',
+      stagger: true,
+      parallax: true,
+      hover: 'lift',
+      stickyNav: true,
+    },
+    sections: [
+      { id: 'hero', kind: 'hero', variant: 'pawPrints', removable: false, defaultVisible: true },
+      {
+        id: 'categories',
+        kind: 'categories',
+        variant: 'companions',
+        title: 'Who are we spoiling today?',
+        subtitle: 'Pick a companion and we will do the rest',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'best-sellers',
+        kind: 'productRow',
+        variant: 'parade',
+        title: 'Tail-wagging favourites',
+        subtitle: 'The things they ask for twice',
+        source: 'popular',
+        limit: 8,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'trust',
+        kind: 'trustStrip',
+        variant: 'petCare',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'collection-banner',
+        kind: 'collectionBanner',
+        variant: 'cinematicBanner',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'featured',
+        kind: 'productRow',
+        variant: 'stage',
+        title: 'Food and treats',
+        subtitle: 'Approved by the regulars',
+        source: 'featured',
+        limit: 6,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'editorial',
+        kind: 'editorial',
+        variant: 'petCare',
+        title: 'Looking after them',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'new-arrivals',
+        kind: 'productRow',
+        variant: 'parade',
+        title: 'Just unpacked',
+        source: 'newest',
+        limit: 8,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'offers',
+        kind: 'offers',
+        variant: 'cards',
+        title: 'Treats and offers',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'brands',
+        kind: 'brands',
+        variant: 'tiles',
+        title: 'Brands we trust',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'newsletter',
+        kind: 'newsletter',
+        variant: 'soft',
+        removable: true,
+        defaultVisible: true,
+      },
+    ],
+  },
+
+  // ═══════════════════════════════════════════════════════════════ maison ══
+  {
+    id: 'maison',
+    name: 'Maison',
+    version: 1,
+    tier: 'premium',
+    group: 'Lifestyle',
+    tagline: 'Luxury, at its own pace',
+    description:
+      'The quietest thing in the catalogue. A single held image, type at display size, long ' +
+      'slow transitions and almost no interface at all. Products appear as captioned plates. ' +
+      'For jewellery, high-end accessories and houses that do not shout.',
+    businessTypes: [
+      'Jewellery',
+      'Luxury',
+      'Boutique',
+      'Home & Lifestyle',
+      'Watches',
+      'Accessories',
+    ],
+    swatches: ['#171412', '#a3853f', '#f4f1ea'],
+    badges: ['Premium'],
+    theme: {
+      primaryColor: '#171412',
+      accentColor: '#a3853f',
+      surfaceColor: '#f4f1ea',
+      contentColor: '#171412',
+      radius: 'none',
+      headingFont: "var(--font-serif), Georgia, 'Times New Roman', serif",
+      bodyFont: 'var(--font-sans), system-ui, sans-serif',
+      headingWeight: 400,
+      headingTracking: '-0.02em',
+      headingTransform: 'none',
+      density: 'airy',
+    },
+    layout: {
+      header: 'minimal',
+      footer: 'statement',
+      productCard: 'overlay',
+      productDetail: 'immersive',
+      gridColumns: { base: 1, sm: 2, lg: 2, xl: 3 },
+      productAspect: '4 / 5',
+    },
+    motion: {
+      // Fade rather than rise: nothing here should look like it is in a hurry.
+      reveal: 'fade',
+      stagger: true,
+      parallax: true,
+      hover: 'zoom',
+      stickyNav: false,
+    },
+    sections: [
+      { id: 'hero', kind: 'hero', variant: 'manifesto', removable: false, defaultVisible: true },
+      {
+        id: 'featured',
+        kind: 'productRow',
+        variant: 'gallery',
+        title: 'The collection',
+        source: 'featured',
+        limit: 6,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'editorial',
+        kind: 'editorial',
+        variant: 'manifesto',
+        title: 'The house',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'categories',
+        kind: 'categories',
+        variant: 'indexList',
+        title: 'Index',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'collection-banner',
+        kind: 'collectionBanner',
+        variant: 'cinematicBanner',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'new-arrivals',
+        kind: 'productRow',
+        variant: 'asymmetric',
+        title: 'Recently added',
+        source: 'newest',
+        limit: 7,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'best-sellers',
+        kind: 'productRow',
+        variant: 'gallery',
+        title: 'Enduring pieces',
+        source: 'popular',
+        limit: 6,
+        removable: true,
+        defaultVisible: false,
+      },
+      {
+        id: 'trust',
+        kind: 'trustStrip',
+        variant: 'bordered',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'newsletter',
+        kind: 'newsletter',
+        variant: 'centered',
+        removable: true,
+        defaultVisible: true,
+      },
     ],
   },
 ] as const;
@@ -598,7 +1277,9 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
 /**
  * The template a store falls back to.
  *
- * Chosen because it is the most neutral of the six: any catalogue reads
- * acceptably in it, which is what a fallback has to guarantee.
+ * Chosen because it is the most neutral of the ten: any catalogue reads
+ * acceptably in it, which is what a fallback has to guarantee. Deliberately a
+ * standard template — a store that never chose a design should not silently
+ * land on the premium tier.
  */
 export const FALLBACK_TEMPLATE_ID = 'daily-cart';

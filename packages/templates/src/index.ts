@@ -12,6 +12,10 @@
  */
 export type {
   TemplateGroup,
+  TemplateTier,
+  TemplateMotion,
+  RevealStyle,
+  HoverStyle,
   SectionKind,
   ProductSource,
   TemplateSection,
@@ -27,13 +31,14 @@ export type {
   ResolvedTemplate,
 } from './types';
 
-export { TEMPLATE_GROUPS } from './types';
+export { TEMPLATE_GROUPS, NO_MOTION } from './types';
 export { TEMPLATES, FALLBACK_TEMPLATE_ID } from './registry';
 export {
   listTemplates,
   getTemplate,
   templateExists,
   recommendedTemplates,
+  templatesByTier,
   isRecommendedFor,
   defaultTemplateFor,
   defaultTemplateConfig,

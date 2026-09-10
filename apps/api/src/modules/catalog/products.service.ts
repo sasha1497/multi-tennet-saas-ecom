@@ -23,7 +23,7 @@ import { CacheService } from '@/core/cache/cache.service';
 import { RequestContextService } from '@/core/context/request-context';
 import { TenantDatabaseService, type TenantTransactionClient } from '@/core/database/tenant-database.service';
 import { AppLogger } from '@/core/logger/logger.service';
-import { MediaUrlService, type MediaUrlResolver } from '@/core/storage/media-url.service';
+import { MediaUrlService } from '@/core/storage/media-url.service';
 import { StorageService } from '@/core/storage/storage.service';
 import { AuditService } from '@/modules/audit/audit.service';
 import { EntitlementsService } from '@/modules/entitlements/entitlements.service';
@@ -49,11 +49,26 @@ const PRODUCT_INCLUDE = {
   },
 } as const;
 
+/**
+ * Primary image first, then gallery order.
+ *
+ * Declared out here rather than inline because the include below is `as const`,
+ * which would freeze this into a readonly tuple — and Prisma's `orderBy` takes
+ * a mutable array.
+ */
+const LIST_IMAGE_ORDER: ({ isPrimary: 'desc' } | { sortOrder: 'asc' })[] = [
+  { isPrimary: 'desc' },
+  { sortOrder: 'asc' },
+];
+
 /** Trimmed include for list views — avoids pulling descriptions for 20 rows. */
 const LIST_INCLUDE = {
   category: { select: { id: true, name: true, slug: true } },
   brand: { select: { id: true, name: true, slug: true } },
-  images: { where: { isPrimary: true }, take: 1 },
+  // Two, not one: the primary for every template, and the next one for the
+  // templates whose cards cross-fade on hover. Ordered so the primary is
+  // always first even when no image carries the flag.
+  images: { orderBy: LIST_IMAGE_ORDER, take: 2 },
   variants: {
     where: { deletedAt: null, isActive: true },
     select: { inventory: { select: { quantity: true, reserved: true } } },

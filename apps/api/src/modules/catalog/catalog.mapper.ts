@@ -283,6 +283,7 @@ export function mapProductListItem(
   const resolveUrl = options.resolveUrl ?? passthroughMediaUrls;
   const images = row.images ?? [];
   const primary = images.find((i) => i.isPrimary) ?? images[0];
+  const secondary = images.find((i) => i !== primary);
   const totalStock = (row.variants ?? []).reduce(
     (sum, v) => sum + Math.max(0, (v.inventory?.quantity ?? 0) - (v.inventory?.reserved ?? 0)),
     0,
@@ -295,6 +296,9 @@ export function mapProductListItem(
     shortDescription: row.shortDescription,
     primaryImageUrl: primary
       ? resolveUrl({ objectKey: primary.objectKey ?? null, url: primary.url })
+      : null,
+    secondaryImageUrl: secondary
+      ? resolveUrl({ objectKey: secondary.objectKey ?? null, url: secondary.url })
       : null,
     priceFrom: row.priceFrom,
     mrpFrom: row.mrpFrom,

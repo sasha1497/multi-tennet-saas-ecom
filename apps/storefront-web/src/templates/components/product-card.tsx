@@ -1,15 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { ImageOff, Star } from 'lucide-react';
+import { ImageOff, Plus, Star } from 'lucide-react';
 import { formatMoney } from '@retailos/config';
 import type { ProductCardVariant } from '@retailos/templates';
 import type { ProductListItem } from '@retailos/types';
 import { cn } from '@retailos/ui';
 import { productAspectStyle, useTemplate } from '../context';
+import { useHoverClass } from '../motion';
 
 /**
- * The product card, in five voices.
+ * The product card, in eight voices.
  *
  * Every variant renders the *same* `ProductListItem` — the template decides how
  * a product looks, never what a product is. Swapping designs re-reads the same
@@ -34,21 +35,25 @@ export function ProductCard({
   priority?: boolean;
 }) {
   const { layout } = useTemplate();
+  const hover = useHoverClass();
   const kind = variant ?? layout.productCard;
 
   const image = (
-    <ProductImage product={product} aspect={productAspectStyle(layout)} priority={priority} kind={kind} />
+    <ProductImage
+      product={product}
+      aspect={productAspectStyle(layout)}
+      priority={priority}
+      kind={kind}
+    />
   );
 
-  const price = (
-    <Price product={product} currency={currency} kind={kind} />
-  );
+  const price = <Price product={product} currency={currency} kind={kind} />;
 
   switch (kind) {
     // ── Editorial: type-led, no card chrome, lots of air. Urban Luxe. ──────
     case 'editorial':
       return (
-        <Link href={href(product)} className={cn('group flex flex-col', className)}>
+        <Link href={href(product)} className={cn('group flex flex-col', hover, className)}>
           <div className="relative overflow-hidden bg-surface-muted">{image}</div>
           <div className="flex flex-1 flex-col pt-3">
             {product.brandName && (
@@ -67,7 +72,10 @@ export function ProductCard({
     // ── Portrait: framed, serif-friendly, centred. Silk Editorial. ─────────
     case 'portrait':
       return (
-        <Link href={href(product)} className={cn('group flex flex-col text-center', className)}>
+        <Link
+          href={href(product)}
+          className={cn('group flex flex-col text-center', hover, className)}
+        >
           <div className="relative overflow-hidden rounded-[var(--radius)] bg-surface-muted">
             {image}
           </div>
@@ -90,6 +98,7 @@ export function ProductCard({
           href={href(product)}
           className={cn(
             'group flex flex-col overflow-hidden rounded-[var(--radius)] border border-line bg-surface transition hover:border-primary/40 hover:shadow-md',
+            hover,
             className,
           )}
         >
@@ -107,7 +116,8 @@ export function ProductCard({
             <div className="mt-auto pt-2.5">
               {price}
               <p className="mt-1 text-[11px] text-content-muted tabular">
-                or {formatMoney(Math.round(product.priceFrom / 6), currency, { hideDecimals: true })}
+                or{' '}
+                {formatMoney(Math.round(product.priceFrom / 6), currency, { hideDecimals: true })}
                 /mo · 6 mo EMI
               </p>
             </div>
@@ -122,6 +132,7 @@ export function ProductCard({
           href={href(product)}
           className={cn(
             'group flex flex-col overflow-hidden rounded-3xl bg-surface shadow-sm ring-1 ring-black/5 transition hover:shadow-lg',
+            hover,
             className,
           )}
         >
@@ -132,6 +143,120 @@ export function ProductCard({
             </h3>
             {product.ratingCount > 0 && <Rating product={product} className="mt-1.5" />}
             <div className="mt-auto pt-2.5">{price}</div>
+          </div>
+        </Link>
+      );
+
+    // ── Grocery: price first, unit line, a basket button in reach of a
+    //    thumb. Daily Cart. Nothing here is decorative. ────────────────────
+    case 'grocery':
+      return (
+        <Link
+          href={href(product)}
+          className={cn(
+            'group relative flex flex-col overflow-hidden rounded-[var(--radius)] border border-line bg-surface p-2 transition hover:border-primary/50 hover:shadow-sm',
+            hover,
+            className,
+          )}
+        >
+          <div className="relative overflow-hidden rounded-[calc(var(--radius)-2px)] bg-surface-muted">
+            {image}
+          </div>
+          <div className="flex flex-1 flex-col pt-2">
+            <h3 className="line-clamp-2 text-[13px] font-medium leading-snug text-content">
+              {product.name}
+            </h3>
+            {product.shortDescription && (
+              <p className="mt-0.5 truncate text-[11px] text-content-subtle">
+                {product.shortDescription}
+              </p>
+            )}
+            <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+              <span className="flex flex-col leading-tight">
+                <span className="text-[15px] font-bold text-content tabular">
+                  {formatMoney(product.priceFrom, currency)}
+                </span>
+                {product.discountPercent > 0 && (
+                  <span className="text-[11px] text-content-subtle line-through tabular">
+                    {formatMoney(product.mrpFrom, currency)}
+                  </span>
+                )}
+              </span>
+              {/* Visual affordance only — the whole card is the link, and the
+                  real add-to-basket lives on the product page where a variant
+                  can actually be chosen. */}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-[calc(var(--radius)-2px)] border font-semibold transition',
+                  product.inStock
+                    ? 'border-primary/30 bg-primary/5 text-primary group-hover:bg-primary group-hover:text-primary-fg'
+                    : 'border-line text-content-subtle',
+                )}
+              >
+                <Plus className="h-4 w-4" />
+              </span>
+            </div>
+          </div>
+        </Link>
+      );
+
+    // ── Overlay: a captioned photograph. No border, no card, no chrome.
+    //    Silk Editorial and Maison. ─────────────────────────────────────────
+    case 'overlay':
+      return (
+        <Link href={href(product)} className={cn('group block', className)}>
+          <div className="relative overflow-hidden bg-surface-muted">
+            {image}
+            {/* The caption sits over the image on hover and beneath it at rest,
+                so a grid of these reads as a contact sheet rather than a shop. */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+            />
+          </div>
+          <div className="pt-4">
+            <h3 className="heading text-[15px] font-normal leading-snug text-content">
+              {product.name}
+            </h3>
+            <p className="mt-1.5 text-[13px] text-content-muted tabular">
+              {formatMoney(product.priceFrom, currency)}
+              {product.discountPercent > 0 && (
+                <span className="ml-2 text-content-subtle line-through">
+                  {formatMoney(product.mrpFrom, currency)}
+                </span>
+              )}
+            </p>
+          </div>
+        </Link>
+      );
+
+    // ── Reveal: cross-fades to the second photograph on hover. Premium.
+    //    Falls back to a slow zoom when a product has only one image. ───────
+    case 'reveal':
+      return (
+        <Link href={href(product)} className={cn('group flex flex-col', hover, className)}>
+          <div className="relative overflow-hidden bg-surface-muted">
+            {image}
+            {product.secondaryImageUrl && (
+              <img
+                src={product.secondaryImageUrl}
+                alt=""
+                loading="lazy"
+                aria-hidden="true"
+                style={productAspectStyle(layout)}
+                className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-500 ease-out motion-safe:group-hover:opacity-100"
+              />
+            )}
+          </div>
+          <div className="flex flex-1 flex-col pt-3.5">
+            {product.brandName && (
+              <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.2em] text-content-subtle">
+                {product.brandName}
+              </p>
+            )}
+            <h3 className="text-sm font-medium leading-snug text-content">{product.name}</h3>
+            <div className="mt-2">{price}</div>
           </div>
         </Link>
       );
@@ -186,6 +311,9 @@ function ProductImage({
             className={cn(
               'h-full w-full transition-transform duration-500 group-hover:scale-[1.04]',
               kind === 'spec' ? 'object-contain' : 'object-cover',
+              // The reveal card fades a second photo in over this one, so the
+              // hover zoom would fight it. Motion belongs to one layer only.
+              kind === 'reveal' && 'group-hover:scale-100',
             )}
           />
         ) : (
@@ -199,9 +327,11 @@ function ProductImage({
         <span
           className={cn(
             'absolute left-2 top-2 px-2 py-0.5 text-[11px] font-semibold',
-            kind === 'editorial'
+            kind === 'editorial' || kind === 'reveal'
               ? 'bg-content text-surface'
-              : 'rounded-full bg-accent text-accent-fg',
+              : kind === 'overlay'
+                ? 'bg-white/90 text-content'
+                : 'rounded-full bg-accent text-accent-fg',
           )}
         >
           {product.discountPercent}% off
@@ -241,7 +371,9 @@ function Price({
       <span
         className={cn(
           'font-bold text-content tabular',
-          kind === 'editorial' || kind === 'portrait' ? 'text-sm font-semibold' : 'text-[15px]',
+          kind === 'editorial' || kind === 'portrait' || kind === 'reveal'
+            ? 'text-sm font-semibold'
+            : 'text-[15px]',
         )}
       >
         {formatMoney(product.priceFrom, currency)}

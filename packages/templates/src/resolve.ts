@@ -5,12 +5,22 @@ import type {
   TemplateCustomization,
   TemplateDefinition,
   TemplateSection,
+  TemplateTier,
 } from './types';
 
-/** Every template in the catalogue, newest version of each id first. */
+/**
+ * Every template in the catalogue, in gallery order.
+ *
+ * Standard before premium, then alphabetical. The tier ordering is deliberate:
+ * a merchant should meet the design that will serve them well today before the
+ * one that asks more of their photography, and a premium template appearing
+ * first would read as the default rather than as a step up.
+ */
 export function listTemplates(): TemplateDefinition[] {
-  return [...TEMPLATES].sort((a, b) => a.name.localeCompare(b.name));
+  return [...TEMPLATES].sort((a, b) => tierRank(a) - tierRank(b) || a.name.localeCompare(b.name));
 }
+
+const tierRank = (template: TemplateDefinition): number => (template.tier === 'standard' ? 0 : 1);
 
 /**
  * Looks a template up by id, honouring a pinned version.
@@ -60,16 +70,36 @@ export function recommendedTemplates(businessCategory?: string | null): Template
 }
 
 /** True when a template is one of the recommendations for a business category. */
-export function isRecommendedFor(template: TemplateDefinition, businessCategory?: string | null): boolean {
+export function isRecommendedFor(
+  template: TemplateDefinition,
+  businessCategory?: string | null,
+): boolean {
   if (!businessCategory) return false;
   const needle = normaliseCategory(businessCategory);
   return template.businessTypes.some((type) => normaliseCategory(type) === needle);
 }
 
-/** The template a newly created store in this category starts on. */
+/**
+ * The template a newly created store in this category starts on.
+ *
+ * Always a standard template, even when a premium one is a better fit for the
+ * business category. Landing on the premium tier is a choice a merchant makes
+ * in the gallery, never something provisioning does on their behalf — and a
+ * template with a cinematic opening is the wrong first impression for a store
+ * that has not uploaded a photograph yet.
+ */
 export function defaultTemplateFor(businessCategory?: string | null): TemplateDefinition {
-  const [first] = recommendedTemplates(businessCategory);
-  return first ?? getTemplate(FALLBACK_TEMPLATE_ID)!;
+  const recommended = recommendedTemplates(businessCategory);
+  const standard = recommended.find((t) => t.tier === 'standard');
+  return standard ?? getTemplate(FALLBACK_TEMPLATE_ID)!;
+}
+
+/** Every template in one tier, ranked for a business category. */
+export function templatesByTier(
+  tier: TemplateTier,
+  businessCategory?: string | null,
+): TemplateDefinition[] {
+  return recommendedTemplates(businessCategory).filter((t) => t.tier === tier);
 }
 
 /** The presentation config written for a store that has never chosen a template. */

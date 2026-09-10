@@ -7,7 +7,7 @@ import { useStore } from '@/lib/store-context';
 import { useTemplate } from '@/templates/context';
 
 /**
- * Storefront footer, in four arrangements.
+ * Storefront footer, in five arrangements.
  *
  * The contents are the shop's real details — categories, contact, address —
  * and are identical whichever template is active. What the template changes is
@@ -124,6 +124,72 @@ export function SiteFooter() {
             <p>
               © {new Date().getFullYear()} {store.storeName}. All rights reserved.
             </p>
+            <p>Powered by RetailOS</p>
+          </div>
+        </div>
+      </footer>
+    );
+  }
+
+  // ── Statement: an oversized wordmark, a single line of links, and air.
+  //    The luxury and premium templates close the way they opened — with
+  //    type and nothing else. ────────────────────────────────────────────
+  if (variant === 'statement') {
+    return (
+      <footer className="mt-24 border-t border-line bg-surface">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20">
+          <p className="heading break-words text-center text-[clamp(2.25rem,11vw,7rem)] font-normal leading-[0.95] text-content">
+            {store.storeName}
+          </p>
+          {store.tagline && (
+            <p className="mx-auto mt-6 max-w-md text-center text-sm leading-relaxed text-content-muted">
+              {store.tagline}
+            </p>
+          )}
+
+          {/* One rail rather than columns: three headed lists under a wordmark
+              this size would fight it for attention. */}
+          <nav
+            aria-label="Footer"
+            className="mt-14 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 border-y border-line py-5 text-[11px] uppercase tracking-[0.18em] text-content-muted"
+          >
+            <Link href="/products" className="transition-colors hover:text-content">
+              Shop
+            </Link>
+            {categories.slice(0, 5).map((cat) => (
+              <Link
+                key={cat.id}
+                href={`/products?category=${cat.slug}`}
+                className="transition-colors hover:text-content"
+              >
+                {cat.name}
+              </Link>
+            ))}
+            <Link href="/account/orders" className="transition-colors hover:text-content">
+              Orders
+            </Link>
+            <Link href="/offers" className="transition-colors hover:text-content">
+              Offers
+            </Link>
+          </nav>
+
+          <div className="mt-10 flex flex-col items-center gap-3 text-xs text-content-subtle sm:flex-row sm:justify-between">
+            <p>
+              © {new Date().getFullYear()} {store.storeName}
+            </p>
+            <span className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5">
+              {store.contactPhone && (
+                <a href={`tel:${store.contactPhone}`} className="hover:text-content">
+                  {store.contactPhone}
+                </a>
+              )}
+              {store.contactEmail && (
+                <a href={`mailto:${store.contactEmail}`} className="hover:text-content">
+                  {store.contactEmail}
+                </a>
+              )}
+              {address && <span className="hidden lg:inline">{address}</span>}
+            </span>
             <p>Powered by RetailOS</p>
           </div>
         </div>

@@ -105,6 +105,7 @@ export function ProductPurchasePanel({
 
   const variant = layout.productDetail;
   const stacked = variant === 'stackedGallery';
+  const immersive = variant === 'immersive';
 
   // ── Gallery ─────────────────────────────────────────────────────────────
   const gallery = (
@@ -112,12 +113,12 @@ export function ProductPurchasePanel({
       <div
         className={cn(
           'overflow-hidden bg-surface-muted',
-          variant === 'stickyPanel'
+          variant === 'stickyPanel' || variant === 'immersive'
             ? 'rounded-none'
             : 'rounded-[calc(var(--radius)*1.5)] border border-line',
         )}
       >
-        <div style={{ aspectRatio: layout.productAspect }}>
+        <div style={{ aspectRatio: immersive ? '4 / 3' : layout.productAspect }}>
           {activeImage ? (
             <img
               src={activeImage}
@@ -367,6 +368,24 @@ export function ProductPurchasePanel({
   );
 
   // ── Arrangement ─────────────────────────────────────────────────────────
+
+  // Immersive: the photograph takes the full width of the page and the buy box
+  // floats over its lower third on a wide screen. The premium templates' detail
+  // layout. On a phone it falls back to the ordinary stack, because a panel
+  // overlaying a 375px-wide image would cover the product entirely.
+  if (variant === 'immersive') {
+    return (
+      <div className="lg:relative">
+        <div className="lg:-mx-6 xl:-mx-12">{gallery}</div>
+        <div className="mt-8 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0 lg:flex lg:justify-end lg:px-6 xl:px-12">
+          <div className="lg:w-[26rem] lg:rounded-[calc(var(--radius)*1.5)] lg:bg-surface/95 lg:p-8 lg:shadow-2xl lg:backdrop-blur">
+            {buyBox}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (stacked) {
     // Gallery gets the wider column and stays put while the details scroll.
     return (

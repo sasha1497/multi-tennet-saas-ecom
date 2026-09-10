@@ -42,3 +42,161 @@
     padding-block: var(--tpl-section-space, 3rem);
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Motion.
+ *
+ * The CSS half of `templates/motion.tsx`. Everything here animates `transform`
+ * and `opacity` only — both composited, neither triggering layout or paint —
+ * so a reveal costs the main thread nothing while it runs.
+ *
+ * The starting state lives on `[data-reveal]:not([data-visible])`, which is set
+ * by React on the client. Server-rendered markup carries no `data-reveal` until
+ * hydration decides motion is wanted, so a page with JavaScript disabled, or
+ * one rendered for a crawler, shows its content rather than a column of
+ * invisible sections.
+ *
+ * Standard templates never emit these attributes at all: `Reveal` collapses to
+ * its children when the template asks for no motion, so nothing below is even
+ * matched. Premium templates opt in per section.
+ * ------------------------------------------------------------------------- */
+@layer utilities {
+  [data-reveal] {
+    /* `will-change` is deliberately absent: it would promote every revealed
+       section to its own layer for the whole page lifetime, which costs more
+       memory than the animation saves. The browser promotes on demand. */
+    transition:
+      opacity 700ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 700ms cubic-bezier(0.22, 1, 0.36, 1),
+      clip-path 900ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+
+  [data-reveal='fade']:not([data-visible]) {
+    opacity: 0;
+  }
+
+  [data-reveal='rise']:not([data-visible]) {
+    opacity: 0;
+    transform: translate3d(0, 28px, 0);
+  }
+
+  [data-reveal='zoom']:not([data-visible]) {
+    opacity: 0;
+    transform: scale3d(0.96, 0.96, 1);
+  }
+
+  /* Unmasks from below. `clip-path` is composited on every engine we target,
+     and unlike animating height it cannot shift anything around it. */
+  [data-reveal='clip']:not([data-visible]) {
+    opacity: 0;
+    clip-path: inset(18% 0 0 0);
+    transform: translate3d(0, 16px, 0);
+  }
+
+  [data-reveal='clip'] {
+    clip-path: inset(0 0 0 0);
+  }
+
+  /* Hero headline, revealed one word at a time. */
+  [data-reveal-word] {
+    animation: reveal-word 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--reveal-delay, 0ms);
+  }
+
+  @keyframes reveal-word {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 0.9em, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  /* Hero imagery drifting behind the page. The offset is written to
+     `--parallax-y` inside requestAnimationFrame; the transform is the only
+     thing the compositor sees change. */
+  [data-parallax] {
+    transform: translate3d(0, var(--parallax-y, 0px), 0);
+    will-change: transform;
+  }
+
+  /* A slow horizontal drift for brand and category marquees. Paused on hover
+     so a visitor can actually read and click what is passing. */
+  .marquee-track {
+    animation: marquee 38s linear infinite;
+  }
+  .marquee-track:hover,
+  .marquee-track:focus-within {
+    animation-play-state: paused;
+  }
+
+  @keyframes marquee {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(-50%, 0, 0);
+    }
+  }
+
+  /* Decorative paw prints on the pet templates. Deliberately tiny in amplitude
+     — the point is that the page feels alive, not that anything is bouncing. */
+  .paw-drift {
+    animation: paw-drift 9s ease-in-out infinite;
+  }
+
+  @keyframes paw-drift {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) rotate(var(--paw-rotate, 0deg));
+    }
+    50% {
+      transform: translate3d(0, -10px, 0) rotate(var(--paw-rotate, 0deg));
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Reduced motion.
+ *
+ * Not "a shorter animation" — no animation. Every element renders in its final
+ * state, and the JavaScript half never attaches an observer in the first place
+ * (see `usePrefersReducedMotion`). Both halves are needed: this handles a
+ * preference changed after the page loaded, and anything animated purely in
+ * CSS that never passes through React at all.
+ * ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal],
+  [data-reveal]:not([data-visible]) {
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+    transition: none !important;
+  }
+
+  [data-reveal-word],
+  .marquee-track,
+  .paw-drift {
+    animation: none !important;
+  }
+
+  [data-parallax] {
+    transform: none !important;
+    will-change: auto;
+  }
+
+  /* Catches anything animated outside the system above, including the shared
+     component library. Keeps a token duration rather than zero so transition
+     end events still fire and nothing hangs waiting for one. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

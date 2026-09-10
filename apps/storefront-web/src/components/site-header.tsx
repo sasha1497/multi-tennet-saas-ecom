@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Heart, Menu, Package, Search, ShoppingBag, User, X } from 'lucide-react';
+import { Heart, Menu, Package, Search, ShoppingBag, Truck, User, X } from 'lucide-react';
 import { formatMoney } from '@retailos/config';
 import type { HeaderVariant } from '@retailos/templates';
 import type { ProductListItem } from '@retailos/types';
@@ -11,15 +11,28 @@ import { Badge, cn } from '@retailos/ui';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store-context';
 import { useTemplate } from '@/templates/context';
+import { useScrolled } from '@/templates/motion';
 
 /**
- * Storefront header, in five arrangements.
+ * Storefront header, in four genuinely different arrangements.
  *
  * Everything shown — the name, the logo, the colours, the categories — comes
  * from the tenant resolved on the server, and the *arrangement* comes from the
  * active template. The behaviour underneath (type-ahead search, the bag count,
- * the mobile drawer) is identical in all five: a template changes how a shop
+ * the mobile drawer) is identical in every one: a template changes how a shop
  * looks, never what it can do.
+ *
+ * The four arrangements are structurally distinct, not the same bar with
+ * different padding:
+ *
+ *  • **stacked** — wordmark on its own line above a centred category rail.
+ *    `editorial` and `classic`. A shop you browse.
+ *  • **aisle** — a category mega-strip *above* a search-dominant bar.
+ *    `aisle`. A shop you search.
+ *  • **minimal** — wordmark, bag, and a menu. Nothing else, at any width.
+ *    `minimal`. A shop you are invited into.
+ *  • **utility** — everything on one line. `utility`, `soft`, `playful`,
+ *    and `floating`, which additionally starts transparent over the hero.
  */
 export function SiteHeader() {
   const { bootstrap, itemCount, customer } = useStore();
@@ -66,13 +79,22 @@ export function SiteHeader() {
   };
 
   const variant = layout.header;
-  // Editorial and classic put the wordmark on its own line with navigation
-  // beneath it; the other three run everything along one utility bar.
+  const { motion } = useTemplate();
+
+  // A floating header sits transparently over the hero and gains its surface
+  // once you start reading. Only asked for by templates that declare it, so
+  // the scroll listener is never attached for the rest.
+  const scrolled = useScrolled(32);
+  const floating = variant === 'floating' && motion.stickyNav;
+  const solid = !floating || scrolled;
+
   const stacked = variant === 'editorial' || variant === 'classic';
+  const minimal = variant === 'minimal';
+  const aisle = variant === 'aisle';
 
   const brand = (
     <Link href="/" className="flex shrink-0 items-center gap-2.5">
-      {store.logoUrl ? (
+      {minimal ? null : store.logoUrl ? (
         <img
           src={store.logoUrl}
           alt=""
@@ -92,8 +114,13 @@ export function SiteHeader() {
       )}
       <span
         className={cn(
-          'heading truncate text-content',
-          stacked ? 'text-lg sm:text-xl' : 'hidden text-base sm:block',
+          'heading truncate',
+          solid ? 'text-content' : 'text-white',
+          minimal
+            ? 'text-lg tracking-[0.2em] sm:text-xl'
+            : stacked
+              ? 'text-lg sm:text-xl'
+              : 'hidden text-base sm:block',
         )}
       >
         {store.storeName}
@@ -121,7 +148,7 @@ export function SiteHeader() {
           className={cn(
             'h-10 w-full border border-line bg-surface-muted pl-9 pr-3 text-sm text-content placeholder:text-content-subtle',
             'focus:border-primary focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20',
-            variant === 'editorial' ? 'rounded-none' : 'rounded-full',
+            variant === 'editorial' || variant === 'minimal' ? 'rounded-none' : 'rounded-full',
           )}
         />
       </form>
@@ -163,25 +190,34 @@ export function SiteHeader() {
     </div>
   );
 
+  // Over a dark hero the icons have to be white; once the header gains its
+  // surface they return to the template's ink. One class list, two states.
+  const iconClass = cn(
+    'rounded-[var(--radius)] p-2 transition-colors',
+    solid
+      ? 'text-content-muted hover:bg-surface-muted hover:text-content'
+      : 'text-white/85 hover:bg-white/10 hover:text-white',
+  );
+
   const actions = (
     <div className="flex shrink-0 items-center gap-0.5">
       <Link
         href="/account/wishlist"
-        className="hidden rounded-[var(--radius)] p-2 text-content-muted hover:bg-surface-muted hover:text-content sm:block"
+        className={cn('hidden sm:block', iconClass)}
         aria-label="Wishlist"
       >
         <Heart className="h-5 w-5" aria-hidden="true" />
       </Link>
       <Link
         href={customer ? '/account' : '/login'}
-        className="rounded-[var(--radius)] p-2 text-content-muted hover:bg-surface-muted hover:text-content"
+        className={iconClass}
         aria-label={customer ? 'Your account' : 'Sign in'}
       >
         <User className="h-5 w-5" aria-hidden="true" />
       </Link>
       <Link
         href="/cart"
-        className="relative rounded-[var(--radius)] p-2 text-content-muted hover:bg-surface-muted hover:text-content"
+        className={cn('relative', iconClass)}
         aria-label={`Bag, ${itemCount} item${itemCount === 1 ? '' : 's'}`}
       >
         <ShoppingBag className="h-5 w-5" aria-hidden="true" />
@@ -204,7 +240,12 @@ export function SiteHeader() {
           ? 'text-[11px] font-semibold uppercase tracking-[0.18em] text-content-muted hover:text-content'
           : variant === 'classic'
             ? 'text-[13px] font-medium text-content-muted hover:text-primary'
-            : 'rounded-[var(--radius)] px-3 py-2 text-sm font-medium text-content-muted hover:bg-surface-muted hover:text-content',
+            : variant === 'floating'
+              ? cn(
+                  'text-[12px] font-medium uppercase tracking-[0.14em]',
+                  solid ? 'text-content-muted hover:text-content' : 'text-white/75 hover:text-white',
+                )
+              : 'rounded-[var(--radius)] px-3 py-2 text-sm font-medium text-content-muted hover:bg-surface-muted hover:text-content',
       )}
     >
       {cat.name}
@@ -215,7 +256,7 @@ export function SiteHeader() {
     <button
       type="button"
       onClick={() => setMobileOpen(true)}
-      className="rounded-[var(--radius)] p-2 text-content-muted hover:bg-surface-muted lg:hidden"
+      className={cn(iconClass, 'lg:hidden')}
       aria-label="Open menu"
     >
       <Menu className="h-5 w-5" aria-hidden="true" />
@@ -226,11 +267,98 @@ export function SiteHeader() {
     <>
       <header
         className={cn(
-          'sticky top-0 z-[1100] border-b border-line backdrop-blur',
-          variant === 'playful' ? 'bg-surface/95' : 'bg-surface/95',
+          'top-0 z-[1100] transition-[background-color,border-color,box-shadow] duration-300',
+          floating ? 'sticky' : 'sticky border-b',
+          solid
+            ? 'border-line bg-surface/95 backdrop-blur'
+            : // Transparent over the hero: no border, no blur, nothing to see.
+              'border-transparent bg-transparent',
+          floating && scrolled && 'border-b border-line shadow-sm',
         )}
       >
-        {stacked ? (
+        {minimal ? (
+          // ── Minimal: a wordmark and two affordances. The navigation lives
+          //    entirely in the drawer, at every width — which is the point,
+          //    not a mobile compromise. ────────────────────────────────────
+          <div className="mx-auto flex h-20 max-w-7xl items-center px-4 sm:px-6">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              className={cn(
+                'flex items-center gap-2.5 text-[11px] uppercase tracking-[0.25em] transition-opacity hover:opacity-60',
+                solid ? 'text-content' : 'text-white',
+              )}
+            >
+              <Menu className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Menu</span>
+            </button>
+            <div className="flex flex-1 justify-center">{brand}</div>
+            <div className="flex items-center gap-1">
+              <Link
+                href={customer ? '/account' : '/login'}
+                className={cn(
+                  'hidden p-2 transition-opacity hover:opacity-60 sm:block',
+                  solid ? 'text-content' : 'text-white',
+                )}
+                aria-label={customer ? 'Your account' : 'Sign in'}
+              >
+                <User className="h-4.5 w-4.5" aria-hidden="true" />
+              </Link>
+              <Link
+                href="/cart"
+                className={cn(
+                  'relative p-2 transition-opacity hover:opacity-60',
+                  solid ? 'text-content' : 'text-white',
+                )}
+                aria-label={`Bag, ${itemCount} item${itemCount === 1 ? '' : 's'}`}
+              >
+                <ShoppingBag className="h-4.5 w-4.5" aria-hidden="true" />
+                {itemCount > 0 && (
+                  <span className="absolute right-0 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-semibold text-accent-fg tabular">
+                    {itemCount > 9 ? '9+' : itemCount}
+                  </span>
+                )}
+              </Link>
+            </div>
+          </div>
+        ) : aisle ? (
+          // ── Aisle: the categories come first, above everything. A grocery
+          //    shopper picks an aisle before they pick anything else. ──────
+          <>
+            <div className="hidden border-b border-line bg-surface-muted lg:block">
+              <div className="scroll-slim mx-auto flex max-w-7xl items-center gap-1 overflow-x-auto px-4 sm:px-6">
+                <Link
+                  href="/products"
+                  className="shrink-0 whitespace-nowrap px-3 py-2.5 text-[13px] font-semibold text-primary hover:underline"
+                >
+                  All aisles
+                </Link>
+                {categories.slice(0, 10).map((cat) => (
+                  <Link
+                    key={cat.id}
+                    href={`/products?category=${cat.slug}`}
+                    className="shrink-0 whitespace-nowrap px-3 py-2.5 text-[13px] font-medium text-content-muted transition-colors hover:text-primary"
+                  >
+                    {cat.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6">
+              {menuButton}
+              {brand}
+              {/* Search takes the whole middle: it is how this shop is used. */}
+              <div className="hidden flex-1 sm:block">{search}</div>
+              <span className="hidden items-center gap-1.5 whitespace-nowrap text-xs text-content-muted xl:flex">
+                <Truck className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                Same-day delivery
+              </span>
+              {actions}
+            </div>
+            <div className="border-t border-line px-4 py-2.5 sm:hidden">{search}</div>
+          </>
+        ) : stacked ? (
           // ── Two rows: wordmark centred, navigation beneath. ──────────────
           <>
             <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:px-6">
@@ -334,7 +462,7 @@ export function SiteHeader() {
 
 /** Corner treatment for the logo mark, matching the template's shape language. */
 function roundedFor(variant: HeaderVariant): string {
-  if (variant === 'editorial') return 'rounded-none';
+  if (variant === 'editorial' || variant === 'minimal') return 'rounded-none';
   if (variant === 'playful' || variant === 'soft') return 'rounded-full';
   return 'rounded-[var(--radius)]';
 }

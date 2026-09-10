@@ -143,6 +143,14 @@ export interface ProductListItem {
   slug: string;
   shortDescription: string | null;
   primaryImageUrl: string | null;
+  /**
+   * The next photograph in the gallery, when there is one.
+   *
+   * Presentation-only: templates whose cards cross-fade to a second shot on
+   * hover use it, and every other template ignores it. Null for a product with
+   * a single image, which is what those templates fall back to.
+   */
+  secondaryImageUrl: string | null;
   priceFrom: Money;
   mrpFrom: Money;
   discountPercent: number;
