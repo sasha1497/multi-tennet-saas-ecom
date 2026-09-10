@@ -56,6 +56,25 @@ module.exports = {
           subtle: withVar('--color-text-subtle', '148 163 184'),
         },
       },
+      /**
+       * Half-steps and the gaps in Tailwind's own scale.
+       *
+       * `h-4.5` for an 18px icon and `h-13` for a 52px touch target were
+       * already being written across the storefront and the console; without
+       * these they compile to nothing at all, which is the worst kind of
+       * styling bug — the class looks right in the source and does nothing in
+       * the browser. Adding them to the scale fixes every occurrence at once
+       * and keeps the intent readable at the call site.
+       */
+      spacing: {
+        4.5: '1.125rem',
+        5.5: '1.375rem',
+        6.5: '1.625rem',
+        7.5: '1.875rem',
+        13: '3.25rem',
+        15: '3.75rem',
+        18: '4.5rem',
+      },
       borderRadius: {
         sm: `${radii.sm}px`,
         DEFAULT: `${radii.md}px`,

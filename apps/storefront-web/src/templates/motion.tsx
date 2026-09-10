@@ -127,11 +127,17 @@ export function Reveal({ children, style, delay = 0, className, as = 'div' }: Re
     };
   }, [inert]);
 
+  const Tag = as;
+
   if (inert) {
+    // With motion off this should disappear entirely rather than leave a
+    // wrapper behind — except where the element is structural. An `<li>` still
+    // has to be an `<li>` inside a `<ul>`, and a caller that passed a class
+    // needs something to put it on.
+    if (as === 'li') return <li className={className}>{children}</li>;
     return className ? <div className={className}>{children}</div> : <>{children}</>;
   }
 
-  const Tag = as;
   return (
     <Tag
       ref={ref as never}
@@ -169,15 +175,24 @@ export function RevealGroup({
 }) {
   const { motion } = useTemplate();
   const Tag = as;
+  const list = as === 'ul';
 
+  // Not staggering still means wrapping each child in an `<li>` when the group
+  // is a list: a `<ul>` whose children are anchors is invalid markup, and it
+  // would only be invalid on the standard tier — the exact combination least
+  // likely to be looked at in a browser's element inspector.
   if (motion.reveal === 'none' || !motion.stagger) {
-    return <Tag className={className}>{children}</Tag>;
+    return (
+      <Tag className={className}>
+        {list ? children.map((child, index) => <li key={index}>{child}</li>) : children}
+      </Tag>
+    );
   }
 
   return (
     <Tag className={className}>
       {children.map((child, index) => (
-        <Reveal key={index} delay={Math.min(index, max) * step} as={as === 'ul' ? 'li' : 'div'}>
+        <Reveal key={index} delay={Math.min(index, max) * step} as={list ? 'li' : 'div'}>
           {child}
         </Reveal>
       ))}
