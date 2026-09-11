@@ -128,7 +128,11 @@ export type HeaderVariant =
   /** Almost nothing: wordmark, one menu affordance. Luxury. */
   | 'minimal'
   /** Transparent over the hero, solidifying on scroll. Premium. */
-  | 'floating';
+  | 'floating'
+  /** Masthead: announcement rule, oversized left wordmark, small-caps nav. */
+  | 'lookbook'
+  /** Chunky floating pill bar with a solid call to action. Modern D2C. */
+  | 'bold';
 
 export type FooterVariant =
   | 'editorial'
@@ -136,7 +140,11 @@ export type FooterVariant =
   | 'compact'
   | 'soft'
   /** Oversized wordmark over a thin link row. Luxury and premium. */
-  | 'statement';
+  | 'statement'
+  /** Numbered index columns under a rule. Editorial and lookbook. */
+  | 'index'
+  /** A high-contrast closing panel with an oversized call to action. D2C. */
+  | 'bold';
 
 export type ProductCardVariant =
   /** No chrome, type-led, image does the work. */
@@ -154,7 +162,11 @@ export type ProductCardVariant =
   /** Overlaid caption on a tall image, no border at all. Luxury. */
   | 'overlay'
   /** Image swaps to the second photograph on hover. Premium. */
-  | 'reveal';
+  | 'reveal'
+  /** A numbered plate: hairline rule, serif name, price on the baseline. */
+  | 'plate'
+  /** Rounded tile with a solid price chip. Modern D2C. */
+  | 'tile';
 
 export type ProductDetailVariant =
   | 'gallerySplit'

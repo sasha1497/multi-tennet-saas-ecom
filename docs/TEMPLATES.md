@@ -65,7 +65,7 @@ other.
 
 ## The templates
 
-Ten design languages, not ten colour schemes. They differ in header
+Twelve design languages, not twelve colour schemes. They differ in header
 arrangement, type, density, grid, card shape, product-detail layout, which
 sections exist at all, and how — or whether — the page moves as you scroll.
 
@@ -89,7 +89,7 @@ acceptably in it.
 
 ### Premium
 
-Four designs built around a structural idea the standard tier does not have.
+Six designs built around a structural idea the standard tier does not have.
 **Not the six above with animation switched on** — different layouts, different
 sections, different chrome. They happen to render the same business data
 through the same components, which is the entire point of the split.
@@ -100,6 +100,16 @@ through the same components, which is the entire point of the split.
 | `lumen-tech`     | Lumen          | Flagship electronics, gadgets   | A dark backlit showcase. Feature panels arrive as you reach them; navigation appears only once you have started reading.                                    |
 | `companion-club` | Companion Club | Pet shops                       | Playful motion held to a premium standard. Companion cards that lift, a drifting paw-print field, product rows that arrive in sequence.                     |
 | `maison`         | Maison         | Jewellery, watches, accessories | The quietest thing in the catalogue. One held image, type at display size, slow transitions, almost no interface.                                           |
+| `lookbook`       | Lookbook       | Fashion labels, boutiques, luxury | Print, not film. A masthead instead of a navigation bar, numbered chapters, products as captioned plates stepping down the page, campaign imagery in pairs. |
+| `nova`           | Nova           | General retail, lifestyle, sports | The loud one. A bento-grid opening where headline, campaign and call to action share one composition; mixed-size category tiles; a spotlight product grid. |
+
+`lookbook` and `nova` are deliberately built _against_ the four above them.
+Lookbook sits between Atelier Noir and Maison and is neither: where Atelier Noir
+is a film — full-height stills, cross-fades, everything in motion — and Maison is
+a held breath — centred, symmetrical, almost no interface — Lookbook is a printed
+spread: asymmetric, gridded, hairline-ruled, nothing centred and nothing
+floating. Nova is the only template built on a bento grid, and the only premium
+design that is bright and chunky rather than dark and reverent.
 
 A store **never starts** on a premium template. Provisioning picks the highest
 standard match for the business category; premium is a choice made in the
@@ -156,9 +166,9 @@ there is no flash of the wrong design on first paint.
 **Who wins.** The template supplies the whole palette; the merchant's branding
 overrides it, but only where they actually set something. Every store carries
 `defaultStoreTheme` on its settings row whether or not the owner ever opened the
-colour picker, so honouring it unconditionally would repaint all six templates
-the same blue. A branding value counts as an override only when it differs from
-the platform default.
+colour picker, so honouring it unconditionally would repaint every template the
+same blue. A branding value counts as an override only when it differs from the
+platform default.
 
 ---
 
@@ -183,6 +193,29 @@ design exists to prevent, and the one `template-switching.e2e-spec.ts` catches.)
 new version of a template cannot restyle a live shop. A store pinned to a
 version that has since been withdrawn falls _forward_ to the newest version of
 the same template rather than losing its design.
+
+### A switch is visible on the very next request
+
+The write invalidates the API's Redis entry for the store, and the storefront
+**never caches the bootstrap read**. Both halves are required, and the second
+one is easy to get wrong.
+
+`apps/storefront-web/src/lib/server-api.ts` used to apply
+`next: { revalidate: 60 }` to every server fetch. That is right for the
+catalogue — a burst of visitors should not become a burst of API calls — but the
+bootstrap also carries `templateId`, `templateVersion` and the merchant's
+customisation. The effect was that a merchant switched design, saw their old
+storefront, switched again, saw the old one again, and concluded that switching
+was broken or that two templates looked identical. It was not one stale request
+either: every concurrent visitor in the window got the stale design.
+
+So `loadStorefront` is `cache: 'no-store'`, wrapped in React's `cache()` to keep
+it at exactly one API call per render — `generateMetadata`, the layout and the
+page all share it. Catalogue reads keep the 60-second policy via
+`serverApi({ revalidate })`.
+
+**If you add a server read that carries presentation state, it must not be
+cached.** Everything else should be.
 
 ---
 
@@ -209,6 +242,27 @@ Why it is safe:
   renderer is always one of ours.
 - A ribbon says the page is a preview, because for that moment the page is not
   what a customer would see.
+
+### Previewing an unsaved layout
+
+The store builder stages section changes locally and applies them on save, so a
+half-finished rearrangement is never live to customers. The draft still has to
+be _visible_, though, and it travels the same way the template does:
+
+```
+https://kickzone.example.com/?__template=off&__sections=<base64url>
+```
+
+`@retailos/templates/preview` encodes and — more importantly — **validates** it.
+The value is decoded, then checked field by field against the four known keys,
+with bounded list lengths and bounded strings; anything else is dropped rather
+than trusted. `resolveTemplate` then sanitises whatever survives against the
+active template, so a section id the template does not have is a no-op and a
+non-removable section cannot be hidden however the URL is written. Nothing is
+persisted, and the stored customisation is neither read nor written.
+
+The console debounces it: reordering three sections is one frame reload, not
+three, and typing a heading is one, not one per keystroke.
 
 The console frames this URL in `DevicePreview` at genuine device widths (1280 /
 834 / 390), scaled to fit rather than resized — so "desktop" shows a real
@@ -293,3 +347,20 @@ template version must keep working when the catalogue moves on.
 6. **Motion is never required to understand the page.** Every animation is an
    enhancement over content that already renders. If turning motion off would
    hide something, that is a bug in the section, not in the preference.
+7. **Presentation state is never cached on read.** The catalogue is; which
+   design a shop is in is not. See "A switch is visible on the very next
+   request".
+8. **A grid item that holds text needs `min-w-0`.** A grid item's default
+   `min-width: auto` is its content's minimum, so one long product name or
+   headline widens its column past the viewport and puts the whole page into
+   horizontal scroll. This is the single most common way a new section breaks
+   on a 360px phone while looking perfect on a laptop.
+
+### Checking a template on a phone
+
+Horizontal overflow is invisible on a desktop and obvious on a handset, so it is
+worth measuring rather than eyeballing. Comparing `scrollWidth` against
+`clientWidth` at each breakpoint catches it directly; the widths that matter are
+1440 / 1280 / 1024 / 834 / 768 / 430 / 390 / 375 / 360. Note that an element
+extending past the viewport inside an `overflow-hidden` ancestor — a marquee, for
+instance — is fine and expected: it is the *document* that must not scroll.

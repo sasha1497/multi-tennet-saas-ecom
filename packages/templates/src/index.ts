@@ -46,3 +46,9 @@ export {
   resolveTemplate,
   builderSections,
 } from './resolve';
+export {
+  SECTIONS_PARAM,
+  MAX_ENCODED_LENGTH,
+  encodePreviewCustomization,
+  decodePreviewCustomization,
+} from './preview';

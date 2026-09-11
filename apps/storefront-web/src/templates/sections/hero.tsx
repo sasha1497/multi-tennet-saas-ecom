@@ -611,6 +611,182 @@ export function HeroSection({ section, data }: { section: TemplateSection; data:
         </section>
       );
 
+    // ── Lookbook: a magazine spread. Type on the left against a rule and a
+    //    chapter numeral, campaign photography bleeding off the right edge.
+    //    Nothing is centred; the asymmetry is the whole point. Lookbook. ────
+    case 'lookbook':
+      return (
+        <section className="relative overflow-hidden bg-surface-muted">
+          <div className="mx-auto grid max-w-7xl gap-10 px-4 pb-12 pt-10 sm:px-6 lg:grid-cols-[0.85fr_1.15fr] lg:gap-14 lg:pb-20 lg:pt-16">
+            {/* Type column. Order is flipped on mobile so the photograph opens
+                the page on a phone — a headline above the fold with no image
+                under it reads as a broken page, not as restraint. */}
+            <div className="order-2 flex flex-col justify-center lg:order-1">
+              <p className="flex items-center gap-4 text-[11px] uppercase tracking-[0.3em] text-content-muted">
+                <span className="tabular">01</span>
+                <span aria-hidden="true" className="h-px w-12 bg-accent" />
+                {store.storeName}
+              </p>
+
+              <h1 className="heading mt-7 break-words text-[clamp(2rem,6.5vw,4.25rem)] font-normal leading-[1.02] text-content">
+                <RevealWords text={title} />
+              </h1>
+
+              <p className="mt-6 max-w-sm text-[15px] leading-relaxed text-content-muted">
+                {subtitle}
+              </p>
+
+              <div className="mt-9 flex flex-wrap items-center gap-x-8 gap-y-3">
+                <Link
+                  href={ctaHref}
+                  className="group inline-flex items-center gap-3 border-b border-content pb-1.5 text-[12px] font-medium uppercase tracking-[0.22em] text-content transition-colors hover:border-accent hover:text-accent"
+                >
+                  {ctaLabel}
+                  <ArrowRight
+                    className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1"
+                    aria-hidden="true"
+                  />
+                </Link>
+                <Link
+                  href="/products"
+                  className="text-[12px] uppercase tracking-[0.22em] text-content-muted transition-colors hover:text-content"
+                >
+                  The full collection
+                </Link>
+              </div>
+            </div>
+
+            {/* Photograph. Bleeds past the container on large screens so the
+                spread runs off the edge of the page the way a printed one does. */}
+            <div className="order-1 lg:order-2 lg:-mr-6 xl:-mr-[calc((100vw-80rem)/2)]">
+              <Parallax strength={0.08}>
+                {/* Aspect on small screens, a bounded height on large ones. A
+                    4/5 plate at 700px wide is 875px tall — taller than most
+                    laptop viewports, which turns a spread into a wall. */}
+                <div className="relative aspect-[4/5] overflow-hidden bg-surface sm:aspect-[16/11] lg:aspect-auto lg:h-[clamp(26rem,62vh,38rem)]">
+                  {image ? (
+                    <img
+                      src={image}
+                      alt=""
+                      fetchPriority="high"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    // A shop with no campaign photograph yet still gets a
+                    // plate rather than a hole — the frame is the composition.
+                    <span className="block h-full w-full bg-content/[0.07]" />
+                  )}
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      'pointer-events-none absolute inset-x-5 inset-y-5 border',
+                      image ? 'border-white/25' : 'border-content/15',
+                    )}
+                  />
+                </div>
+              </Parallax>
+              {banner?.subtitle && (
+                <p className="mt-3 max-w-xs text-[11px] uppercase tracking-[0.18em] text-content-subtle">
+                  {banner.subtitle}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+      );
+
+    // ── Bento: headline, campaign image and call to action as one grid of
+    //    tiles. The only hero in the catalogue that is a composition rather
+    //    than a backdrop with words on it. Nova. ────────────────────────────
+    case 'bento': {
+      const tiles = categories.slice(0, 3);
+      return (
+        <section className="bg-surface-muted">
+          <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
+            {/* Single column on a phone, an asymmetric bento from `sm` up. The
+                rows are only fixed once there is room for them to mean
+                anything — a 360px-wide bento is just a stack. */}
+            {/* `min-w-0` on every tile is load-bearing, not defensive: a grid
+                item's default `min-width: auto` is its *content's* minimum, so
+                one long headline widens the column past the viewport and takes
+                the whole page into horizontal scroll with it. */}
+            <div className="grid gap-3 sm:grid-cols-6 sm:grid-rows-[auto_auto] sm:gap-4 lg:h-[34rem] lg:grid-rows-2">
+              {/* Statement tile */}
+              <div className="flex min-w-0 flex-col justify-between rounded-[calc(var(--radius)*1.6)] bg-content p-6 text-white sm:col-span-4 sm:row-span-1 sm:p-8 lg:p-10">
+                <div className="min-w-0">
+                  <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/80">
+                    <Sparkles className="h-3 w-3" aria-hidden="true" />
+                    {store.storeName}
+                  </p>
+                  <h1 className="heading mt-5 break-words text-[clamp(1.75rem,5.2vw,3.5rem)] leading-[1.02]">
+                    {title}
+                  </h1>
+                </div>
+                <p className="mt-5 max-w-md text-sm leading-relaxed text-white/70">{subtitle}</p>
+              </div>
+
+              {/* Campaign image tile */}
+              <div className="relative min-w-0 overflow-hidden rounded-[calc(var(--radius)*1.6)] bg-surface sm:col-span-2 sm:row-span-2">
+                {image ? (
+                  <img
+                    src={image}
+                    alt=""
+                    fetchPriority="high"
+                    className="h-full min-h-[14rem] w-full object-cover"
+                  />
+                ) : (
+                  <span className="flex h-full min-h-[14rem] w-full items-center justify-center bg-primary/10" />
+                )}
+              </div>
+
+              {/* Call to action tile */}
+              <Link
+                href={ctaHref}
+                className="group flex min-w-0 items-center justify-between gap-4 rounded-[calc(var(--radius)*1.6)] bg-primary p-6 text-primary-fg transition hover:brightness-110 sm:col-span-2 sm:p-7"
+              >
+                <span className="heading min-w-0 break-words text-[clamp(1.1rem,2.4vw,1.6rem)] leading-tight">
+                  {ctaLabel}
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 transition-transform group-hover:translate-x-1"
+                >
+                  <ArrowRight className="h-5 w-5" />
+                </span>
+              </Link>
+
+              {/* Category tiles fill the remainder of the bottom row. */}
+              {tiles.length > 0 ? (
+                <ul className="grid min-w-0 gap-3 sm:col-span-2 sm:grid-cols-1 sm:gap-4">
+                  {tiles.slice(0, 2).map((category) => (
+                    <li key={category.id} className="min-h-0 min-w-0">
+                      <Link
+                        href={`/products?category=${category.slug}`}
+                        className="group flex h-full min-h-[5rem] items-center justify-between gap-3 rounded-[calc(var(--radius)*1.6)] bg-surface px-5 py-4 transition hover:bg-accent hover:text-accent-fg"
+                      >
+                        <span className="truncate text-sm font-semibold">{category.name}</span>
+                        <ArrowRight
+                          className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1"
+                          aria-hidden="true"
+                        />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <Link
+                  href="/products"
+                  className="flex items-center justify-center rounded-[calc(var(--radius)*1.6)] bg-surface px-5 py-6 text-sm font-semibold text-content transition hover:bg-accent hover:text-accent-fg sm:col-span-2"
+                >
+                  Browse everything
+                </Link>
+              )}
+            </div>
+          </div>
+        </section>
+      );
+    }
+
     // ── Compact search: shortest path to a basket. Daily Cart. ─────────────
     case 'compactSearch':
     default:

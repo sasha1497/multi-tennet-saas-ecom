@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { formatMoney } from '@retailos/config';
 import type { TemplateSection } from '@retailos/templates';
 import type { ProductListItem } from '@retailos/types';
+import { cn } from '@retailos/ui';
 import { ProductCard } from '../components/product-card';
 import { Section, SectionHeading } from '../components/section';
 import type { SectionData } from '../data';
@@ -264,6 +266,135 @@ export function ProductRowSection({
               ))}
             </RevealGroup>
           )}
+        </Section>
+      );
+    }
+
+    // ── Plates: captioned plates stepping down the page in an offset
+    //    rhythm, the way a lookbook spread alternates its images. Lookbook.
+    //
+    //    The offset is a top margin on every second plate, applied only from
+    //    `sm` up — on a single-column phone it would just be a stray gap.
+    case 'plates':
+      return (
+        <Section>
+          <div className="mb-10 flex flex-wrap items-end justify-between gap-x-8 gap-y-3 border-b border-content/15 pb-5">
+            <div>
+              <h2 className="heading text-[clamp(1.5rem,3.4vw,2.25rem)] font-normal leading-tight text-content">
+                {title}
+              </h2>
+              {section.subtitle && (
+                <p className="mt-2 max-w-md text-sm text-content-muted">{section.subtitle}</p>
+              )}
+            </div>
+            <Link
+              href={href}
+              className="group text-[11px] uppercase tracking-[0.22em] text-content-muted transition-colors hover:text-content"
+            >
+              See everything
+              <span aria-hidden="true" className="ml-2 inline-block transition-transform group-hover:translate-x-1">
+                →
+              </span>
+            </Link>
+          </div>
+
+          <ul className="grid grid-cols-1 gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-3 lg:gap-x-8">
+            {products.map((product, i) => (
+              <li
+                key={product.id}
+                className={cn('min-w-0', i % 2 === 1 && 'sm:mt-16 lg:mt-0 lg:even:mt-20')}
+              >
+                <Reveal delay={Math.min(i, 5) * 70}>
+                  <div className="flex items-start gap-3">
+                    <span
+                      aria-hidden="true"
+                      className="mt-1 shrink-0 text-[11px] text-content-subtle tabular"
+                    >
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <ProductCard product={product} currency={currency} priority={i < 2} />
+                    </div>
+                  </div>
+                </Reveal>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      );
+
+    // ── Spotlight: the lead product takes a four-cell block and the rest
+    //    pack around it. A bento grid rather than a hero-plus-list. Nova.
+    //
+    //    The lead is written out rather than rendered through `ProductCard`
+    //    because it is a genuinely different object — a full-bleed panel with
+    //    its caption laid over the photograph. Forcing the card to fill a
+    //    2×2 cell would mean overriding the aspect ratio the template just
+    //    asked for, which is the sort of fight that ends in a CSS hack.
+    case 'spotlight': {
+      const [lead, ...rest] = products;
+      const followers = rest.slice(0, 6);
+
+      // A four-column bento with one product in it is three empty columns. The
+      // grid narrows to what the shop can actually fill, so a store with two
+      // products gets a deliberate two-up rather than a hole.
+      const columns =
+        followers.length >= 4
+          ? 'sm:grid-cols-4'
+          : followers.length >= 2
+            ? 'sm:grid-cols-3'
+            : 'sm:grid-cols-2';
+
+      return (
+        <Section>
+          <SectionHeading title={title} subtitle={section.subtitle} href={href} />
+          <div className={cn('grid gap-3 sm:gap-4', columns)}>
+            <Reveal className="min-w-0 sm:col-span-2 sm:row-span-2">
+              <Link
+                href={`/products/${lead.slug}`}
+                className="group relative flex h-full min-h-[18rem] flex-col justify-end overflow-hidden rounded-[calc(var(--radius)*1.4)] bg-surface-muted p-5 sm:p-7"
+              >
+                {lead.primaryImageUrl ? (
+                  <img
+                    src={lead.primaryImageUrl}
+                    alt=""
+                    fetchPriority="high"
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 motion-safe:group-hover:scale-105"
+                  />
+                ) : (
+                  <span className="absolute inset-0 bg-primary/10" />
+                )}
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent"
+                />
+                <span className="relative">
+                  {lead.brandName && (
+                    <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                      {lead.brandName}
+                    </span>
+                  )}
+                  <span className="heading block text-[clamp(1.25rem,3vw,2rem)] leading-tight text-white">
+                    {lead.name}
+                  </span>
+                  <span className="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-[13px] font-bold text-content tabular">
+                    {formatMoney(lead.priceFrom, currency)}
+                    {lead.discountPercent > 0 && (
+                      <span className="text-[11px] font-semibold text-accent">
+                        −{lead.discountPercent}%
+                      </span>
+                    )}
+                  </span>
+                </span>
+              </Link>
+            </Reveal>
+
+            {followers.map((product, i) => (
+              <Reveal key={product.id} delay={Math.min(i, 5) * 55} className="min-w-0">
+                <ProductCard product={product} currency={currency} className="h-full" />
+              </Reveal>
+            ))}
+          </div>
         </Section>
       );
     }

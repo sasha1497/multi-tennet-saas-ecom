@@ -191,6 +191,39 @@ export function TrustStripSection({
     );
   }
 
+  // ── Marquee strip: the promises scroll past on a solid band. Loud on
+  //    purpose — it is the seam between the bento hero and the catalogue.
+  //    Nova. ───────────────────────────────────────────────────────────────
+  if (section.variant === 'marqueeStrip') {
+    return (
+      <section className="overflow-hidden border-y border-content/10 bg-content py-3.5 text-surface">
+        {/* The list is rendered twice so the loop has something to scroll into.
+            The duplicate is hidden from assistive tech, and the whole strip
+            stops moving under `prefers-reduced-motion` (see globals.css), where
+            it reads as a plain row of promises. */}
+        <div className="marquee-track flex w-max items-center gap-10 sm:gap-16">
+          {[0, 1].map((copy) => (
+            <ul
+              key={copy}
+              aria-hidden={copy === 1 ? 'true' : undefined}
+              className="flex shrink-0 items-center gap-10 sm:gap-16"
+            >
+              {items.map((item) => (
+                <li
+                  key={item.title}
+                  className="flex shrink-0 items-center gap-2.5 whitespace-nowrap text-[13px] font-semibold uppercase tracking-[0.14em]"
+                >
+                  <item.icon className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+                  {item.title}
+                </li>
+              ))}
+            </ul>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
   // ── Minimal: a thin strip. Urban Luxe and Daily Cart. ───────────────────
   return (
     <section className="border-y border-line bg-surface">
@@ -341,6 +374,149 @@ export function CollectionBannerSection({
             </Reveal>
           </div>
         </section>
+      );
+
+    // ── Campaign pair: two plates running the full width of the page with
+    //    their captions set beneath, the second dropped to break the line.
+    //    A printed spread rather than a banner. Lookbook. ──────────────────
+    case 'campaignPair': {
+      const second = primaryBanner(data.store);
+      // Fall back to the same photograph rather than dropping the section: a
+      // shop with one banner should still get the spread, just quieter.
+      const secondImage = second?.imageUrl ?? banner.imageUrl;
+
+      return (
+        <Section bleed>
+          <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-10">
+            <Link href={href} className="group block min-w-0">
+              <div className="relative aspect-[4/5] overflow-hidden bg-surface-muted">
+                <img
+                  src={banner.imageUrl}
+                  alt=""
+                  loading="lazy"
+                  className="h-full w-full object-cover transition-transform duration-700 motion-safe:group-hover:scale-[1.03]"
+                />
+              </div>
+              <div className="mt-5 flex items-baseline gap-4 border-t border-content/15 pt-4">
+                <span aria-hidden="true" className="text-[11px] text-content-subtle tabular">
+                  01
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="heading block text-[clamp(1.25rem,2.6vw,1.75rem)] font-normal leading-tight text-content">
+                    {title}
+                  </span>
+                  {subtitle && (
+                    <span className="mt-1.5 block text-sm text-content-muted">{subtitle}</span>
+                  )}
+                  <span className="mt-3 inline-block border-b border-content pb-0.5 text-[11px] uppercase tracking-[0.22em] text-content transition-colors group-hover:border-accent group-hover:text-accent">
+                    {label}
+                  </span>
+                </span>
+              </div>
+            </Link>
+
+            {/* The offset that makes it a spread rather than two columns. */}
+            <Link href="/products" className="group block min-w-0 lg:mt-20">
+              <div className="relative aspect-[4/5] overflow-hidden bg-surface-muted">
+                <img
+                  src={secondImage}
+                  alt=""
+                  loading="lazy"
+                  className="h-full w-full object-cover transition-transform duration-700 motion-safe:group-hover:scale-[1.03]"
+                />
+              </div>
+              <div className="mt-5 flex items-baseline gap-4 border-t border-content/15 pt-4">
+                <span aria-hidden="true" className="text-[11px] text-content-subtle tabular">
+                  02
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="heading block text-[clamp(1.25rem,2.6vw,1.75rem)] font-normal leading-tight text-content">
+                    {second?.title ?? 'The full collection'}
+                  </span>
+                  <span className="mt-1.5 block text-sm text-content-muted">
+                    {second?.subtitle ?? 'Every piece, in one place'}
+                  </span>
+                  <span className="mt-3 inline-block border-b border-content pb-0.5 text-[11px] uppercase tracking-[0.22em] text-content transition-colors group-hover:border-accent group-hover:text-accent">
+                    Browse all
+                  </span>
+                </span>
+              </div>
+            </Link>
+          </div>
+        </Section>
+      );
+    }
+
+    // ── Dual panel: two oversized calls to action side by side, one on the
+    //    photograph and one on a flat brand colour. Deliberately the loudest
+    //    thing on the page. Nova. ──────────────────────────────────────────
+    case 'dualPanel':
+      return (
+        <Section>
+          <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+            <Link
+              href={href}
+              className="group relative flex min-w-0 min-h-[17rem] flex-col justify-end overflow-hidden rounded-[calc(var(--radius)*1.6)] bg-surface-muted p-6 sm:min-h-[21rem] sm:p-9"
+            >
+              <img
+                src={banner.imageUrl}
+                alt=""
+                loading="lazy"
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 motion-safe:group-hover:scale-105"
+              />
+              <span
+                aria-hidden="true"
+                className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent"
+              />
+              <span className="relative max-w-lg">
+                <span className="heading block break-words text-[clamp(1.5rem,4vw,2.75rem)] leading-[1.05] text-white">
+                  {title}
+                </span>
+                {subtitle && (
+                  <span className="mt-3 block text-sm leading-relaxed text-white/75">
+                    {subtitle}
+                  </span>
+                )}
+                <span className="mt-6 inline-flex h-12 items-center gap-2 rounded-full bg-white px-7 text-sm font-bold text-content transition group-hover:gap-3">
+                  {label}
+                  <span aria-hidden="true">→</span>
+                </span>
+              </span>
+            </Link>
+
+            <div className="grid min-w-0 gap-3 sm:gap-4">
+              <Link
+                href="/offers"
+                className="group flex min-h-[8rem] flex-col justify-between rounded-[calc(var(--radius)*1.6)] bg-primary p-6 text-primary-fg transition hover:brightness-110 sm:p-7"
+              >
+                <BadgePercent className="h-7 w-7" aria-hidden="true" />
+                <span>
+                  <span className="heading block text-[clamp(1.25rem,2.6vw,1.75rem)] leading-tight">
+                    Today&apos;s offers
+                  </span>
+                  <span className="mt-1.5 block text-sm text-primary-fg/75">
+                    Every live discount in one place
+                  </span>
+                </span>
+              </Link>
+
+              <Link
+                href="/products?sortBy=createdAt&sortOrder=desc"
+                className="group flex min-h-[8rem] flex-col justify-between rounded-[calc(var(--radius)*1.6)] bg-accent p-6 text-accent-fg transition hover:brightness-110 sm:p-7"
+              >
+                <Sparkles className="h-7 w-7" aria-hidden="true" />
+                <span>
+                  <span className="heading block text-[clamp(1.25rem,2.6vw,1.75rem)] leading-tight">
+                    Just landed
+                  </span>
+                  <span className="mt-1.5 block text-sm text-accent-fg/75">
+                    The newest additions to the shop
+                  </span>
+                </span>
+              </Link>
+            </div>
+          </div>
+        </Section>
       );
 
     // ── Wide strip: short, horizontal, low-commitment. ─────────────────────

@@ -1,7 +1,18 @@
 import { cookies, headers } from 'next/headers';
-import { resolveTemplate, templateExists, type ResolvedTemplate } from '@retailos/templates';
+import {
+  decodePreviewCustomization,
+  resolveTemplate,
+  templateExists,
+  type ResolvedTemplate,
+  type TemplateCustomization,
+} from '@retailos/templates';
 import type { StorefrontBootstrap } from '@retailos/types';
-import { PREVIEW_COOKIE, PREVIEW_HEADER } from '@/middleware';
+import {
+  PREVIEW_COOKIE,
+  PREVIEW_HEADER,
+  SECTIONS_COOKIE,
+  SECTIONS_HEADER,
+} from '@/middleware';
 
 /**
  * Which template this render uses, and whether it is a preview.
@@ -13,6 +24,15 @@ import { PREVIEW_COOKIE, PREVIEW_HEADER } from '@/middleware';
 export interface ActiveTemplate extends ResolvedTemplate {
   /** True when the design on screen is not the one the store has saved. */
   isPreview: boolean;
+}
+
+/** The unsaved home-page layout for this request, or null when there is none. */
+export function previewCustomization(): TemplateCustomization | null {
+  const fromHeader = headers().get(SECTIONS_HEADER);
+  if (fromHeader) return fromHeader === 'off' ? null : decodePreviewCustomization(fromHeader);
+
+  const fromCookie = cookies().get(SECTIONS_COOKIE)?.value ?? null;
+  return fromCookie ? decodePreviewCustomization(fromCookie) : null;
 }
 
 /** The preview template for this request, or null when there is none. */
@@ -36,12 +56,18 @@ export function previewTemplateId(): string | null {
  */
 export function activeTemplate(bootstrap: StorefrontBootstrap): ActiveTemplate {
   const preview = previewTemplateId();
+  const draft = previewCustomization();
+
   const resolved = resolveTemplate(bootstrap.store.template, {
     overrideTemplateId: preview,
+    overrideCustomization: draft,
   });
 
   return {
     ...resolved,
-    isPreview: preview !== null && preview !== bootstrap.store.template.templateId,
+    // A previewed *layout* counts as a preview too: the merchant is looking at
+    // something their customers cannot see, and the ribbon should say so.
+    isPreview:
+      (preview !== null && preview !== bootstrap.store.template.templateId) || draft !== null,
   };
 }

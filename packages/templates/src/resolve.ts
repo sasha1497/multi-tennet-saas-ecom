@@ -160,7 +160,17 @@ function isVisible(
  */
 export function resolveTemplate(
   config: StoreTemplateConfig | null | undefined,
-  options: { businessCategory?: string | null; overrideTemplateId?: string | null } = {},
+  options: {
+    businessCategory?: string | null;
+    overrideTemplateId?: string | null;
+    /**
+     * An unsaved layout to render *instead of* the stored one, for preview.
+     * Sanitised against the resolved template like any other customisation, so
+     * it can neither hide a structural section nor name one that does not
+     * exist. See `preview.ts`.
+     */
+    overrideCustomization?: TemplateCustomization | null;
+  } = {},
 ): ResolvedTemplate {
   // A preview override never touches the stored config — it only changes which
   // definition this one render uses.
@@ -172,7 +182,10 @@ export function resolveTemplate(
     defaultTemplateFor(options.businessCategory);
 
   const fellBack = Boolean(requestedId) && template.id !== requestedId;
-  const custom = sanitiseCustomization(template, config?.customization);
+  const custom = sanitiseCustomization(
+    template,
+    options.overrideCustomization ?? config?.customization,
+  );
 
   const hidden = new Set(custom.hiddenSections ?? []);
   const shown = new Set(custom.shownSections ?? []);

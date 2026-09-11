@@ -23,7 +23,7 @@ import { Badge, Button, Card, CardBody, Input, PageHeader, Skeleton, cn, useToas
 import { DevicePreview, type Device } from '@/components/store-design/device-preview';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { useErrorToast } from '@/lib/hooks';
+import { useDebounced, useErrorToast } from '@/lib/hooks';
 
 /**
  * The store builder.
@@ -34,9 +34,11 @@ import { useErrorToast } from '@/lib/hooks';
  * on the home page*, never the products inside it.
  *
  * Changes are staged locally and applied on save, so a half-finished
- * rearrangement is never live to customers. The preview reloads after a save,
- * which is the honest thing to show: this is the real storefront, and the real
- * storefront reflects what has actually been saved.
+ * rearrangement is never live to customers. The preview, however, shows the
+ * *draft*: it is the merchant's real storefront rendered through the layout
+ * they are currently building, carried over in the URL and never written (see
+ * `@retailos/templates/preview`). Rearranging blocks against a preview that
+ * could not show them was the single least useful thing about this page.
  */
 export default function CustomizePage() {
   const { activeTenant } = useAuth();
@@ -82,6 +84,32 @@ export default function CustomizePage() {
     if (!catalogue || !draft) return false;
     return JSON.stringify(normalise(draft)) !== JSON.stringify(normalise(catalogue.active.customization ?? {}));
   }, [catalogue, draft]);
+
+  /**
+   * The draft the preview frame is currently showing.
+   *
+   * Held one step behind the editor so that reordering three sections is one
+   * reload rather than three, and typing a heading is one rather than one per
+   * character. 500 ms is long enough to swallow a burst of clicks and short
+   * enough that it still reads as live.
+   */
+  const debouncedDraft = useDebounced(draft, 500);
+
+  /**
+   * Null while the draft still matches what is published.
+   *
+   * Sending an override that says exactly what the store already says would
+   * reload the frame for no visible change — including once on first paint,
+   * which would read as a flicker. So the preview only carries a draft from the
+   * moment one actually diverges.
+   */
+  const previewDraft = useMemo(() => {
+    if (!catalogue || !debouncedDraft) return null;
+    const saved = normalise(catalogue.active.customization ?? {});
+    return JSON.stringify(normalise(debouncedDraft)) === JSON.stringify(saved)
+      ? null
+      : debouncedDraft;
+  }, [catalogue, debouncedDraft]);
 
   const save = useMutation({
     mutationFn: () => api().merchant.updateStoreTemplate({ customization: draft ?? {} }),
@@ -264,14 +292,15 @@ export default function CustomizePage() {
                 <DevicePreview
                   key={previewNonce}
                   storefrontUrl={storefrontUrl}
+                  customization={previewDraft}
                   device={device}
                   onDeviceChange={setDevice}
                   height={620}
                 />
                 {dirty && (
                   <p className="mt-3 rounded-lg bg-warning-50 px-3 py-2 text-xs text-warning-700 dark:bg-warning-700/15 dark:text-warning-100">
-                    This preview shows your saved layout. Save to see the changes you have just
-                    made.
+                    This preview shows your unsaved changes. Your customers still see the saved
+                    layout until you press Save.
                   </p>
                 )}
               </>

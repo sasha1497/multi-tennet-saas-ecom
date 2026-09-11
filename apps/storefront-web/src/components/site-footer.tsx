@@ -197,6 +197,85 @@ export function SiteFooter() {
     );
   }
 
+  // ── Index: the back page of a magazine. A rule, the wordmark set small
+  //    against numbered columns, and the contact details as a colophon.
+  //    Lookbook. ───────────────────────────────────────────────────────────
+  if (variant === 'index') {
+    return (
+      <footer className="mt-24 border-t border-content/15 bg-surface-muted">
+        <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20">
+          <div className="grid gap-10 lg:grid-cols-[1fr_1.6fr] lg:gap-16">
+            <div>
+              <p className="heading break-words text-[clamp(1.75rem,5vw,3rem)] font-normal leading-none text-content">
+                {store.storeName}
+              </p>
+              {store.tagline && (
+                <p className="mt-4 max-w-xs text-sm leading-relaxed text-content-muted">
+                  {store.tagline}
+                </p>
+              )}
+            </div>
+
+            {/* Numbered columns, to match the chapters on the home page. */}
+            <div className="grid gap-8 sm:grid-cols-3 [&_h2]:mb-4 [&_h2]:text-[11px] [&_h2]:font-normal [&_h2]:uppercase [&_h2]:tracking-[0.22em] [&_h2]:text-content-subtle [&_a]:text-[13px] [&_a]:text-content-muted [&_a:hover]:text-accent [&_li]:text-[13px] [&_li]:text-content-muted">
+              {shopLinks}
+              {accountLinks}
+              {contact}
+            </div>
+          </div>
+
+          <div className="mt-14 flex flex-col gap-3 border-t border-content/15 pt-6 text-[11px] uppercase tracking-[0.18em] text-content-subtle sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              © {new Date().getFullYear()} {store.storeName}
+            </p>
+            <p className="normal-case tracking-normal">Powered by RetailOS</p>
+          </div>
+        </div>
+      </footer>
+    );
+  }
+
+  // ── Bold: a closing panel that behaves like one more promotional block —
+  //    an oversized call to action on the brand colour, with the links
+  //    beneath it. Nova. ──────────────────────────────────────────────────
+  if (variant === 'bold') {
+    return (
+      <footer className="mt-16">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="flex flex-col gap-6 rounded-[calc(var(--radius)*1.6)] bg-primary p-8 text-primary-fg sm:p-12 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="heading break-words text-[clamp(1.75rem,4.5vw,3rem)] leading-[1.05]">
+                Ready when you are.
+              </p>
+              {store.tagline && (
+                <p className="mt-3 max-w-md text-sm text-primary-fg/75">{store.tagline}</p>
+              )}
+            </div>
+            <Link
+              href="/products"
+              className="inline-flex h-14 shrink-0 items-center justify-center gap-2 rounded-full bg-surface px-8 text-sm font-bold text-content transition hover:gap-3"
+            >
+              Start shopping
+              <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+        </div>
+
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <Wordmark store={store} rounded />
+            </div>
+            {shopLinks}
+            {accountLinks}
+            {contact}
+          </div>
+          {legal}
+        </div>
+      </footer>
+    );
+  }
+
   // ── Soft: rounded shoulder, warm ground, centred wordmark. ───────────────
   if (variant === 'soft') {
     return (

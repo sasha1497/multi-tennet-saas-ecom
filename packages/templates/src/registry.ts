@@ -1272,6 +1272,306 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
       },
     ],
   },
+
+  // ═════════════════════════════════════════════════════════════ lookbook ══
+  // P5 · Luxury fashion, as a printed lookbook.
+  //
+  // The catalogue already had two fashion-adjacent premium designs, so this one
+  // is deliberately built against both. Atelier Noir is a film — full-height
+  // stills, cross-fades, everything in motion. Maison is a held breath —
+  // centred, symmetrical, almost no interface. Lookbook is *print*: asymmetric
+  // spreads, numbered chapters, hairline rules, captions set beneath plates
+  // rather than over them, and a masthead instead of a navigation bar. Nothing
+  // is centred and nothing floats.
+  {
+    id: 'lookbook',
+    name: 'Lookbook',
+    version: 1,
+    tier: 'premium',
+    group: 'Fashion',
+    tagline: 'A printed lookbook, bound as a shop',
+    description:
+      'Editorial spreads with numbered chapters, a masthead rather than a navigation bar, and ' +
+      'products presented as captioned plates that step down the page in an offset rhythm. ' +
+      'Campaign imagery runs in pairs across the full width. For a label whose photography is ' +
+      'the reason to visit.',
+    businessTypes: [
+      "Women's Wear",
+      'Womenswear',
+      "Men's Wear",
+      'Menswear',
+      'Boutique',
+      'Luxury',
+      'Accessories',
+    ],
+    swatches: ['#1a1613', '#9c6b4f', '#faf8f5'],
+    badges: ['Premium', 'New'],
+    theme: {
+      primaryColor: '#1a1613',
+      accentColor: '#9c6b4f',
+      surfaceColor: '#faf8f5',
+      contentColor: '#1a1613',
+      radius: 'none',
+      // Serif at display size, set light. The weight is what separates this
+      // from Atelier Noir's grotesque as much as the layout does.
+      headingFont: "var(--font-serif), Georgia, 'Times New Roman', serif",
+      bodyFont: 'var(--font-sans), system-ui, sans-serif',
+      headingWeight: 400,
+      headingTracking: '-0.03em',
+      headingTransform: 'none',
+      density: 'airy',
+    },
+    layout: {
+      header: 'lookbook',
+      footer: 'index',
+      productCard: 'plate',
+      productDetail: 'stackedGallery',
+      // Two across even on a large screen: a plate that shares a row with three
+      // others is a thumbnail, and this design has nothing to say in thumbnails.
+      gridColumns: { base: 1, sm: 2, lg: 2, xl: 3 },
+      productAspect: '4 / 5',
+    },
+    motion: {
+      reveal: 'clip',
+      stagger: true,
+      parallax: true,
+      hover: 'zoom',
+      // A masthead scrolls away like the cover of a magazine.
+      stickyNav: false,
+    },
+    sections: [
+      { id: 'hero', kind: 'hero', variant: 'lookbook', removable: false, defaultVisible: true },
+      {
+        id: 'categories',
+        kind: 'categories',
+        variant: 'chapters',
+        title: 'The chapters',
+        subtitle: 'Where to begin',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'featured',
+        kind: 'productRow',
+        variant: 'plates',
+        title: 'The edit',
+        subtitle: 'Selected for this season',
+        source: 'featured',
+        limit: 6,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'collection-banner',
+        kind: 'collectionBanner',
+        variant: 'campaignPair',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'editorial',
+        kind: 'editorial',
+        variant: 'letter',
+        title: 'From the studio',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'new-arrivals',
+        kind: 'productRow',
+        variant: 'plates',
+        title: 'Just arrived',
+        subtitle: 'The newest pieces in the room',
+        source: 'newest',
+        limit: 6,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'brands',
+        kind: 'brands',
+        variant: 'tiles',
+        title: 'The houses we carry',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'best-sellers',
+        kind: 'productRow',
+        variant: 'asymmetric',
+        title: 'Most wanted',
+        subtitle: 'What is leaving the shelves',
+        source: 'popular',
+        limit: 7,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'newsletter',
+        kind: 'newsletter',
+        variant: 'centered',
+        title: 'The next chapter',
+        subtitle: 'Be told when the new season lands.',
+        removable: true,
+        defaultVisible: true,
+      },
+      { id: 'trust', kind: 'trustStrip', variant: 'minimal', removable: true, defaultVisible: true },
+      { id: 'offers', kind: 'offers', variant: 'ticker', removable: true, defaultVisible: false },
+    ],
+  },
+
+  // ═════════════════════════════════════════════════════════════════ nova ══
+  // P6 · Modern visual commerce. The high-budget D2C brand site.
+  //
+  // The loud one, and the only template in the catalogue built on a bento grid.
+  // Where Lumen is dark, technical and reverent about the product, Nova is
+  // bright, chunky and confident: oversized display type, big rounded tiles,
+  // a solid call to action in the header, and promotional blocks that are
+  // supposed to be the loudest thing on screen rather than an interruption.
+  {
+    id: 'nova',
+    name: 'Nova',
+    version: 1,
+    tier: 'premium',
+    group: 'Retail',
+    tagline: 'A modern brand site that happens to sell',
+    description:
+      'A bento-grid opening where the headline, the campaign image and the call to action share ' +
+      'one composition, then oversized promotional panels, mixed-size category tiles and a ' +
+      'spotlight grid where the lead product takes four times the space. Bright, chunky and ' +
+      'unmistakably contemporary.',
+    businessTypes: [
+      'General Retail',
+      'Home & Lifestyle',
+      'Sports',
+      'Footwear',
+      'Accessories',
+      'Gadgets',
+    ],
+    swatches: ['#4f2bff', '#ff5c38', '#f4f3ef'],
+    badges: ['Premium', 'New'],
+    theme: {
+      primaryColor: '#4f2bff',
+      accentColor: '#ff5c38',
+      surfaceColor: '#f4f3ef',
+      contentColor: '#101014',
+      radius: 'lg',
+      headingFont: "var(--font-display), 'Helvetica Neue', Arial, sans-serif",
+      bodyFont: 'var(--font-sans), system-ui, sans-serif',
+      headingWeight: 800,
+      headingTracking: '-0.04em',
+      headingTransform: 'none',
+      density: 'regular',
+    },
+    layout: {
+      header: 'bold',
+      footer: 'bold',
+      productCard: 'tile',
+      productDetail: 'stickyPanel',
+      gridColumns: { base: 2, sm: 2, lg: 3, xl: 4 },
+      productAspect: '1 / 1',
+    },
+    motion: {
+      reveal: 'rise',
+      stagger: true,
+      // No parallax: this design is built out of hard-edged tiles, and drifting
+      // one behind the rest breaks the grid it depends on.
+      parallax: false,
+      hover: 'lift',
+      stickyNav: true,
+    },
+    sections: [
+      { id: 'hero', kind: 'hero', variant: 'bento', removable: false, defaultVisible: true },
+      {
+        id: 'trust',
+        kind: 'trustStrip',
+        variant: 'marqueeStrip',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'featured',
+        kind: 'productRow',
+        variant: 'spotlight',
+        title: 'The drop',
+        subtitle: 'What everyone is here for',
+        source: 'featured',
+        limit: 7,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'categories',
+        kind: 'categories',
+        variant: 'bentoTiles',
+        title: 'Shop by category',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'collection-banner',
+        kind: 'collectionBanner',
+        variant: 'dualPanel',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'new-arrivals',
+        kind: 'productRow',
+        variant: 'parade',
+        title: 'New this week',
+        subtitle: 'Fresh in, while it lasts',
+        source: 'newest',
+        limit: 10,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'offers',
+        kind: 'offers',
+        variant: 'cards',
+        title: 'Deals on now',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'best-sellers',
+        kind: 'productRow',
+        variant: 'softGrid',
+        title: 'Best sellers',
+        subtitle: 'Tried, tested and reordered',
+        source: 'popular',
+        limit: 8,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'testimonials',
+        kind: 'testimonials',
+        variant: 'quoteRow',
+        title: 'What people say',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'newsletter',
+        kind: 'newsletter',
+        variant: 'soft',
+        title: 'Get the drop first',
+        subtitle: 'New releases, straight to your inbox.',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'brands',
+        kind: 'brands',
+        variant: 'marquee',
+        title: 'Brands we stock',
+        removable: true,
+        defaultVisible: false,
+      },
+    ],
+  },
 ] as const;
 
 /**

@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { templateExists } from '@retailos/templates';
+import {
+  decodePreviewCustomization,
+  MAX_ENCODED_LENGTH,
+  SECTIONS_PARAM,
+  templateExists,
+} from '@retailos/templates';
 
 /**
  * Template preview, without a single write.
@@ -21,38 +26,84 @@ import { templateExists } from '@retailos/templates';
  *     written by preview; switching is a separate, authenticated call.
  *   - Unknown ids are ignored rather than trusted, so the value reaching the
  *     renderer is always one of ours.
+ *
+ * The same machinery carries an *unsaved home-page layout* as `?__sections=`,
+ * so the store builder can show a merchant the arrangement they are dragging
+ * about before they publish it. It is subject to every guarantee above — see
+ * `@retailos/templates/preview` for how it is validated.
  */
 const PARAM = '__template';
 export const PREVIEW_COOKIE = 'retailos.preview_template';
 export const PREVIEW_HEADER = 'x-retailos-preview-template';
+export const SECTIONS_COOKIE = 'retailos.preview_sections';
+export const SECTIONS_HEADER = 'x-retailos-preview-sections';
+
+/**
+ * Cookies cap at about 4 KB, and a draft with a heading on every section can
+ * approach that. Over the limit the draft still reaches *this* render through
+ * the header — it simply does not survive the next navigation, which is the
+ * right trade: the builder re-sends it on every preview refresh anyway.
+ */
+const MAX_COOKIE_LENGTH = 3000;
 
 export function middleware(request: NextRequest) {
-  const requested = request.nextUrl.searchParams.get(PARAM);
+  const requestedTemplate = request.nextUrl.searchParams.get(PARAM);
+  const requestedSections = request.nextUrl.searchParams.get(SECTIONS_PARAM);
 
-  // No preview instruction: carry any existing preview through untouched.
-  if (requested === null) return NextResponse.next();
-
-  const clearing = requested === 'off' || requested === '';
-  // An id we do not recognise is treated as "no preview" rather than passed on.
-  const templateId = !clearing && templateExists(requested) ? requested : null;
+  // No preview instruction of either kind: carry any existing preview through
+  // untouched.
+  if (requestedTemplate === null && requestedSections === null) return NextResponse.next();
 
   const headers = new Headers(request.headers);
-  headers.set(PREVIEW_HEADER, templateId ?? 'off');
+  const response = { template: null as string | null, sections: null as string | null };
 
-  const response = NextResponse.next({ request: { headers } });
-
-  if (templateId) {
-    response.cookies.set(PREVIEW_COOKIE, templateId, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      // A session cookie: closing the tab ends the preview on its own.
-    });
-  } else {
-    response.cookies.delete(PREVIEW_COOKIE);
+  if (requestedTemplate !== null) {
+    const clearing = requestedTemplate === 'off' || requestedTemplate === '';
+    // An id we do not recognise is treated as "no preview" rather than passed on.
+    response.template = !clearing && templateExists(requestedTemplate) ? requestedTemplate : null;
+    headers.set(PREVIEW_HEADER, response.template ?? 'off');
   }
 
-  return response;
+  if (requestedSections !== null) {
+    const clearing = requestedSections === 'off' || requestedSections === '';
+    // Decoded here purely to reject rubbish at the edge; the render decodes it
+    // again from the header rather than trusting a parsed value across the hop.
+    const valid =
+      !clearing &&
+      requestedSections.length <= MAX_ENCODED_LENGTH &&
+      decodePreviewCustomization(requestedSections) !== null;
+    response.sections = valid ? requestedSections : null;
+    headers.set(SECTIONS_HEADER, response.sections ?? 'off');
+  }
+
+  const next = NextResponse.next({ request: { headers } });
+
+  if (requestedTemplate !== null) {
+    if (response.template) {
+      next.cookies.set(PREVIEW_COOKIE, response.template, {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        // A session cookie: closing the tab ends the preview on its own.
+      });
+    } else {
+      next.cookies.delete(PREVIEW_COOKIE);
+    }
+  }
+
+  if (requestedSections !== null) {
+    if (response.sections && response.sections.length <= MAX_COOKIE_LENGTH) {
+      next.cookies.set(SECTIONS_COOKIE, response.sections, {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+      });
+    } else {
+      next.cookies.delete(SECTIONS_COOKIE);
+    }
+  }
+
+  return next;
 }
 
 export const config = {

@@ -261,6 +261,78 @@ export function ProductCard({
         </Link>
       );
 
+    // ── Plate: a captioned plate from a printed lookbook. The caption sits
+    //    under a hairline rule, the name is serif, and the price shares the
+    //    baseline with it rather than sitting beneath. Lookbook. ────────────
+    case 'plate':
+      return (
+        <Link href={href(product)} className={cn('group flex flex-col', hover, className)}>
+          <div className="relative overflow-hidden bg-surface-muted">{image}</div>
+          <div className="mt-4 border-t border-content/15 pt-3">
+            {product.brandName && (
+              <p className="mb-1.5 text-[10px] uppercase tracking-[0.22em] text-content-subtle">
+                {product.brandName}
+              </p>
+            )}
+            <div className="flex items-baseline justify-between gap-4">
+              <h3 className="heading min-w-0 flex-1 text-[15px] font-normal leading-snug text-content">
+                {product.name}
+              </h3>
+              <span className="shrink-0 text-[13px] text-content-muted tabular">
+                {formatMoney(product.priceFrom, currency)}
+              </span>
+            </div>
+            {product.discountPercent > 0 && (
+              <p className="mt-1 text-[11px] text-content-subtle line-through tabular">
+                {formatMoney(product.mrpFrom, currency)}
+              </p>
+            )}
+          </div>
+        </Link>
+      );
+
+    // ── Tile: a rounded tile with the price as a solid chip. Chunky and
+    //    high-contrast, to hold its own against oversized type. Nova. ───────
+    case 'tile':
+      return (
+        <Link
+          href={href(product)}
+          className={cn(
+            'group flex flex-col overflow-hidden rounded-[calc(var(--radius)*1.4)] bg-surface transition-shadow hover:shadow-lg',
+            hover,
+            className,
+          )}
+        >
+          <div className="relative overflow-hidden bg-surface-muted">
+            {image}
+            {/* The price rides on the image rather than below it, which is what
+                keeps the tile reading as one block instead of a card. */}
+            <span className="absolute bottom-2.5 left-2.5 rounded-full bg-content px-3 py-1.5 text-[13px] font-bold text-surface tabular">
+              {formatMoney(product.priceFrom, currency)}
+            </span>
+          </div>
+          <div className="flex flex-1 flex-col p-3.5">
+            <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-content">
+              {product.name}
+            </h3>
+            <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+              {product.ratingCount > 0 ? (
+                <Rating product={product} />
+              ) : (
+                product.brandName && (
+                  <span className="truncate text-xs text-content-subtle">{product.brandName}</span>
+                )
+              )}
+              {product.discountPercent > 0 && (
+                <span className="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-bold text-accent">
+                  −{product.discountPercent}%
+                </span>
+              )}
+            </div>
+          </div>
+        </Link>
+      );
+
     // ── Compact: minimum height per product. Daily Cart. ───────────────────
     case 'compact':
     default:
@@ -327,7 +399,7 @@ function ProductImage({
         <span
           className={cn(
             'absolute left-2 top-2 px-2 py-0.5 text-[11px] font-semibold',
-            kind === 'editorial' || kind === 'reveal'
+            kind === 'editorial' || kind === 'reveal' || kind === 'plate'
               ? 'bg-content text-surface'
               : kind === 'overlay'
                 ? 'bg-white/90 text-content'

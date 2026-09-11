@@ -321,6 +321,121 @@ export function CategoriesSection({
         </Section>
       );
 
+    // ── Chapters: a numbered contents page. Each category is a row with its
+    //    numeral, its name at display size and a small plate on the right,
+    //    separated by hairlines. Lookbook. ──────────────────────────────────
+    case 'chapters':
+      return (
+        <Section>
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-2 border-b border-content/15 pb-5">
+            <h2 className="heading text-[clamp(1.5rem,3.4vw,2.25rem)] font-normal leading-tight text-content">
+              {section.title ?? 'The chapters'}
+            </h2>
+            {section.subtitle && (
+              <p className="text-[11px] uppercase tracking-[0.22em] text-content-subtle">
+                {section.subtitle}
+              </p>
+            )}
+          </div>
+
+          <ul>
+            {categories.slice(0, 6).map((category, index) => (
+              <Reveal key={category.id} as="li" delay={Math.min(index, 5) * 60}>
+                <Link
+                  href={`/products?category=${category.slug}`}
+                  className="group flex items-center gap-4 border-b border-content/10 py-5 transition-colors hover:border-accent sm:gap-8 sm:py-7"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="w-8 shrink-0 text-[11px] text-content-subtle tabular"
+                  >
+                    {String(index + 1).padStart(2, '0')}
+                  </span>
+
+                  <span className="min-w-0 flex-1">
+                    <span className="heading block truncate text-[clamp(1.125rem,3.2vw,1.875rem)] font-normal leading-tight text-content transition-colors group-hover:text-accent">
+                      {category.name}
+                    </span>
+                    {typeof category.productCount === 'number' && category.productCount > 0 && (
+                      <span className="mt-1 block text-[11px] uppercase tracking-[0.18em] text-content-subtle tabular">
+                        {category.productCount} piece{category.productCount === 1 ? '' : 's'}
+                      </span>
+                    )}
+                  </span>
+
+                  {/* The plate is decorative at this size — the row is already
+                      labelled — so it is hidden from assistive tech and from
+                      phones, where it would halve the space the name has. */}
+                  <span className="hidden h-16 w-20 shrink-0 overflow-hidden bg-surface-muted sm:block lg:h-20 lg:w-28">
+                    <CategoryImage category={category} fill />
+                  </span>
+
+                  <ArrowUpRight
+                    className="h-4 w-4 shrink-0 text-content-subtle transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-accent"
+                    aria-hidden="true"
+                  />
+                </Link>
+              </Reveal>
+            ))}
+          </ul>
+        </Section>
+      );
+
+    // ── Bento tiles: mixed-size category blocks. The first two are twice the
+    //    size of the rest, so the grid has a focal point instead of reading
+    //    as a uniform sheet. Nova. ──────────────────────────────────────────
+    case 'bentoTiles':
+      return (
+        <Section>
+          <SectionHeading
+            title={section.title ?? 'Shop by category'}
+            subtitle={section.subtitle}
+            href="/products"
+          />
+          <ul className="grid auto-rows-[9rem] grid-cols-2 gap-3 sm:auto-rows-[11rem] sm:grid-cols-4 sm:gap-4">
+            {categories.slice(0, 6).map((category, index) => (
+              <Reveal
+                key={category.id}
+                as="li"
+                delay={Math.min(index, 5) * 55}
+                className={cn('min-w-0', index < 2 && 'col-span-2 row-span-1 sm:row-span-2')}
+              >
+                <Link
+                  href={`/products?category=${category.slug}`}
+                  className="group relative flex h-full w-full flex-col justify-end overflow-hidden rounded-[calc(var(--radius)*1.4)] bg-surface-muted p-4"
+                >
+                  <CategoryImage
+                    category={category}
+                    fill
+                    className="absolute inset-0 h-full w-full"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent"
+                  />
+                  <span className="relative flex items-end justify-between gap-2">
+                    <span
+                      className={cn(
+                        'heading min-w-0 break-words leading-tight text-white',
+                        index < 2 ? 'text-lg sm:text-2xl' : 'text-sm sm:text-base',
+                      )}
+                    >
+                      {category.name}
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-white transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                    >
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </span>
+                  </span>
+                </Link>
+              </Reveal>
+            ))}
+          </ul>
+        </Section>
+      );
+
     // ── Chips: the whole tree in one glance. Daily Cart. ───────────────────
     case 'chips':
     default:
@@ -383,10 +498,15 @@ function CategoryImage({
   // No artwork. In a large tile the name is already rendered as a caption, so
   // a giant initial under a dark scrim just reads as noise — a tonal wash sits
   // behind the caption far better. In a small chip the initial *is* the visual.
+  //
+  // The wash is a flat tint of the template's ink rather than a primary→accent
+  // gradient: a saturated two-colour ramp behind every un-photographed category
+  // reads as decoration a designer did not choose, and it fights the scrim that
+  // the caption needs to stay legible.
   if (fill) {
     return (
       <span
-        className={cn('block h-full w-full bg-gradient-to-br from-primary to-accent', className)}
+        className={cn('block h-full w-full bg-content/10', className)}
         aria-hidden="true"
       />
     );

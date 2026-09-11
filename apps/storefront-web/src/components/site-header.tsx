@@ -91,6 +91,8 @@ export function SiteHeader() {
   const stacked = variant === 'editorial' || variant === 'classic';
   const minimal = variant === 'minimal';
   const aisle = variant === 'aisle';
+  const masthead = variant === 'lookbook';
+  const bold = variant === 'bold';
 
   const brand = (
     <Link href="/" className="flex shrink-0 items-center gap-2.5">
@@ -148,7 +150,9 @@ export function SiteHeader() {
           className={cn(
             'h-10 w-full border border-line bg-surface-muted pl-9 pr-3 text-sm text-content placeholder:text-content-subtle',
             'focus:border-primary focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary/20',
-            variant === 'editorial' || variant === 'minimal' ? 'rounded-none' : 'rounded-full',
+            variant === 'editorial' || variant === 'minimal' || variant === 'lookbook'
+              ? 'rounded-none'
+              : 'rounded-full',
           )}
         />
       </form>
@@ -268,7 +272,10 @@ export function SiteHeader() {
       <header
         className={cn(
           'top-0 z-[1100] transition-[background-color,border-color,box-shadow] duration-300',
-          floating ? 'sticky' : 'sticky border-b',
+          // The masthead is the one header that scrolls away: it is the cover
+          // of the magazine, and a cover that follows you down the page is a
+          // navigation bar wearing a serif.
+          masthead ? 'relative border-b' : floating ? 'sticky' : 'sticky border-b',
           solid
             ? 'border-line bg-surface/95 backdrop-blur'
             : // Transparent over the hero: no border, no blur, nothing to see.
@@ -276,7 +283,114 @@ export function SiteHeader() {
           floating && scrolled && 'border-b border-line shadow-sm',
         )}
       >
-        {minimal ? (
+        {masthead ? (
+          // ── Masthead: an announcement rule, then the shop's name set large
+          //    on the left with the navigation ranged right beneath a
+          //    hairline. A magazine cover, not a navigation bar — which is
+          //    also why it is not sticky. Lookbook. ─────────────────────────
+          <>
+            <div className="border-b border-content/10 bg-content text-surface">
+              <p className="mx-auto max-w-7xl px-4 py-2 text-center text-[10px] uppercase tracking-[0.3em] sm:px-6">
+                {store.tagline ?? 'Complimentary delivery on every order'}
+              </p>
+            </div>
+
+            <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-5 sm:px-6 sm:py-7">
+              {menuButton}
+              <Link href="/" className="min-w-0 flex-1">
+                <span className="heading block truncate text-[clamp(1.35rem,4.2vw,2.5rem)] font-normal leading-none text-content">
+                  {store.storeName}
+                </span>
+              </Link>
+              <div className="flex shrink-0 items-center gap-0.5">
+                <Link
+                  href="/account/wishlist"
+                  className={cn('hidden sm:block', iconClass)}
+                  aria-label="Wishlist"
+                >
+                  <Heart className="h-4.5 w-4.5" aria-hidden="true" />
+                </Link>
+                <Link
+                  href={customer ? '/account' : '/login'}
+                  className={iconClass}
+                  aria-label={customer ? 'Your account' : 'Sign in'}
+                >
+                  <User className="h-4.5 w-4.5" aria-hidden="true" />
+                </Link>
+                <Link
+                  href="/cart"
+                  className={cn('relative', iconClass)}
+                  aria-label={`Bag, ${itemCount} item${itemCount === 1 ? '' : 's'}`}
+                >
+                  <ShoppingBag className="h-4.5 w-4.5" aria-hidden="true" />
+                  {itemCount > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center bg-accent px-1 text-[10px] font-semibold text-accent-fg tabular">
+                      {itemCount > 9 ? '9+' : itemCount}
+                    </span>
+                  )}
+                </Link>
+              </div>
+            </div>
+
+            <nav
+              className="hidden border-t border-content/10 lg:block"
+              aria-label="Categories"
+            >
+              <div className="scroll-slim mx-auto flex max-w-7xl items-center justify-end gap-8 overflow-x-auto px-4 py-3 sm:px-6">
+                <Link
+                  href="/products"
+                  className="shrink-0 whitespace-nowrap text-[11px] uppercase tracking-[0.22em] text-content transition-colors hover:text-accent"
+                >
+                  All
+                </Link>
+                {categories.slice(0, 6).map((cat) => (
+                  <Link
+                    key={cat.id}
+                    href={`/products?category=${cat.slug}`}
+                    className="shrink-0 whitespace-nowrap text-[11px] uppercase tracking-[0.22em] text-content-muted transition-colors hover:text-accent"
+                  >
+                    {cat.name}
+                  </Link>
+                ))}
+              </div>
+            </nav>
+            <div className="border-t border-content/10 px-4 py-2.5 lg:hidden">{search}</div>
+          </>
+        ) : bold ? (
+          // ── Bold: one chunky bar with pill navigation and a solid call to
+          //    action. Big targets, high contrast, nothing hairline. Nova. ──
+          <div className="mx-auto flex h-[4.5rem] max-w-7xl items-center gap-2 px-4 sm:px-6">
+            {menuButton}
+            {brand}
+
+            <nav
+              className="ml-3 hidden items-center gap-1 lg:flex"
+              aria-label="Categories"
+            >
+              {categories.slice(0, 4).map((cat) => (
+                <Link
+                  key={cat.id}
+                  href={`/products?category=${cat.slug}`}
+                  className="rounded-full px-3.5 py-2 text-[13px] font-semibold text-content-muted transition hover:bg-content hover:text-surface"
+                >
+                  {cat.name}
+                </Link>
+              ))}
+            </nav>
+
+            <div className="hidden flex-1 md:block">{search}</div>
+
+            <div className="flex shrink-0 items-center gap-1">
+              {actions}
+              <Link
+                href="/offers"
+                className="ml-1 hidden h-11 items-center rounded-full bg-primary px-5 text-[13px] font-bold text-primary-fg transition hover:brightness-110 sm:inline-flex"
+              >
+                Offers
+              </Link>
+            </div>
+          </div>
+        ) : minimal ? (
           // ── Minimal: a wordmark and two affordances. The navigation lives
           //    entirely in the drawer, at every width — which is the point,
           //    not a mobile compromise. ────────────────────────────────────
@@ -462,7 +576,9 @@ export function SiteHeader() {
 
 /** Corner treatment for the logo mark, matching the template's shape language. */
 function roundedFor(variant: HeaderVariant): string {
-  if (variant === 'editorial' || variant === 'minimal') return 'rounded-none';
-  if (variant === 'playful' || variant === 'soft') return 'rounded-full';
+  if (variant === 'editorial' || variant === 'minimal' || variant === 'lookbook') {
+    return 'rounded-none';
+  }
+  if (variant === 'playful' || variant === 'soft' || variant === 'bold') return 'rounded-full';
   return 'rounded-[var(--radius)]';
 }
