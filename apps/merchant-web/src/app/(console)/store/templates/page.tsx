@@ -1,9 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Check, Search, ShieldCheck, X } from 'lucide-react';
+import { Check, Search, ShieldCheck, X } from 'lucide-react';
 import { getTemplate, TEMPLATE_GROUPS, type TemplateDefinition } from '@retailos/templates';
 import {
   Button,
@@ -12,11 +11,11 @@ import {
   EmptyState,
   Input,
   Modal,
-  PageHeader,
   Skeleton,
   cn,
   useToast,
 } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { DevicePreview, type Device } from '@/components/store-design/device-preview';
 import { SwitchTemplateDialog } from '@/components/store-design/switch-template-dialog';
 import { TemplateCard } from '@/components/store-design/template-card';
@@ -137,16 +136,9 @@ export default function TemplateGalleryPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <Link
-        href="/store"
-        className="mb-3 inline-flex items-center gap-1.5 text-sm text-content-muted hover:text-content"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        Store design
-      </Link>
-
-      <PageHeader
+    <div className="mx-auto max-w-6xl space-y-5">
+      <PageHead
+        breadcrumbs={[{ label: 'Store design', href: '/store' }, { label: 'Templates' }]}
         title="Choose a storefront design"
         description={
           tenant?.tenant.businessCategory

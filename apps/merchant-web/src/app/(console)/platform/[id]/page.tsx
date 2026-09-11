@@ -23,12 +23,12 @@ import {
   ConfirmDialog,
   ErrorState,
   Input,
-  PageHeader,
   Skeleton,
   StatTile,
   Switch,
   useToast,
 } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { api } from '@/lib/api';
 import { useErrorToast } from '@/lib/hooks';
 
@@ -156,8 +156,8 @@ export default function TenantDetailPage() {
   const active = data.tenant.status === 'ACTIVE';
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <PageHeader
+    <div className="mx-auto max-w-5xl space-y-5">
+      <PageHead
         title={data.tenant.name}
         description={data.tenant.storefrontUrl.replace(/^https?:\/\//, '')}
         breadcrumbs={[{ label: 'Tenants', href: '/platform' }, { label: data.tenant.name }]}

@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ExternalLink, ImagePlus } from 'lucide-react';
+import { ExternalLink, ImagePlus } from 'lucide-react';
 import type { StoreSettings } from '@retailos/types';
 import {
   Button,
@@ -11,7 +10,6 @@ import {
   CardBody,
   CardHeader,
   Input,
-  PageHeader,
   Select,
   Skeleton,
   Switch,
@@ -19,6 +17,7 @@ import {
   Textarea,
   useToast,
 } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { paiseToRupees, rupeesToPaise, useErrorToast } from '@/lib/hooks';
@@ -110,16 +109,9 @@ export default function StoreSettingsPage() {
     setForm((f) => (f ? { ...f, [key]: value } : f));
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <Link
-        href="/store"
-        className="mb-3 inline-flex items-center gap-1.5 text-sm text-content-muted hover:text-content"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        Store design
-      </Link>
-
-      <PageHeader
+    <div className="mx-auto max-w-3xl space-y-5">
+      <PageHead
+        breadcrumbs={[{ label: 'Store design', href: '/store' }, { label: 'Store settings' }]}
         title="Store settings"
         description="Your branding, and how checkout behaves. These stay the same whichever template you use."
         actions={

@@ -7,15 +7,18 @@ import type { OrderStatus, ReportRange } from '@retailos/types';
 import {
   AreaChart,
   BarList,
-  Card,
-  CardBody,
-  CardHeader,
-  PageHeader,
+  EmptyState,
   SegmentedControl,
   Skeleton,
-  StatTile,
   Tabs,
 } from '@retailos/ui';
+import {
+  PageHead,
+  Panel,
+  PanelBody,
+  PanelHeader,
+  StatCard,
+} from '@/components/console/primitives';
 import { api } from '@/lib/api';
 
 const RANGES = [
@@ -30,9 +33,9 @@ export default function ReportsPage() {
   const [range, setRange] = useState<ReportRange>('30d');
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <PageHeader
-        title="Reports"
+    <div className="mx-auto max-w-6xl space-y-5">
+      <PageHead
+        title="Analytics"
         description="Sales, customers and stock value."
         actions={
           tab !== 'inventory' && (
@@ -76,38 +79,49 @@ function SalesReport({ range }: { range: ReportRange }) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile label="Revenue" value={money(data.totals.revenue)} comparisonLabel="in this period" />
-        <StatTile label="Orders" value={String(data.totals.orders)} comparisonLabel="in this period" />
-        <StatTile
+        <StatCard label="Revenue" value={money(data.totals.revenue)} comparisonLabel="in this period" />
+        <StatCard label="Orders" value={String(data.totals.orders)} comparisonLabel="in this period" />
+        <StatCard
           label="Items sold"
           value={String(data.totals.itemsSold)}
           comparisonLabel="in this period"
         />
-        <StatTile
+        <StatCard
           label="Average order"
           value={money(data.totals.averageOrderValue)}
           comparisonLabel="in this period"
         />
       </div>
 
-      <Card>
-        <CardHeader title="Revenue by day" />
-        <CardBody className="pt-2">
-          <AreaChart
-            data={data.byDay.map((d) => ({ date: d.date, value: d.revenue }))}
-            formatValue={(v) => formatMoney(v, data.currency, { compact: true, hideDecimals: true })}
-            formatDate={(d) =>
-              new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-            }
-            secondary={{ label: 'orders', values: data.byDay.map((d) => d.orders) }}
-          />
-        </CardBody>
-      </Card>
+      <Panel>
+        <PanelHeader title="Revenue by day" />
+        <PanelBody className="pt-2">
+          {/* All-zero days plot as a flat rule against a ₹1/₹1/₹1 axis, which
+              reads as a broken chart rather than an empty one. */}
+          {data.byDay.some((d) => d.revenue > 0) ? (
+            <AreaChart
+              data={data.byDay.map((d) => ({ date: d.date, value: d.revenue }))}
+              formatValue={(v) =>
+                formatMoney(v, data.currency, { compact: true, hideDecimals: true })
+              }
+              formatDate={(d) =>
+                new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+              }
+              secondary={{ label: 'orders', values: data.byDay.map((d) => d.orders) }}
+            />
+          ) : (
+            <EmptyState
+              title="No revenue in this period"
+              description="Once orders come in, your daily revenue is plotted here."
+            />
+          )}
+        </PanelBody>
+      </Panel>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader title="By payment method" />
-          <CardBody>
+        <Panel>
+          <PanelHeader title="By payment method" />
+          <PanelBody>
             <BarList
               items={data.byPaymentMethod.map((m) => ({
                 label: m.method,
@@ -116,12 +130,12 @@ function SalesReport({ range }: { range: ReportRange }) {
                 meta: `${m.orders} order${m.orders === 1 ? '' : 's'}`,
               }))}
             />
-          </CardBody>
-        </Card>
+          </PanelBody>
+        </Panel>
 
-        <Card>
-          <CardHeader title="By status" />
-          <CardBody>
+        <Panel>
+          <PanelHeader title="By status" />
+          <PanelBody>
             <BarList
               items={data.byStatus.map((s) => ({
                 label: ORDER_STATUS_LABELS[s.status as OrderStatus],
@@ -130,20 +144,20 @@ function SalesReport({ range }: { range: ReportRange }) {
                 meta: money(s.revenue),
               }))}
             />
-          </CardBody>
-        </Card>
+          </PanelBody>
+        </Panel>
       </div>
 
-      <Card>
-        <CardHeader title="Breakdown" />
-        <CardBody>
+      <Panel>
+        <PanelHeader title="Breakdown" />
+        <PanelBody>
           <dl className="grid gap-3 sm:grid-cols-3">
             <Stat label="Discounts given" value={money(data.totals.discountGiven)} />
             <Stat label="Tax collected" value={money(data.totals.taxCollected)} />
             <Stat label="Delivery collected" value={money(data.totals.shippingCollected)} />
           </dl>
-        </CardBody>
-      </Card>
+        </PanelBody>
+      </Panel>
     </div>
   );
 }
@@ -159,21 +173,21 @@ function CustomerReport({ range }: { range: ReportRange }) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <StatTile
+        <StatCard
           label="New customers"
           value={String(data.newCustomers)}
           comparisonLabel="in this period"
         />
-        <StatTile
+        <StatCard
           label="Returning customers"
           value={String(data.returningCustomers)}
           comparisonLabel="ordered more than once"
         />
       </div>
 
-      <Card>
-        <CardHeader title="Top customers by lifetime value" />
-        <CardBody>
+      <Panel>
+        <PanelHeader title="Top customers by lifetime value" />
+        <PanelBody>
           <BarList
             items={data.topCustomers.map((c) => ({
               label: c.name,
@@ -183,8 +197,8 @@ function CustomerReport({ range }: { range: ReportRange }) {
             }))}
             emptyMessage="No customer orders yet"
           />
-        </CardBody>
-      </Card>
+        </PanelBody>
+      </Panel>
     </div>
   );
 }
@@ -200,27 +214,27 @@ function InventoryReport() {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile label="Stock value" value={formatMoney(data.stockValue)} comparisonLabel="at cost price" />
-        <StatTile label="In stock" value={String(data.inStock)} comparisonLabel="variants" />
-        <StatTile
+        <StatCard label="Stock value" value={formatMoney(data.stockValue)} comparisonLabel="at cost price" />
+        <StatCard label="In stock" value={String(data.inStock)} comparisonLabel="variants" />
+        <StatCard
           label="Low stock"
           value={String(data.lowStock)}
           comparisonLabel="need restocking"
           trend={data.lowStock > 0 ? 'up' : 'flat'}
-          invertTrendColour
+          invertTrend
         />
-        <StatTile
+        <StatCard
           label="Out of stock"
           value={String(data.outOfStock)}
           comparisonLabel="unavailable"
           trend={data.outOfStock > 0 ? 'up' : 'flat'}
-          invertTrendColour
+          invertTrend
         />
       </div>
 
-      <Card>
-        <CardHeader title="Items needing attention" />
-        <CardBody>
+      <Panel>
+        <PanelHeader title="Items needing attention" />
+        <PanelBody>
           <BarList
             items={data.lowStockItems.map((item) => ({
               label: `${item.productName} · ${item.variantLabel}`,
@@ -233,8 +247,8 @@ function InventoryReport() {
             limit={20}
             emptyMessage="Everything is well stocked."
           />
-        </CardBody>
-      </Card>
+        </PanelBody>
+      </Panel>
     </div>
   );
 }

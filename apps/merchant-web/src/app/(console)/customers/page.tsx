@@ -12,10 +12,10 @@ import {
   Drawer,
   EmptyState,
   Input,
-  PageHeader,
   Pagination,
   type Column,
 } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { api } from '@/lib/api';
 import { useDebounced, useQueryParams } from '@/lib/hooks';
 
@@ -80,8 +80,8 @@ function CustomersView() {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <PageHeader
+    <div className="mx-auto max-w-6xl space-y-5">
+      <PageHead
         title="Customers"
         description="Everyone who has an account with your store."
       />

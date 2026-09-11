@@ -9,18 +9,24 @@ import { Permission, type ProductStatus } from '@retailos/types';
 import {
   Badge,
   Button,
-  Card,
   ConfirmDialog,
   DataTable,
   EmptyState,
   Input,
-  PageHeader,
   Pagination,
   Select,
   Tabs,
   useToast,
   type Column,
 } from '@retailos/ui';
+import {
+  ButtonLink,
+  MetaChip,
+  PageHead,
+  PageShell,
+  Panel,
+  Toolbar,
+} from '@/components/console/primitives';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDebounced, useErrorToast, useQueryParams } from '@/lib/hooks';
@@ -196,24 +202,40 @@ function ProductsView() {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl">
-      <PageHeader
+    <PageShell>
+      <PageHead
         title="Products"
         description="Everything you sell, with variants, pricing and stock."
+        meta={
+          data && (
+            <MetaChip icon={<Package className="h-3 w-3" />}>
+              {data.pagination.total} {data.pagination.total === 1 ? 'product' : 'products'}
+            </MetaChip>
+          )
+        }
         actions={
           can(Permission.PRODUCTS_CREATE) && (
-            <Button leftIcon={<Plus className="h-4 w-4" />} onClick={() => (window.location.href = '/products/new')}>
+            <ButtonLink href="/products/new" leftIcon={<Plus className="h-4 w-4" />}>
               Add product
-            </Button>
+            </ButtonLink>
           )
         }
       />
 
-      <Card>
-        <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+      <Panel>
+        {/* Status first, then search within it — the order a merchant narrows in. */}
+        <Tabs
+          tabs={STATUS_TABS}
+          active={params.status}
+          onChange={(id) => setParams({ status: id === 'all' ? undefined : id, page: '1' })}
+          className="px-3"
+        />
+
+        <Toolbar>
           <Input
-            containerClassName="min-w-[220px] flex-1"
+            containerClassName="w-full max-w-sm"
             placeholder="Search by name or SKU…"
+            aria-label="Search products"
             leftIcon={<Search className="h-4 w-4" />}
             value={searchInput}
             onChange={(e) => {
@@ -223,6 +245,7 @@ function ProductsView() {
           />
           <Select
             className="w-auto min-w-[150px]"
+            aria-label="Sort products"
             value={params.sortBy}
             onChange={(e) => setParams({ sortBy: e.target.value })}
             options={[
@@ -232,14 +255,7 @@ function ProductsView() {
               { value: 'soldCount', label: 'Best selling' },
             ]}
           />
-        </div>
-
-        <Tabs
-          tabs={STATUS_TABS}
-          active={params.status}
-          onChange={(id) => setParams({ status: id === 'all' ? undefined : id, page: '1' })}
-          className="px-2"
-        />
+        </Toolbar>
 
         <DataTable
           columns={columns}
@@ -266,9 +282,9 @@ function ProductsView() {
               action={
                 !debouncedSearch &&
                 can(Permission.PRODUCTS_CREATE) && (
-                  <Link href="/products/new">
-                    <Button leftIcon={<Plus className="h-4 w-4" />}>Add product</Button>
-                  </Link>
+                  <ButtonLink href="/products/new" leftIcon={<Plus className="h-4 w-4" />}>
+                    Add product
+                  </ButtonLink>
                 )
               }
             />
@@ -284,7 +300,7 @@ function ProductsView() {
             onPageChange={(p) => setParams({ page: String(p) })}
           />
         )}
-      </Card>
+      </Panel>
 
       <ConfirmDialog
         open={archiveTarget !== null}
@@ -304,7 +320,7 @@ function ProductsView() {
         destructive
         loading={archive.isPending}
       />
-    </div>
+    </PageShell>
   );
 }
 

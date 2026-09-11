@@ -3,16 +3,32 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Store } from 'lucide-react';
 import { isApiClientError } from '@retailos/api-client';
-import { Button, Card, Input } from '@retailos/ui';
+import { Button, Input } from '@retailos/ui';
+import { AuthShell, FormError } from '@/components/auth/auth-shell';
 import { useAuth } from '@/lib/auth-context';
+
+/** Where a signed-in merchant lands when nothing more specific was requested. */
+const DEFAULT_DESTINATION = '/dashboard';
 
 function LoginForm() {
   const { login, session, loading } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get('next') ?? '/';
+
+  /**
+   * Only in-app paths are honoured.
+   *
+   * `?next=` arrives from the console's own redirect, but it is still
+   * attacker-controllable in a link — accepting `//evil.example` or
+   * `https://evil.example` would turn sign-in into an open redirect. A single
+   * leading slash, and no second one, is the whole rule.
+   */
+  const requested = params.get('next');
+  const next =
+    requested && requested.startsWith('/') && !requested.startsWith('//')
+      ? requested
+      : DEFAULT_DESTINATION;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -46,122 +62,112 @@ function LoginForm() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="w-full max-w-sm">
-        <div className="mb-7 text-center">
-          <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-fg">
-            <Store className="h-5.5 w-5.5" />
-          </span>
-          <h1 className="text-2xl font-bold tracking-tight text-content">Sign in to RetailOS</h1>
-          <p className="mt-1 text-sm text-content-muted">Manage your store, orders and inventory.</p>
-        </div>
-
-        <Card className="p-6">
-          <form onSubmit={onSubmit} className="space-y-4" noValidate>
-            {error && (
-              <div
-                role="alert"
-                className="rounded-lg border border-danger-200 bg-danger-50 px-3 py-2.5 text-sm text-danger-700 dark:border-danger-700/40 dark:bg-danger-700/15 dark:text-danger-100"
-              >
-                {error}
-              </div>
-            )}
-
-            <Input
-              label="Email address"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              error={fieldErrors.email}
-              placeholder="you@yourstore.com"
-            />
-
-            <Input
-              label="Password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              error={fieldErrors.password}
-              placeholder="••••••••"
-            />
-
-            <Button type="submit" fullWidth loading={submitting} size="lg">
-              Sign in
-            </Button>
-          </form>
-        </Card>
-
-        <p className="mt-5 text-center text-sm text-content-muted">
+    <AuthShell
+      title="Welcome back"
+      description="Sign in to manage your store, orders and inventory."
+      aside={{
+        heading: 'Your shop, your numbers, one place to run it.',
+        points: [
+          'Orders that need you are surfaced the moment you sign in.',
+          'Stock, catalogue and customers stay in step automatically.',
+          'Switch between the stores you manage without signing out.',
+        ],
+      }}
+      footer={
+        <>
           New here?{' '}
           <Link href="/register" className="font-medium text-primary hover:underline">
             Create your store
           </Link>
-        </p>
+        </>
+      }
+    >
+      <form onSubmit={onSubmit} className="space-y-4" noValidate>
+        {error && <FormError>{error}</FormError>}
 
-        {process.env.NODE_ENV !== 'production' && (
-          <Card className="mt-6 bg-surface-muted p-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-content-muted">
-              Demo accounts
-            </p>
-            <ul className="space-y-1 text-xs text-content-muted">
-              <li>
-                <button
-                  type="button"
-                  className="text-primary hover:underline"
-                  onClick={() => {
-                    setEmail('owner@kickzone.dev');
-                    setPassword('Password@123');
-                  }}
-                >
-                  owner@kickzone.dev
-                </button>{' '}
-                — store owner
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className="text-primary hover:underline"
-                  onClick={() => {
-                    setEmail('staff@kickzone.dev');
-                    setPassword('Password@123');
-                  }}
-                >
-                  staff@kickzone.dev
-                </button>{' '}
-                — manager (limited permissions)
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className="text-primary hover:underline"
-                  onClick={() => {
-                    setEmail('admin@retailos.dev');
-                    setPassword('SuperAdmin@123');
-                  }}
-                >
-                  admin@retailos.dev
-                </button>{' '}
-                — platform admin
-              </li>
-            </ul>
-            <p className="mt-2 text-[11px] text-content-subtle">
-              Passwords: <code>Password@123</code> / <code>SuperAdmin@123</code>
-            </p>
-          </Card>
-        )}
-      </div>
-    </main>
+        <Input
+          label="Email address"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          error={fieldErrors.email}
+          placeholder="you@yourstore.com"
+        />
+
+        <Input
+          label="Password"
+          type="password"
+          autoComplete="current-password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          error={fieldErrors.password}
+          placeholder="••••••••"
+        />
+
+        <Button type="submit" fullWidth loading={submitting} size="lg" className="!mt-6">
+          Sign in
+        </Button>
+      </form>
+
+      {process.env.NODE_ENV !== 'production' && <DemoAccounts onPick={setEmail} setPassword={setPassword} />}
+    </AuthShell>
+  );
+}
+
+/**
+ * Local-development convenience.
+ *
+ * Gated on `NODE_ENV` so it is stripped from a production build entirely — these
+ * are seeded development accounts and they must never appear on a deployed
+ * sign-in page.
+ */
+function DemoAccounts({
+  onPick,
+  setPassword,
+}: {
+  onPick: (email: string) => void;
+  setPassword: (password: string) => void;
+}) {
+  const accounts = [
+    { email: 'owner@kickzone.dev', password: 'Password@123', role: 'Store owner' },
+    { email: 'staff@kickzone.dev', password: 'Password@123', role: 'Manager' },
+    { email: 'admin@retailos.dev', password: 'SuperAdmin@123', role: 'Platform admin' },
+  ];
+
+  return (
+    <div className="mt-8 rounded-xl border border-dashed border-line p-4">
+      <p className="eyebrow mb-3">Development accounts</p>
+      <ul className="space-y-1">
+        {accounts.map((account) => (
+          <li key={account.email}>
+            <button
+              type="button"
+              onClick={() => {
+                onPick(account.email);
+                setPassword(account.password);
+              }}
+              className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-muted"
+            >
+              <span className="truncate text-sm text-content">{account.email}</span>
+              <span className="shrink-0 text-2xs text-content-subtle">{account.role}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 px-2 text-2xs text-content-subtle">
+        Only shown when running locally.
+      </p>
+    </div>
   );
 }
 
 export default function LoginPage() {
   // `useSearchParams` requires a Suspense boundary in the app router.
   return (
-    <Suspense fallback={<div className="min-h-screen" />}>
+    <Suspense fallback={<div className="min-h-screen bg-surface" />}>
       <LoginForm />
     </Suspense>
   );

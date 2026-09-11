@@ -573,7 +573,7 @@ export default function OnboardingPage() {
 
           <button
             type="button"
-            onClick={() => router.push('/')}
+            onClick={() => router.push('/dashboard')}
             className="mt-6 text-sm text-content-muted underline hover:text-content"
           >
             Go to my dashboard

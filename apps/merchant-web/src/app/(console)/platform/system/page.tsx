@@ -3,7 +3,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { Activity, CheckCircle2, XCircle } from 'lucide-react';
 import { formatDate } from '@retailos/config';
-import { Badge, Card, CardBody, CardHeader, PageHeader, Skeleton } from '@retailos/ui';
+import { Badge, Card, CardBody, CardHeader, Skeleton } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { api } from '@/lib/api';
 
 export default function SystemPage() {
@@ -25,8 +26,8 @@ export default function SystemPage() {
   });
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <PageHeader title="System" description="Service health, queues and the platform audit trail." />
+    <div className="mx-auto max-w-5xl space-y-5">
+      <PageHead title="System" description="Service health, queues and the platform audit trail." />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

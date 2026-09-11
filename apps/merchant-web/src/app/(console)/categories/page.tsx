@@ -14,13 +14,13 @@ import {
   EmptyState,
   Input,
   Modal,
-  PageHeader,
   Select,
   Tabs,
   Textarea,
   useToast,
   type Column,
 } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useErrorToast } from '@/lib/hooks';
@@ -29,8 +29,8 @@ export default function CategoriesPage() {
   const [tab, setTab] = useState<'categories' | 'brands'>('categories');
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <PageHeader
+    <div className="mx-auto max-w-5xl space-y-5">
+      <PageHead
         title="Categories & brands"
         description="How your catalog is organised for shoppers."
       />

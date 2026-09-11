@@ -105,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(result.session);
     // Full reload so every cached query is refetched against the new tenant —
     // showing one store's data under another's name would be worse than a blink.
-    window.location.href = '/';
+    window.location.href = '/dashboard';
   }, []);
 
   const activeTenant = useMemo(

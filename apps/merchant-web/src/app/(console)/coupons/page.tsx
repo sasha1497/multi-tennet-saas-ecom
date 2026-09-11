@@ -14,12 +14,12 @@ import {
   EmptyState,
   Input,
   Modal,
-  PageHeader,
   Select,
   Textarea,
   useToast,
   type Column,
 } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { rupeesToPaise, useErrorToast } from '@/lib/hooks';
@@ -135,8 +135,8 @@ export default function CouponsPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <PageHeader
+    <div className="mx-auto max-w-6xl space-y-5">
+      <PageHead
         title="Coupons"
         description="Discount codes shoppers can apply at checkout."
         actions={

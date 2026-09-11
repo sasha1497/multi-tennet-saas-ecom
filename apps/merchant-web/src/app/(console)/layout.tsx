@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Spinner } from '@retailos/ui';
 import { ConsoleShell } from '@/components/shell';
+import { Logo } from '@/components/console/logo';
 import { useAuth } from '@/lib/auth-context';
 
 /**
@@ -42,12 +43,39 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
   }, [loading, session, hasNoStore, onPlatform, router, pathname]);
 
   if (loading || !session || (hasNoStore && !onPlatform)) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Spinner className="h-6 w-6 text-primary" />
-      </div>
-    );
+    return <ConsoleBoot />;
   }
 
-  return <ConsoleShell>{children}</ConsoleShell>;
+  return (
+    <>
+      {/* First tab stop on every console page: the rail is long, and keyboard
+          users should not have to walk it to reach the screen they opened. */}
+      <a
+        href="#main"
+        className="sr-only z-[1700] rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-fg focus:not-sr-only focus:absolute focus:left-4 focus:top-4"
+      >
+        Skip to content
+      </a>
+      <ConsoleShell>{children}</ConsoleShell>
+    </>
+  );
+}
+
+/**
+ * The gap between "page loaded" and "we know who you are".
+ *
+ * Branded rather than a bare spinner: this is the first frame of the product on
+ * every cold load, and a lone grey circle on white is the cheapest-looking
+ * moment an app can have.
+ */
+function ConsoleBoot() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-surface-muted">
+      <Logo className="h-11 w-11 animate-fade-in" title="RetailOS" />
+      <span className="flex items-center gap-2 text-sm text-content-muted">
+        <Spinner className="h-3.5 w-3.5" />
+        Loading your console
+      </span>
+    </div>
+  );
 }

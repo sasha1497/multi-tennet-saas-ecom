@@ -15,11 +15,11 @@ import {
   ConfirmDialog,
   ErrorState,
   Input,
-  PageHeader,
   Skeleton,
   Textarea,
   useToast,
 } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useErrorToast } from '@/lib/hooks';
@@ -103,8 +103,8 @@ export default function OrderDetailPage() {
   const canCancel = (ORDER_STATUS_TRANSITIONS[data.status] ?? []).includes('CANCELLED');
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <PageHeader
+    <div className="mx-auto max-w-5xl space-y-5">
+      <PageHead
         title={data.orderNumber}
         description={`Placed ${formatDate(data.placedAt, true)}`}
         breadcrumbs={[{ label: 'Orders', href: '/orders' }, { label: data.orderNumber }]}

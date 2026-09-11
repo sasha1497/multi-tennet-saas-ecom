@@ -12,12 +12,12 @@ import {
   DataTable,
   EmptyState,
   Input,
-  PageHeader,
   Pagination,
   Select,
   Tabs,
   type Column,
 } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { api } from '@/lib/api';
 import { useDebounced, useQueryParams } from '@/lib/hooks';
 
@@ -127,8 +127,8 @@ function OrdersView() {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl">
-      <PageHeader title="Orders" description="Every order placed in your store." />
+    <div className="mx-auto max-w-7xl space-y-5">
+      <PageHead title="Orders" description="Every order placed in your store." />
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">

@@ -11,11 +11,11 @@ import {
   Card,
   CardBody,
   EmptyState,
-  PageHeader,
   SkeletonRows,
   Tabs,
   useToast,
 } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useErrorToast } from '@/lib/hooks';
@@ -43,8 +43,8 @@ export default function ReviewsPage() {
   });
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <PageHeader
+    <div className="mx-auto max-w-4xl space-y-5">
+      <PageHead
         title="Reviews"
         description="Customer reviews stay hidden until you approve them."
       />

@@ -16,11 +16,11 @@ import {
   EmptyState,
   Input,
   Modal,
-  PageHeader,
   Select,
   useToast,
   type Column,
 } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useErrorToast } from '@/lib/hooks';
@@ -122,8 +122,8 @@ export default function StaffPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <PageHeader
+    <div className="mx-auto max-w-5xl space-y-5">
+      <PageHead
         title="Team"
         description="Who can manage this store, and what they are allowed to do."
         actions={

@@ -14,7 +14,6 @@ import {
   EmptyState,
   Input,
   Modal,
-  PageHeader,
   Pagination,
   Select,
   StatTile,
@@ -22,6 +21,7 @@ import {
   useToast,
   type Column,
 } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { api } from '@/lib/api';
 import { useDebounced, useErrorToast, useQueryParams } from '@/lib/hooks';
 
@@ -105,7 +105,8 @@ function PlatformView() {
       hideBelowMd: true,
       cell: (row) => (
         <span className="tabular text-xs text-content-muted">
-          {row.productCount} products · {row.orderCount} orders
+          {row.productCount} {row.productCount === 1 ? 'product' : 'products'} ·{' '}
+          {row.orderCount} {row.orderCount === 1 ? 'order' : 'orders'}
         </span>
       ),
     },
@@ -127,8 +128,8 @@ function PlatformView() {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl">
-      <PageHeader
+    <div className="mx-auto max-w-7xl space-y-5">
+      <PageHead
         title="Tenants"
         description="Every store on the platform, with its own isolated database."
         actions={

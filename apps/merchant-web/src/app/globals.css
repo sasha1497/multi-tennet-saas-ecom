@@ -4,9 +4,282 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------------------
+ * Console identity.
+ *
+ * `@retailos/ui/styles.css` above declares the platform baseline — the same
+ * tokens the storefront renders in, which a tenant's stored theme overwrites at
+ * runtime. Everything below restates those tokens for the console only: this
+ * stylesheet is imported by merchant-web and by nothing else, so the storefront
+ * and every tenant template keep the exact values they had.
+ *
+ * The palette is deliberately its own thing rather than a tint of the default
+ * blue — an indigo-violet primary on a faintly violet-cast neutral ramp, with
+ * an ink rail that carries the navigation. The neutrals matter more than the
+ * accent: a warm-cool balanced grey is most of what separates a console that
+ * looks designed from one that looks like a framework default.
+ * ------------------------------------------------------------------------- */
+
+:root {
+  /* Brand */
+  --color-primary: 91 68 220; /* #5b44dc */
+  --color-primary-fg: 255 255 255;
+  --color-primary-soft: 243 242 254; /* #f3f2fe */
+  --color-accent: 201 122 24; /* amber, used sparingly for trial/premium marks */
+  --color-accent-fg: 255 255 255;
+
+  /* Surfaces & ink */
+  --color-surface: 255 255 255;
+  --color-surface-muted: 246 246 250; /* the workspace canvas */
+  --color-surface-raised: 255 255 255;
+  --color-border: 231 231 240;
+  --color-text: 22 22 31;
+  --color-text-muted: 94 94 115;
+  --color-text-subtle: 141 141 163;
+
+  /* The navigation rail — ink in both themes, one step apart. */
+  --rail-bg: 21 21 31;
+  --rail-raised: 34 34 46;
+  --rail-line: 42 42 56;
+  --rail-fg: 255 255 255;
+  --rail-muted: 162 162 184;
+  --rail-subtle: 118 118 140;
+
+  /* Chart ink, re-stepped for this surface rather than inherited. */
+  --viz-series-1: #5b44dc;
+  --viz-series-1-soft: rgba(91, 68, 220, 0.13);
+  --viz-grid: #ececf4;
+  --viz-axis: #d9d9e6;
+  --viz-ink: #16161f;
+  --viz-ink-muted: #5e5e73;
+
+  --status-good: #0f9d6e;
+  --status-warning: #c97a18;
+  --status-serious: #e0733f;
+  --status-critical: #d43b52;
+  --status-neutral: #8d8da3;
+  --status-info: #5b44dc;
+
+  --radius: 9px;
+}
+
+/* Dark values are declared under both scopes: the media query follows the OS,
+   the data-theme scope follows the in-app toggle and must win either way. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-surface: 22 22 31;
+    --color-surface-muted: 14 14 21;
+    --color-surface-raised: 26 26 36;
+    --color-border: 39 39 51;
+    --color-text: 237 237 244;
+    --color-text-muted: 148 148 172;
+    --color-text-subtle: 108 108 133;
+    --color-primary: 145 130 241; /* lifted for contrast on ink */
+    --color-primary-fg: 16 16 26;
+    --color-primary-soft: 36 33 62;
+
+    --rail-bg: 10 10 16;
+    --rail-raised: 27 27 37;
+    --rail-line: 33 33 45;
+    --rail-fg: 255 255 255;
+    --rail-muted: 150 150 173;
+    --rail-subtle: 106 106 130;
+
+    --viz-series-1: #9182f1;
+    --viz-series-1-soft: rgba(145, 130, 241, 0.18);
+    --viz-grid: #24242f;
+    --viz-axis: #35354a;
+    --viz-ink: #ededf4;
+    --viz-ink-muted: #9494ac;
+
+    --status-good: #34d399;
+    --status-warning: #e0a33c;
+    --status-serious: #f0895a;
+    --status-critical: #f16b7f;
+    --status-neutral: #6c6c85;
+    --status-info: #9182f1;
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-surface: 22 22 31;
+  --color-surface-muted: 14 14 21;
+  --color-surface-raised: 26 26 36;
+  --color-border: 39 39 51;
+  --color-text: 237 237 244;
+  --color-text-muted: 148 148 172;
+  --color-text-subtle: 108 108 133;
+  --color-primary: 145 130 241;
+  --color-primary-fg: 16 16 26;
+  --color-primary-soft: 36 33 62;
+
+  --rail-bg: 10 10 16;
+  --rail-raised: 27 27 37;
+  --rail-line: 33 33 45;
+  --rail-fg: 255 255 255;
+  --rail-muted: 150 150 173;
+  --rail-subtle: 106 106 130;
+
+  --viz-series-1: #9182f1;
+  --viz-series-1-soft: rgba(145, 130, 241, 0.18);
+  --viz-grid: #24242f;
+  --viz-axis: #35354a;
+  --viz-ink: #ededf4;
+  --viz-ink-muted: #9494ac;
+
+  --status-good: #34d399;
+  --status-warning: #e0a33c;
+  --status-serious: #f0895a;
+  --status-critical: #f16b7f;
+  --status-neutral: #6c6c85;
+  --status-info: #9182f1;
+}
+
+/* ---------------------------------------------------------------------------
+ * Public surfaces are light, full stop.
+ *
+ * Dark mode is a *console* feature: something a merchant turns on deliberately,
+ * for a screen they stare at all day. The landing page and the sign-in screens
+ * are brand surfaces — the first thing anyone sees of RetailOS — and they should
+ * look the same to everyone rather than inheriting whatever the visitor's
+ * laptop happens to be set to.
+ *
+ * Done in CSS rather than by stamping `data-theme` from JavaScript, because CSS
+ * has no first-paint flash and needs no effect to re-run when someone navigates
+ * from the console back out to the marketing page. The console keeps its own
+ * toggle untouched: `data-theme` still wins inside `(console)`, because these
+ * values are scoped to the element that carries the class, not to `:root`.
+ * ------------------------------------------------------------------------- */
+.theme-light {
+  color-scheme: light;
+
+  --color-primary: 91 68 220;
+  --color-primary-fg: 255 255 255;
+  --color-primary-soft: 243 242 254;
+  --color-accent: 201 122 24;
+  --color-accent-fg: 255 255 255;
+
+  --color-surface: 255 255 255;
+  --color-surface-muted: 246 246 250;
+  --color-surface-raised: 255 255 255;
+  --color-border: 231 231 240;
+  --color-text: 22 22 31;
+  --color-text-muted: 94 94 115;
+  --color-text-subtle: 141 141 163;
+
+  /* The rail stays ink — it is the same in light mode, and the marketing page
+     borrows it for the closing panel and the sign-up aside. */
+  --rail-bg: 21 21 31;
+  --rail-raised: 34 34 46;
+  --rail-line: 42 42 56;
+  --rail-fg: 255 255 255;
+  --rail-muted: 162 162 184;
+  --rail-subtle: 118 118 140;
+
+  --viz-series-1: #5b44dc;
+  --viz-series-1-soft: rgba(91, 68, 220, 0.13);
+  --viz-grid: #ececf4;
+  --viz-axis: #d9d9e6;
+  --viz-ink: #16161f;
+  --viz-ink-muted: #5e5e73;
+
+  --status-good: #0f9d6e;
+  --status-warning: #c97a18;
+  --status-serious: #e0733f;
+  --status-critical: #d43b52;
+  --status-neutral: #8d8da3;
+  --status-info: #5b44dc;
+}
+
+/**
+ * The page behind the page.
+ *
+ * The container above paints everything inside it, but `body` takes its own
+ * background from the `:root` tokens — which are still dark for a visitor whose
+ * OS is. That shows up in the overscroll rubber-band at the top and bottom of
+ * the page, as a black band above a white site. Matching the body to the
+ * surface it is hosting removes it.
+ */
+body:has(.theme-light) {
+  color-scheme: light;
+  background-color: rgb(246 246 250);
+  color: rgb(22 22 31);
+}
+
 @layer base {
   html,
   body {
     height: 100%;
+  }
+
+  /* Headings carry the console's voice: tight tracking, confident weight. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* The focus ring inherits the console primary rather than the platform one. */
+  :focus-visible {
+    outline-color: rgb(var(--color-primary));
+  }
+}
+
+@layer components {
+  /**
+   * The workspace canvas.
+   *
+   * A single hairline-grid wash at very low opacity. It is not decoration for
+   * its own sake — it gives the eye a scale reference behind floating panels,
+   * which is what stops a white-on-white admin from looking unfinished.
+   */
+  .canvas-grid {
+    background-image:
+      linear-gradient(to right, rgb(var(--color-border) / 0.4) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(var(--color-border) / 0.4) 1px, transparent 1px);
+    background-size: 72px 72px;
+    background-position: -1px -1px;
+  }
+
+  /** Section eyebrow: the small, wide-tracked label above a group. */
+  .eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(var(--color-text-subtle));
+  }
+
+  /**
+   * A hairline that fades at both ends.
+   *
+   * Used between rail sections, where a full-width rule reads as a hard cut in
+   * an otherwise continuous column.
+   */
+  .rule-fade {
+    background-image: linear-gradient(
+      to right,
+      transparent,
+      rgb(var(--color-border)) 12%,
+      rgb(var(--color-border)) 88%,
+      transparent
+    );
+  }
+}
+
+@layer utilities {
+  /** Numerals that line up in a column and never reflow as they change. */
+  .nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  /**
+   * Keeps a sticky panel from sliding under the topbar.
+   * One value, so the topbar height lives in exactly one place.
+   */
+  .below-topbar {
+    top: 3.5rem;
   }
 }

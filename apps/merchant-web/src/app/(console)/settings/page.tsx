@@ -11,10 +11,10 @@ import {
   CardBody,
   CardHeader,
   Input,
-  PageHeader,
   Skeleton,
   useToast,
 } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useErrorToast } from '@/lib/hooks';
@@ -48,7 +48,10 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <PageHeader title="Settings" description="Your account and this store's subscription." />
+      {/* "Account", not "Settings": the rail already has a Store settings entry,
+          and two things called Settings is how a merchant ends up in the wrong
+          one. This page is about the person signed in. */}
+      <PageHead title="Account" description="Your profile, password and this store's subscription." />
 
       <Card>
         <CardHeader title="Your account" />

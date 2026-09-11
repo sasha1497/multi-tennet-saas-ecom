@@ -2,7 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useParams } from 'next/navigation';
-import { ErrorState, PageHeader, Skeleton } from '@retailos/ui';
+import { ErrorState, Skeleton } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { ProductForm } from '@/components/product-form';
 import { api } from '@/lib/api';
 
@@ -36,8 +37,8 @@ export default function EditProductPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <PageHeader
+    <div className="mx-auto max-w-4xl space-y-5">
+      <PageHead
         title={data.name}
         description={`${data.variants.length} variant${data.variants.length === 1 ? '' : 's'} · ${data.totalStock} in stock`}
         breadcrumbs={[{ label: 'Products', href: '/products' }, { label: data.name }]}

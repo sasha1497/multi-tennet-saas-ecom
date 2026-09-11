@@ -12,11 +12,11 @@ import {
   CardBody,
   CardHeader,
   Modal,
-  PageHeader,
   Skeleton,
   cn,
   useToast,
 } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { api } from '@/lib/api';
 import { useErrorToast } from '@/lib/hooks';
 
@@ -75,8 +75,8 @@ export default function SubscriptionPage() {
   const lapsed = subscription != null && subscription.daysRemaining < 0;
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <PageHeader
+    <div className="mx-auto max-w-4xl space-y-5">
+      <PageHead
         title="Subscription"
         description="What you pay RetailOS to run your store."
       />

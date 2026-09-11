@@ -14,7 +14,6 @@ import {
   Drawer,
   EmptyState,
   Input,
-  PageHeader,
   Pagination,
   Select,
   Tabs,
@@ -23,6 +22,7 @@ import {
   type Column,
 } from '@retailos/ui';
 import { formatDate } from '@retailos/config';
+import { PageHead } from '@/components/console/primitives';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDebounced, useErrorToast, useQueryParams } from '@/lib/hooks';
@@ -143,8 +143,8 @@ function InventoryView() {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl">
-      <PageHeader
+    <div className="mx-auto max-w-7xl space-y-5">
+      <PageHead
         title="Inventory"
         description="Stock on hand, what is held for open orders, and what is actually sellable."
       />

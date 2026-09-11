@@ -12,7 +12,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { getTemplate } from '@retailos/templates';
-import { Badge, Button, Card, CardBody, PageHeader, Skeleton, cn } from '@retailos/ui';
+import { Badge, Button, Card, CardBody, Skeleton, cn } from '@retailos/ui';
+import { PageHead } from '@/components/console/primitives';
 import { DevicePreview, type Device } from '@/components/store-design/device-preview';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -54,8 +55,8 @@ export default function StoreDesignPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <PageHeader
+    <div className="mx-auto max-w-6xl space-y-5">
+      <PageHead
         title="Store design"
         description="How your storefront looks to customers. Your products, orders and customers are never affected by anything on this page."
         actions={
