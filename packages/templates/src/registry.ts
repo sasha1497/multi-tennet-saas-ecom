@@ -3,7 +3,8 @@ import { NO_MOTION, type TemplateDefinition, type TemplateMotion } from './types
 /**
  * The template catalogue.
  *
- * Ten design languages, not ten colour schemes. A menswear shop, a mobile
+ * Fourteen design languages, not fourteen colour schemes — six standard, six
+ * premium and the 3D family. A menswear shop, a mobile
  * store, a pet shop and a jeweller should not be the same website, so they
  * differ in the things that actually make a design: which header arrangement
  * they use, how the product grid is shaped, what a product card even *is*,
@@ -1569,6 +1570,265 @@ export const TEMPLATES: readonly TemplateDefinition[] = [
         title: 'Brands we stock',
         removable: true,
         defaultVisible: false,
+      },
+    ],
+  },
+
+  // ╔══════════════════════════════════════════════════════════════════════╗
+  // ║  3D EXPERIENCE                                                        ║
+  // ║                                                                       ║
+  // ║  A WebGL layer over a complete 2D design, never instead of one. The   ║
+  // ║  3D variants (`orbit3d`, `prism3d`, the `turntable` product viewer)   ║
+  // ║  load three.js on demand, only after the page is interactive, and     ║
+  // ║  only where it will run well: no WebGL, reduced motion, a low-memory  ║
+  // ║  device or a lapsed entitlement all get the 2D composition, which is  ║
+  // ║  what the server renders first in every case. See                     ║
+  // ║  `apps/storefront-web/src/templates/three/`.                          ║
+  // ║                                                                       ║
+  // ║  Built for categories where turning a product over sells it —         ║
+  // ║  footwear, fashion, jewellery, cosmetics — and nowhere else.          ║
+  // ╚══════════════════════════════════════════════════════════════════════╝
+
+  // ═════════════════════════════════════════════════════════════════ orbit ══
+  // 3D-1 · Footwear and streetwear. The products orbit the headline.
+  {
+    id: 'orbit',
+    name: 'Orbit',
+    version: 1,
+    tier: '3d',
+    group: 'Fashion',
+    tagline: 'Your products in orbit — drag to spin the shelf',
+    description:
+      'Opens on a ring of your own product photographs turning slowly around the headline; ' +
+      'shoppers drag to spin it and tap a product to open it. Product pages put the photos on ' +
+      'a turntable. Dark, kinetic and built for sneakers, streetwear and sport.',
+    businessTypes: ['Footwear', 'Sports', "Men's Wear", 'Menswear', 'Streetwear', 'Accessories'],
+    swatches: ['#0c0c10', '#d4ff3a', '#7c5cff'],
+    badges: ['3D', 'New'],
+    theme: {
+      primaryColor: '#d4ff3a',
+      accentColor: '#7c5cff',
+      surfaceColor: '#0c0c10',
+      contentColor: '#f2f2f5',
+      radius: 'lg',
+      headingFont: "var(--font-display), 'Helvetica Neue', Arial, sans-serif",
+      bodyFont: 'var(--font-sans), system-ui, sans-serif',
+      headingWeight: 800,
+      headingTracking: '-0.04em',
+      headingTransform: 'uppercase',
+      density: 'regular',
+    },
+    layout: {
+      header: 'floating',
+      footer: 'bold',
+      productCard: 'tile',
+      productDetail: 'turntable',
+      gridColumns: { base: 2, sm: 2, lg: 3, xl: 4 },
+      productAspect: '1 / 1',
+    },
+    motion: {
+      reveal: 'rise',
+      stagger: true,
+      parallax: false,
+      hover: 'glow',
+      stickyNav: true,
+    },
+    sections: [
+      { id: 'hero', kind: 'hero', variant: 'orbit3d', removable: false, defaultVisible: true },
+      {
+        id: 'trust',
+        kind: 'trustStrip',
+        variant: 'marqueeStrip',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'featured',
+        kind: 'productRow',
+        variant: 'spotlight',
+        title: 'The drop',
+        subtitle: 'Picked to be looked at from every side',
+        source: 'featured',
+        limit: 7,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'categories',
+        kind: 'categories',
+        variant: 'bentoTiles',
+        title: 'Shop the range',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'new-arrivals',
+        kind: 'productRow',
+        variant: 'parade',
+        title: 'Just landed',
+        source: 'newest',
+        limit: 10,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'collection-banner',
+        kind: 'collectionBanner',
+        variant: 'cinematicBanner',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'best-sellers',
+        kind: 'productRow',
+        variant: 'denseGrid',
+        title: 'Most wanted',
+        subtitle: 'What keeps selling out',
+        source: 'popular',
+        limit: 8,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'brands',
+        kind: 'brands',
+        variant: 'marquee',
+        title: 'Brands',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'offers',
+        kind: 'offers',
+        variant: 'cards',
+        title: 'Deals',
+        removable: true,
+        defaultVisible: false,
+      },
+      {
+        id: 'newsletter',
+        kind: 'newsletter',
+        variant: 'centered',
+        title: 'Be first to the next drop',
+        removable: true,
+        defaultVisible: true,
+      },
+    ],
+  },
+
+  // ═════════════════════════════════════════════════════════════════ prism ══
+  // 3D-2 · Jewellery and cosmetics. Product plates float in soft light and
+  // lean towards the cursor; the opposite temperament to Orbit.
+  {
+    id: 'prism',
+    name: 'Prism',
+    version: 1,
+    tier: '3d',
+    group: 'Lifestyle',
+    tagline: 'Pieces suspended in light',
+    description:
+      'Product photographs hang in a soft-lit space and turn gently towards the shopper as ' +
+      'they move, catching a highlight as they go. Product pages use the turntable viewer. ' +
+      'Pale, quiet and precise: for jewellery, cosmetics, fragrance and fine accessories.',
+    businessTypes: ['Jewellery', 'Cosmetics', 'Beauty & Personal Care', 'Luxury', 'Watches', 'Accessories'],
+    swatches: ['#f6f2ee', '#3d2347', '#c9a46b'],
+    badges: ['3D', 'New'],
+    theme: {
+      primaryColor: '#3d2347',
+      accentColor: '#c9a46b',
+      surfaceColor: '#f6f2ee',
+      contentColor: '#21161f',
+      radius: 'sm',
+      headingFont: "var(--font-serif), Georgia, 'Times New Roman', serif",
+      bodyFont: 'var(--font-sans), system-ui, sans-serif',
+      headingWeight: 400,
+      headingTracking: '-0.025em',
+      headingTransform: 'none',
+      density: 'airy',
+    },
+    layout: {
+      header: 'classic',
+      footer: 'statement',
+      productCard: 'portrait',
+      productDetail: 'turntable',
+      gridColumns: { base: 2, sm: 2, lg: 3, xl: 4 },
+      productAspect: '4 / 5',
+    },
+    motion: {
+      reveal: 'fade',
+      stagger: true,
+      parallax: true,
+      hover: 'zoom',
+      stickyNav: false,
+    },
+    sections: [
+      { id: 'hero', kind: 'hero', variant: 'prism3d', removable: false, defaultVisible: true },
+      {
+        id: 'featured',
+        kind: 'productRow',
+        variant: 'gallery',
+        title: 'Signature pieces',
+        source: 'featured',
+        limit: 6,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'categories',
+        kind: 'categories',
+        variant: 'indexList',
+        title: 'Collections',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'editorial',
+        kind: 'editorial',
+        variant: 'letter',
+        title: 'The craft',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'new-arrivals',
+        kind: 'productRow',
+        variant: 'plates',
+        title: 'New in',
+        source: 'newest',
+        limit: 6,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'collection-banner',
+        kind: 'collectionBanner',
+        variant: 'centered',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'best-sellers',
+        kind: 'productRow',
+        variant: 'softGrid',
+        title: 'Most loved',
+        source: 'popular',
+        limit: 8,
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'trust',
+        kind: 'trustStrip',
+        variant: 'bordered',
+        removable: true,
+        defaultVisible: true,
+      },
+      {
+        id: 'newsletter',
+        kind: 'newsletter',
+        variant: 'centered',
+        removable: true,
+        defaultVisible: true,
       },
     ],
   },

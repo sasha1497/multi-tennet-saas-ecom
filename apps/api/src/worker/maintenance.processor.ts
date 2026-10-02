@@ -7,6 +7,7 @@ import { RequestContextService, createRequestContext } from '@/core/context/requ
 import { MasterPrismaService } from '@/core/database/master-prisma.service';
 import { TenantDatabaseService } from '@/core/database/tenant-database.service';
 import { AppLogger } from '@/core/logger/logger.service';
+import { BillingService } from '@/modules/billing/billing.service';
 import { OrdersService } from '@/modules/orders/orders.service';
 
 /**
@@ -28,6 +29,7 @@ export class MaintenanceProcessor extends WorkerHost {
     private readonly master: MasterPrismaService,
     private readonly tenantDb: TenantDatabaseService,
     private readonly orders: OrdersService,
+    private readonly billing: BillingService,
     private readonly context: RequestContextService,
     logger: AppLogger,
   ) {
@@ -48,6 +50,8 @@ export class MaintenanceProcessor extends WorkerHost {
             return this.pruneExpiredSessions();
           case 'prune-expired-carts':
             return this.pruneExpiredCarts();
+          case 'advance-subscriptions':
+            return this.advanceSubscriptions();
           default:
             this.logger.warn('Unknown maintenance job', { name: job.name });
         }
@@ -187,6 +191,20 @@ export class MaintenanceProcessor extends WorkerHost {
       }
     }
     if (removed > 0) this.logger.info('Pruned expired guest carts', { removed });
+  }
+
+  /**
+   * Moves lapsed subscriptions along: ACTIVE past its period → PAST_DUE,
+   * PAST_DUE past the grace window or an ended trial → EXPIRED. Access is
+   * already computed from dates on every read; this keeps `status` honest for
+   * the merchant's Subscription page and the platform's billing view.
+   */
+  @Cron(CronExpression.EVERY_HOUR, { name: 'advance-subscriptions' })
+  async advanceSubscriptions(): Promise<void> {
+    const moved = await this.billing.advanceLifecycle();
+    if (moved.pastDue + moved.expired > 0) {
+      this.logger.info('Advanced subscription lifecycle', moved);
+    }
   }
 
   private async activeTenantIds(): Promise<string[]> {

@@ -64,6 +64,9 @@ export class AppConfigService {
   get storage() {
     return this.config.storage;
   }
+  get ai() {
+    return this.config.ai;
+  }
   get payments() {
     return this.config.payments;
   }

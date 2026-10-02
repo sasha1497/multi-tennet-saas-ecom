@@ -11,14 +11,20 @@
  */
 
 /**
- * Standard or premium.
+ * The template family: standard, premium or 3D.
  *
  * A tier is a promise about the *experience*, not a feature flag: premium
  * templates are separate designs with their own layouts and motion, never an
- * existing template with animation switched on. Both tiers render the same
- * business data through the same components — see `docs/TEMPLATES.md`.
+ * existing template with animation switched on, and a 3D template adds a
+ * WebGL layer on top of a complete 2D design that it falls back to. All three
+ * render the same business data through the same components — see
+ * `docs/TEMPLATES.md`.
+ *
+ * Access is granted per family, never per template: see `entitlement.ts`.
  */
-export type TemplateTier = 'standard' | 'premium';
+export type TemplateTier = 'standard' | 'premium' | '3d';
+
+export const TEMPLATE_TIERS: readonly TemplateTier[] = ['standard', 'premium', '3d'] as const;
 
 /** Top-level grouping used by the template gallery's filter rail. */
 export type TemplateGroup =
@@ -174,7 +180,12 @@ export type ProductDetailVariant =
   | 'stackedGallery'
   | 'specSheet'
   /** Full-bleed imagery with the buy panel floating over it. Premium. */
-  | 'immersive';
+  | 'immersive'
+  /**
+   * The product's photographs on a WebGL turntable the shopper can drag to
+   * turn. 3D family; falls back to `gallerySplit` without WebGL.
+   */
+  | 'turntable';
 
 /** How a section arrives as it scrolls into view. */
 export type RevealStyle =
@@ -259,7 +270,7 @@ export interface TemplateDefinition {
   motion: TemplateMotion;
   sections: readonly TemplateSection[];
   /** Marketing flags for the gallery rails. */
-  badges?: readonly ('New' | 'Popular' | 'Premium')[];
+  badges?: readonly ('New' | 'Popular' | 'Premium' | '3D')[];
 }
 
 /**

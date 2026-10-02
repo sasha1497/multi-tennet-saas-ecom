@@ -370,7 +370,7 @@ export const SEED_TENANTS: SeedTenant[] = [
       email: 'owner@kumarstore.dev',
       phone: '9876543212',
     },
-    plan: 'FREE',
+    plan: 'GROWTH',
     tagline: 'Phones, accessories and honest advice',
     theme: { primaryColor: '#7c3aed', accentColor: '#ec4899' },
     categories: [
@@ -477,112 +477,163 @@ export const SEED_TENANTS: SeedTenant[] = [
   },
 ];
 
-/** Subscription plans, seeded before any tenant so onboarding has one to attach. */
+/**
+ * The plan catalogue — the one place prices and plan contents are defined.
+ *
+ * Seeding upserts by `code`, so re-running the seed reprices an existing
+ * deployment in place; after that, a super admin edits plans in the platform
+ * console and nothing in any frontend needs to change. Prices are minor units.
+ *
+ * Template access is granted per *family* (`templates_standard`, …), never per
+ * template, so a template added to a family reaches every entitled store.
+ *
+ * FREE is not sold. It is the floor a lapsed subscription falls back to, and is
+ * kept non-public. ENTERPRISE is non-public too: it exists for contracted
+ * accounts and so no live store loses its plan row.
+ */
+const ALL_OFF = {
+  products: true,
+  orders: true,
+  templates_standard: true,
+  templates_premium: false,
+  templates_3d: false,
+  staff: false,
+  coupons: false,
+  reports: true,
+  advanced_analytics: false,
+  advanced_reports: false,
+  advanced_inventory: false,
+  crm: false,
+  marketing: false,
+  loyalty: false,
+  push_notifications: false,
+  delivery: false,
+  custom_domain: false,
+  pos: false,
+  barcode: false,
+  ai_product_upload: false,
+  ai_assistant: false,
+  multi_branch: false,
+  white_label_app: false,
+};
+
+const STARTER_FEATURES = { ...ALL_OFF, ai_product_upload: true };
+
+const GROWTH_FEATURES = {
+  ...STARTER_FEATURES,
+  templates_premium: true,
+  staff: true,
+  coupons: true,
+  advanced_analytics: true,
+  advanced_inventory: true,
+  crm: true,
+  marketing: true,
+  loyalty: true,
+  push_notifications: true,
+  delivery: true,
+};
+
+const PRO_FEATURES = {
+  ...GROWTH_FEATURES,
+  templates_3d: true,
+  advanced_reports: true,
+  custom_domain: true,
+  pos: true,
+  barcode: true,
+  ai_assistant: true,
+};
+
 export const SEED_PLANS = [
   {
     code: 'FREE',
     name: 'Free',
-    description: 'Get your store online and take your first orders.',
+    description: 'The floor a store falls back to when its subscription lapses.',
     priceMonthly: 0,
     priceYearly: 0,
     trialDays: 0,
     sortOrder: 0,
-    features: {
-      products: true,
-      orders: true,
-      staff: false,
-      coupons: false,
-      reports: false,
-      advanced_analytics: false,
-      custom_domain: false,
-      delivery: false,
-      loyalty: false,
-      marketing: false,
-      pos: false,
-      multi_branch: false,
-      white_label_app: false,
+    isPublic: false,
+    features: ALL_OFF,
+    limits: {
+      max_products: 25,
+      max_staff: 1,
+      max_orders_per_month: 100,
+      max_storage_mb: 100,
+      ai_generations_per_month: 0,
     },
-    limits: { max_products: 25, max_staff: 1, max_orders_per_month: 100, max_storage_mb: 100 },
   },
   {
     code: 'STARTER',
     name: 'Starter',
-    description: 'For a growing shop that needs coupons and a small team.',
-    priceMonthly: 49900,
-    priceYearly: 499900,
+    description: 'Your shop online with six fast, clean storefront designs.',
+    priceMonthly: 29900,
+    priceYearly: 299000,
     trialDays: 14,
     sortOrder: 1,
-    features: {
-      products: true,
-      orders: true,
-      staff: true,
-      coupons: true,
-      reports: true,
-      advanced_analytics: false,
-      custom_domain: false,
-      delivery: false,
-      loyalty: false,
-      marketing: false,
-      pos: false,
-      multi_branch: false,
-      white_label_app: false,
+    isPublic: true,
+    features: STARTER_FEATURES,
+    limits: {
+      max_products: 250,
+      max_staff: 1,
+      max_orders_per_month: 1000,
+      max_storage_mb: 1000,
+      ai_generations_per_month: 10,
     },
-    limits: { max_products: 300, max_staff: 3, max_orders_per_month: 1000, max_storage_mb: 1000 },
+  },
+  {
+    code: 'GROWTH',
+    name: 'Growth',
+    description: 'Every premium design, a team, coupons, CRM and marketing.',
+    priceMonthly: 59900,
+    priceYearly: 599000,
+    trialDays: 14,
+    sortOrder: 2,
+    isPublic: true,
+    features: GROWTH_FEATURES,
+    limits: {
+      max_products: 2000,
+      max_staff: 5,
+      max_orders_per_month: 10000,
+      max_storage_mb: 5000,
+      ai_generations_per_month: 50,
+    },
   },
   {
     code: 'PRO',
     name: 'Pro',
-    description: 'Full catalogue, analytics and your own domain.',
-    priceMonthly: 149900,
-    priceYearly: 1499900,
+    description: '3D storefronts, POS and barcode, advanced reports and the AI assistant.',
+    priceMonthly: 99900,
+    priceYearly: 999000,
     trialDays: 14,
-    sortOrder: 2,
-    features: {
-      products: true,
-      orders: true,
-      staff: true,
-      coupons: true,
-      reports: true,
-      advanced_analytics: true,
-      custom_domain: true,
-      delivery: true,
-      loyalty: false,
-      marketing: true,
-      pos: false,
-      multi_branch: false,
-      white_label_app: false,
-    },
+    sortOrder: 3,
+    isPublic: true,
+    features: PRO_FEATURES,
     limits: {
-      max_products: 5000,
-      max_staff: 15,
-      max_orders_per_month: 20000,
-      max_storage_mb: 10000,
+      max_products: 10000,
+      max_staff: 10,
+      max_orders_per_month: 50000,
+      max_storage_mb: 20000,
+      ai_generations_per_month: 200,
     },
   },
   {
     code: 'ENTERPRISE',
     name: 'Enterprise',
-    description: 'Everything, unmetered, with multi-branch and POS.',
+    description: 'Contracted accounts: everything, unmetered, with multi-branch.',
     priceMonthly: 499900,
     priceYearly: 4999900,
     trialDays: 0,
-    sortOrder: 3,
-    features: {
-      products: true,
-      orders: true,
-      staff: true,
-      coupons: true,
-      reports: true,
-      advanced_analytics: true,
-      custom_domain: true,
-      delivery: true,
-      loyalty: true,
-      marketing: true,
-      pos: true,
-      multi_branch: true,
-      white_label_app: true,
+    sortOrder: 4,
+    isPublic: false,
+    features: Object.fromEntries(Object.keys(ALL_OFF).map((k) => [k, true])),
+    limits: {
+      max_products: -1,
+      max_staff: -1,
+      max_orders_per_month: -1,
+      max_storage_mb: -1,
+      // AI is metered on every plan; a contract sets its own number.
+      ai_generations_per_month: 1000,
     },
-    limits: { max_products: -1, max_staff: -1, max_orders_per_month: -1, max_storage_mb: -1 },
   },
 ];
 

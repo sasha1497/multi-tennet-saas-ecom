@@ -17,3 +17,7 @@
  */
 process.env.AUTH_RATE_LIMIT_LIMIT = process.env.AUTH_RATE_LIMIT_LIMIT ?? '10000';
 process.env.RATE_LIMIT_LIMIT = process.env.RATE_LIMIT_LIMIT ?? '10000';
+
+// The suite exercises metering and caching, not a vendor: never spend real AI
+// credits from a test run, whatever the developer's .env says.
+process.env.AI_PROVIDER = 'mock';

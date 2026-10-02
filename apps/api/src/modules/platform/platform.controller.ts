@@ -23,7 +23,10 @@ import {
   updateTenantStatusSchema,
   upsertPlanSchema,
 } from '@retailos/validation';
+import { z } from 'zod';
 import { Audience, RequirePermissions, SuperAdminOnly } from '@/common/decorators';
+import { RequestContextService } from '@/core/context/request-context';
+import { TemplateCatalogService } from '@/modules/store/template-catalog.service';
 import { TenantDeletionService } from '@/modules/tenants/tenant-deletion.service';
 import { PlatformService } from './platform.service';
 
@@ -36,6 +39,9 @@ class ChangeSubscriptionDto extends createZodDto(changeSubscriptionSchema) {}
 class UpsertPlanDto extends createZodDto(upsertPlanSchema) {}
 class UpdatePlanDto extends createZodDto(upsertPlanSchema.partial()) {}
 class AuditQueryDto extends createZodDto(auditLogQuerySchema) {}
+class TemplatePublicationDto extends createZodDto(
+  z.object({ isPublished: z.boolean(), note: z.string().trim().max(500).nullish() }),
+) {}
 
 /**
  * Platform super-admin console.
@@ -53,6 +59,8 @@ export class PlatformController {
   constructor(
     private readonly platform: PlatformService,
     private readonly deletion: TenantDeletionService,
+    private readonly templates: TemplateCatalogService,
+    private readonly context: RequestContextService,
   ) {}
 
   @Get('overview')
@@ -208,6 +216,45 @@ export class PlatformController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async deletePlan(@Param('id') id: string): Promise<void> {
     await this.platform.deletePlan(id);
+  }
+
+  // ============================================================== billing ==
+
+  @Get('billing/overview')
+  @RequirePermissions(Permission.PLATFORM_PLANS_MANAGE)
+  @ApiOperation({ summary: 'Subscriptions by state and plan, MRR, recent charges and plan moves' })
+  billingOverview() {
+    return this.platform.billingOverview();
+  }
+
+  @Get('usage')
+  @RequirePermissions(Permission.PLATFORM_TENANTS_READ)
+  @ApiOperation({ summary: 'Per-store products, orders, staff and AI use this month' })
+  usageReport() {
+    return this.platform.usageReport();
+  }
+
+  // ============================================================ templates ==
+
+  @Get('templates')
+  @RequirePermissions(Permission.PLATFORM_TENANTS_READ)
+  @ApiOperation({ summary: 'Every storefront template with its family, version and publish state' })
+  listTemplates() {
+    return this.templates.platformCatalogue();
+  }
+
+  /**
+   * Publish or withdraw a template.
+   *
+   * Withdrawing stops new adoptions only. Stores already on it keep rendering
+   * it — taking a design away must never take a live shop down.
+   */
+  @Patch('templates/:id')
+  @RequirePermissions(Permission.PLATFORM_PLANS_MANAGE)
+  @ApiOperation({ summary: 'Publish or unpublish a storefront template' })
+  async setTemplatePublished(@Param('id') id: string, @Body() dto: TemplatePublicationDto) {
+    await this.templates.setPublished(id, dto.isPublished, this.context.userId, dto.note);
+    return { id, isPublished: dto.isPublished };
   }
 
   // ================================================================== ops ==

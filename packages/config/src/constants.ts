@@ -30,6 +30,13 @@ export const GUEST_CART_TTL_DAYS = 30;
 /** Reservation window for stock held by an unpaid online order. */
 export const STOCK_RESERVATION_TTL_MINUTES = 30;
 
+/**
+ * Days a PAST_DUE subscription keeps its plan after the period ends, so one
+ * failed card charge does not switch off a merchant's premium storefront
+ * overnight. After this the store drops to the free floor — never offline.
+ */
+export const BILLING_GRACE_DAYS = 3;
+
 export const QUEUE_NAMES = {
   NOTIFICATIONS: 'notifications',
   PROVISIONING: 'provisioning',
@@ -65,6 +72,8 @@ export const cacheKeys = {
   tenantMeta: (tenantId: string) => `tenant:${tenantId}:meta`,
   tenantDb: (tenantId: string) => `tenant:${tenantId}:db`,
   entitlements: (tenantId: string) => `tenant:${tenantId}:entitlements`,
+  /** Platform-wide: which catalogue templates a super admin has withdrawn. */
+  templatePublications: () => 'platform:template-publications',
   storeSettings: (tenantId: string) => `tenant:${tenantId}:store:settings`,
   categoryTree: (tenantId: string) => `tenant:${tenantId}:categories:tree`,
   brands: (tenantId: string) => `tenant:${tenantId}:brands`,

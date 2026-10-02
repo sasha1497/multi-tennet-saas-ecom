@@ -74,9 +74,15 @@ export const SubscriptionStatus = {
 } as const;
 export type SubscriptionStatus = (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus];
 
+/**
+ * Plan codes. STARTER / GROWTH / PRO are the public lineup; FREE is the hidden
+ * floor a lapsed subscription drops to, and ENTERPRISE is a non-public plan
+ * kept for contracted accounts. Prices live on the `plans` row, never here.
+ */
 export const PlanCode = {
   FREE: 'FREE',
   STARTER: 'STARTER',
+  GROWTH: 'GROWTH',
   PRO: 'PRO',
   ENTERPRISE: 'ENTERPRISE',
 } as const;
@@ -209,6 +215,21 @@ export const FeatureKey = {
   POS: 'pos',
   MULTI_BRANCH: 'multi_branch',
   WHITE_LABEL_APP: 'white_label_app',
+
+  // Template families. A family is one entitlement, not a per-template
+  // purchase: a template added to an entitled family is available at once.
+  // The tier → key mapping lives in `@retailos/templates` (`familyFeatureKey`).
+  TEMPLATES_STANDARD: 'templates_standard',
+  TEMPLATES_PREMIUM: 'templates_premium',
+  TEMPLATES_3D: 'templates_3d',
+
+  ADVANCED_INVENTORY: 'advanced_inventory',
+  CRM: 'crm',
+  PUSH_NOTIFICATIONS: 'push_notifications',
+  ADVANCED_REPORTS: 'advanced_reports',
+  BARCODE: 'barcode',
+  AI_PRODUCT_UPLOAD: 'ai_product_upload',
+  AI_ASSISTANT: 'ai_assistant',
 } as const;
 export type FeatureKey = (typeof FeatureKey)[keyof typeof FeatureKey];
 
@@ -218,6 +239,8 @@ export const LimitKey = {
   MAX_STAFF: 'max_staff',
   MAX_ORDERS_PER_MONTH: 'max_orders_per_month',
   MAX_STORAGE_MB: 'max_storage_mb',
+  /** AI generations per calendar month (UTC). Never unlimited by design. */
+  AI_GENERATIONS_PER_MONTH: 'ai_generations_per_month',
 } as const;
 export type LimitKey = (typeof LimitKey)[keyof typeof LimitKey];
 

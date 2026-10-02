@@ -31,7 +31,14 @@ export type {
   ResolvedTemplate,
 } from './types';
 
-export { TEMPLATE_GROUPS, NO_MOTION } from './types';
+export { TEMPLATE_GROUPS, TEMPLATE_TIERS, NO_MOTION } from './types';
+export {
+  FAMILY_FEATURE_KEY,
+  FAMILY_MINIMUM_PLAN,
+  familyFeatureKey,
+  isTemplateAllowed,
+  allowedFamilies,
+} from './entitlement';
 export { TEMPLATES, FALLBACK_TEMPLATE_ID } from './registry';
 export {
   listTemplates,

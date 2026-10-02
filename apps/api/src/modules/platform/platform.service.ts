@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { storefrontUrl } from '@retailos/config';
+import { AuditAction } from '@retailos/types';
 import type {
   AuditLogEntry,
   PaginatedResult,
@@ -23,7 +24,9 @@ import { TenantMigrationRunner } from '@/core/database/tenant-migration.runner';
 import { AppLogger } from '@/core/logger/logger.service';
 import { QueueService } from '@/core/queue/queue.service';
 import { PasswordService } from '@/core/security/password.service';
-import { EntitlementsService } from '@/modules/entitlements/entitlements.service';
+import { EntitlementsService, isLapsed } from '@/modules/entitlements/entitlements.service';
+import { aiQuotaWindowStart } from '@/modules/ai/ai-usage';
+import { AuditService } from '@/modules/audit/audit.service';
 import { TenantProvisioningService } from '@/modules/tenants/tenant-provisioning.service';
 import { TenantsService } from '@/modules/tenants/tenants.service';
 
@@ -43,6 +46,7 @@ export class PlatformService {
     private readonly cache: CacheService,
     private readonly queue: QueueService,
     private readonly config: AppConfigService,
+    private readonly audit: AuditService,
     logger: AppLogger,
   ) {
     this.logger = logger.withContext('PlatformService');
@@ -394,6 +398,11 @@ export class PlatformService {
     const periodEnd = new Date(now);
     periodEnd.setMonth(periodEnd.getMonth() + 1);
 
+    const previous = await this.master.subscription.findUnique({
+      where: { tenantId },
+      select: { plan: { select: { code: true } } },
+    });
+
     const subscription = await this.master.subscription.upsert({
       where: { tenantId },
       create: {
@@ -414,6 +423,14 @@ export class PlatformService {
 
     await this.entitlements.syncPlanEntitlements(tenantId, plan.id);
 
+    this.audit.record('platform', {
+      action: AuditAction.SUBSCRIPTION_CHANGED,
+      tenantId,
+      resourceType: 'subscription',
+      resourceId: subscription.id,
+      metadata: { from: previous?.plan.code ?? null, to: plan.code, by: 'platform' },
+    });
+
     return {
       id: subscription.id,
       tenantId,
@@ -424,6 +441,218 @@ export class PlatformService {
       trialEndsAt: subscription.trialEndsAt?.toISOString() ?? null,
       cancelledAt: null,
       createdAt: subscription.createdAt.toISOString(),
+    };
+  }
+
+  // ============================================================== billing ==
+
+  /**
+   * Fleet-wide subscription picture: who is trialing, paying, behind or
+   * lapsed, monthly recurring revenue by plan, recent charges and plan moves.
+   *
+   * MRR counts subscriptions that are currently earning their plan (ACTIVE, or
+   * PAST_DUE inside the grace window) at the plan's *current* monthly price —
+   * it is a run-rate, not booked revenue. Booked revenue is the invoices.
+   */
+  async billingOverview() {
+    const now = new Date();
+    const monthAgo = new Date(now.getTime() - 30 * 86_400_000);
+
+    const [subscriptions, tenantCounts, invoices30d, recentInvoices, planMoves, plans] =
+      await Promise.all([
+        this.master.subscription.findMany({
+          where: { tenant: { deletedAt: null } },
+          select: {
+            status: true,
+            currentPeriodEnd: true,
+            plan: { select: { code: true, name: true, priceMonthly: true, sortOrder: true } },
+          },
+        }),
+        this.master.tenant.groupBy({
+          by: ['status'],
+          where: { deletedAt: null },
+          _count: { _all: true },
+        }),
+        this.master.subscriptionInvoice.groupBy({
+          by: ['status'],
+          where: { createdAt: { gte: monthAgo } },
+          _count: { _all: true },
+          _sum: { amount: true },
+        }),
+        this.master.subscriptionInvoice.findMany({
+          where: { status: { not: 'PENDING' } },
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+          include: { tenant: { select: { name: true, slug: true } } },
+        }),
+        this.master.platformAuditLog.findMany({
+          where: { action: 'SUBSCRIPTION_CHANGED', createdAt: { gte: monthAgo } },
+          select: { metadata: true },
+        }),
+        this.master.plan.findMany({ select: { code: true, priceMonthly: true } }),
+      ]);
+
+    const price = new Map(plans.map((p) => [p.code, p.priceMonthly]));
+    const byPlan = new Map<string, { code: string; name: string; sortOrder: number; stores: number; paying: number; mrr: number }>();
+    let trialing = 0;
+    let paying = 0;
+    let pastDue = 0;
+    let lapsed = 0;
+    let mrr = 0;
+
+    for (const sub of subscriptions) {
+      const entry = byPlan.get(sub.plan.code) ?? {
+        code: sub.plan.code,
+        name: sub.plan.name,
+        sortOrder: sub.plan.sortOrder,
+        stores: 0,
+        paying: 0,
+        mrr: 0,
+      };
+      entry.stores += 1;
+
+      if (isLapsed(sub, now)) {
+        lapsed += 1;
+      } else if (sub.status === 'TRIALING') {
+        trialing += 1;
+      } else {
+        if (sub.status === 'PAST_DUE') pastDue += 1;
+        if (sub.plan.priceMonthly > 0) {
+          paying += 1;
+          entry.paying += 1;
+          entry.mrr += sub.plan.priceMonthly;
+          mrr += sub.plan.priceMonthly;
+        }
+      }
+      byPlan.set(sub.plan.code, entry);
+    }
+
+    let upgrades = 0;
+    let downgrades = 0;
+    for (const move of planMoves) {
+      const meta = (move.metadata ?? {}) as { from?: string | null; to?: string };
+      if (!meta.from || !meta.to || meta.from === meta.to) continue;
+      const delta = (price.get(meta.to) ?? 0) - (price.get(meta.from) ?? 0);
+      if (delta > 0) upgrades += 1;
+      else if (delta < 0) downgrades += 1;
+    }
+
+    const invoiceStat = (status: string) => {
+      const row = invoices30d.find((i) => i.status === status);
+      return { count: row?._count._all ?? 0, amount: row?._sum.amount ?? 0 };
+    };
+    const tenantStatus = (status: string) =>
+      tenantCounts.find((t) => t.status === status)?._count._all ?? 0;
+
+    return {
+      merchants: {
+        total: tenantCounts.reduce((sum, t) => sum + t._count._all, 0),
+        active: tenantStatus('ACTIVE'),
+        suspended: tenantStatus('SUSPENDED'),
+        trialing,
+        paying,
+        pastDue,
+        lapsed,
+      },
+      mrr,
+      currency: 'INR',
+      byPlan: [...byPlan.values()].sort((a, b) => a.sortOrder - b.sortOrder),
+      last30Days: {
+        paid: invoiceStat('PAID'),
+        failed: invoiceStat('FAILED'),
+        upgrades,
+        downgrades,
+      },
+      recentInvoices: recentInvoices.map((i) => ({
+        id: i.id,
+        tenantName: i.tenant.name,
+        tenantSlug: i.tenant.slug,
+        status: i.status,
+        planCode: i.planCode,
+        amount: i.amount,
+        currency: i.currency,
+        failureReason: i.failureReason,
+        createdAt: i.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  /**
+   * Resource use per store: catalogue size, orders, team and this month's AI
+   * generations against the plan allowance. Sorted by AI use, the one metered
+   * resource with a direct cost to the platform.
+   *
+   * Products and orders come from the denormalised counters the stats job
+   * refreshes — one master query instead of opening every tenant database.
+   * Storage and bandwidth are not tracked per tenant yet and are omitted
+   * rather than estimated.
+   */
+  async usageReport() {
+    const windowStart = aiQuotaWindowStart();
+
+    const [tenants, staff, ai] = await Promise.all([
+      this.master.tenant.findMany({
+        where: { deletedAt: null },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          status: true,
+          statProducts: true,
+          statOrders: true,
+          statsUpdatedAt: true,
+          subscription: { select: { plan: { select: { code: true, limits: true } } } },
+        },
+      }),
+      this.master.tenantUser.groupBy({
+        by: ['tenantId'],
+        where: { isActive: true },
+        _count: { _all: true },
+      }),
+      this.master.aiGeneration.groupBy({
+        by: ['tenantId'],
+        where: { createdAt: { gte: windowStart }, status: { in: ['PENDING', 'COMPLETED'] } },
+        _count: { _all: true },
+        _sum: { inputTokens: true, outputTokens: true },
+      }),
+    ]);
+
+    const staffBy = new Map(staff.map((s) => [s.tenantId, s._count._all]));
+    const aiBy = new Map(ai.map((a) => [a.tenantId, a]));
+
+    const rows = tenants
+      .map((t) => {
+        const limits = (t.subscription?.plan.limits ?? {}) as Record<string, number>;
+        const usage = aiBy.get(t.id);
+        return {
+          tenantId: t.id,
+          name: t.name,
+          slug: t.slug,
+          status: t.status,
+          planCode: t.subscription?.plan.code ?? 'FREE',
+          products: t.statProducts,
+          productLimit: limits.max_products ?? null,
+          orders: t.statOrders,
+          staff: staffBy.get(t.id) ?? 0,
+          staffLimit: limits.max_staff ?? null,
+          aiGenerations: usage?._count._all ?? 0,
+          aiLimit: limits.ai_generations_per_month ?? 0,
+          aiTokens: (usage?._sum.inputTokens ?? 0) + (usage?._sum.outputTokens ?? 0),
+          statsUpdatedAt: t.statsUpdatedAt?.toISOString() ?? null,
+        };
+      })
+      .sort((a, b) => b.aiGenerations - a.aiGenerations || b.products - a.products);
+
+    return {
+      windowStart: windowStart.toISOString(),
+      totals: {
+        aiGenerations: rows.reduce((s, r) => s + r.aiGenerations, 0),
+        aiTokens: rows.reduce((s, r) => s + r.aiTokens, 0),
+        products: rows.reduce((s, r) => s + r.products, 0),
+        orders: rows.reduce((s, r) => s + r.orders, 0),
+        staff: rows.reduce((s, r) => s + r.staff, 0),
+      },
+      tenants: rows,
     };
   }
 

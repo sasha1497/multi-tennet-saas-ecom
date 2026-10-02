@@ -16,6 +16,7 @@ import { AuditModule } from '@/modules/audit/audit.service';
 import { EntitlementsModule } from '@/modules/entitlements/entitlements.module';
 import { TenantsModule } from '@/modules/tenants/tenants.module';
 import {
+  BillingModule,
   CartModule,
   CatalogModule,
   CouponsModule,
@@ -68,6 +69,7 @@ installBigIntSerializer();
     NotificationsModule,
     OrdersModule,
     PaymentsModule,
+    BillingModule,
   ],
   providers: [
     NotificationsProcessor,

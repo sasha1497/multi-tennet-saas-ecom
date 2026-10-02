@@ -29,7 +29,7 @@ export const createTenantSchema = z.object({
   /** Omitted in production: the owner receives an invite link instead. */
   ownerPassword: passwordSchema.optional(),
   businessCategory: z.string().trim().max(80).optional(),
-  planCode: z.string().trim().max(32).default('FREE'),
+  planCode: z.string().trim().max(32).default('STARTER'),
 });
 export type CreateTenantInput = z.infer<typeof createTenantSchema>;
 

@@ -1,25 +1,41 @@
 import { Injectable } from '@nestjs/common';
-import { cacheKeys } from '@retailos/config';
+import { BILLING_GRACE_DAYS, cacheKeys } from '@retailos/config';
 import type { SubscriptionStatus, TenantEntitlements } from '@retailos/types';
 import { Errors } from '@/common/errors/app.exception';
 import { CacheService } from '@/core/cache/cache.service';
 import { MasterPrismaService } from '@/core/database/master-prisma.service';
 import { AppLogger } from '@/core/logger/logger.service';
 
-/** Applied when a tenant has no subscription at all — the free tier's floor. */
+/**
+ * Applied when a tenant has no subscription at all, and the floor a lapsed one
+ * drops to. Every key a plan can grant is listed, switched off, so a client
+ * never has to guess what a missing key means.
+ *
+ * Standard templates stay on: a lapsed store keeps a storefront to choose.
+ */
 const FALLBACK_ENTITLEMENTS: TenantEntitlements = {
   features: {
     products: true,
     orders: true,
+    templates_standard: true,
+    templates_premium: false,
+    templates_3d: false,
     staff: false,
     coupons: false,
     reports: false,
     advanced_analytics: false,
+    advanced_reports: false,
+    advanced_inventory: false,
+    crm: false,
     custom_domain: false,
     delivery: false,
     loyalty: false,
     marketing: false,
+    push_notifications: false,
     pos: false,
+    barcode: false,
+    ai_product_upload: false,
+    ai_assistant: false,
     multi_branch: false,
     white_label_app: false,
   },
@@ -28,11 +44,27 @@ const FALLBACK_ENTITLEMENTS: TenantEntitlements = {
     max_staff: 1,
     max_orders_per_month: 100,
     max_storage_mb: 100,
+    ai_generations_per_month: 0,
   },
   planCode: 'FREE',
   planName: 'Free',
   subscriptionStatus: 'ACTIVE' as SubscriptionStatus,
 };
+
+/**
+ * Whether a subscription no longer earns its plan's entitlements.
+ *
+ * Exported so billing and the platform console report the same answer the
+ * entitlement check acts on.
+ */
+export function isLapsed(
+  subscription: { status: string; currentPeriodEnd: Date },
+  now: Date = new Date(),
+): boolean {
+  if (subscription.status === 'EXPIRED' || subscription.status === 'CANCELLED') return true;
+  const graceMs = subscription.status === 'PAST_DUE' ? BILLING_GRACE_DAYS * 86_400_000 : 0;
+  return subscription.currentPeriodEnd.getTime() + graceMs < now.getTime();
+}
 
 /**
  * Effective plan features and quotas for a tenant.
@@ -83,10 +115,9 @@ export class EntitlementsService {
 
       // An expired or cancelled subscription drops the tenant to the free floor
       // rather than locking them out — their storefront keeps serving customers.
-      const lapsed =
-        subscription.status === 'EXPIRED' ||
-        subscription.status === 'CANCELLED' ||
-        subscription.currentPeriodEnd < new Date();
+      // A PAST_DUE one (a failed renewal) keeps its plan for a short grace
+      // window first, so one declined card does not restyle a live shop.
+      const lapsed = isLapsed(subscription);
 
       const base: TenantEntitlements = {
         features: lapsed

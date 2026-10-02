@@ -107,9 +107,27 @@ describe('templates are genuinely different designs', () => {
 });
 
 describe('tiers', () => {
-  it('ships both tiers', () => {
-    expect(TEMPLATES.some((t) => t.tier === 'standard')).toBe(true);
-    expect(TEMPLATES.some((t) => t.tier === 'premium')).toBe(true);
+  it('ships every family', () => {
+    expect(TEMPLATES.filter((t) => t.tier === 'standard')).toHaveLength(6);
+    expect(TEMPLATES.filter((t) => t.tier === 'premium')).toHaveLength(6);
+    expect(TEMPLATES.some((t) => t.tier === '3d')).toBe(true);
+  });
+
+  it('gives every 3D template a WebGL opening and the turntable product page', () => {
+    for (const template of TEMPLATES.filter((t) => t.tier === '3d')) {
+      const hero = template.sections.find((s) => s.kind === 'hero');
+      expect(hero?.variant).toMatch(/3d$/);
+      expect(template.layout.productDetail).toBe('turntable');
+    }
+  });
+
+  it('keeps 3D variants out of the standard and premium families', () => {
+    // A 2D template rendering a WebGL variant would load three.js for a shop
+    // that is not entitled to it.
+    for (const template of TEMPLATES.filter((t) => t.tier !== '3d')) {
+      expect(template.layout.productDetail).not.toBe('turntable');
+      expect(template.sections.some((s) => s.variant.endsWith('3d'))).toBe(false);
+    }
   });
 
   it('keeps the original six standard templates in the catalogue', () => {
@@ -129,7 +147,7 @@ describe('tiers', () => {
 
   it('gives every premium template real motion, and standard templates none that needs scroll', () => {
     for (const template of TEMPLATES) {
-      if (template.tier === 'premium') {
+      if (template.tier !== 'standard') {
         expect(template.motion.reveal).not.toBe('none');
       } else {
         // Standard templates may have a hover state; they must not pay for

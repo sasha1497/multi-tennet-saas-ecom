@@ -61,6 +61,7 @@ import { RateLimit } from '@/common/guards/rate-limit.guard';
 import { Errors } from '@/common/errors/app.exception';
 import { TenantDatabaseService } from '@/core/database/tenant-database.service';
 import { StorageService } from '@/core/storage/storage.service';
+import { AiService } from '@/modules/ai/ai.service';
 import { BillingService } from '@/modules/billing/billing.service';
 import { PaymentConfigService } from '@/modules/payments/payment-config.service';
 import { CategoriesService } from '@/modules/catalog/categories.service';
@@ -125,7 +126,23 @@ class UpdateTenantDto extends createZodDto(
 const planCodeSchema = z.string().trim().min(2).max(32).regex(/^[A-Za-z_]+$/);
 class SubscriptionCheckoutDto extends createZodDto(z.object({ planCode: planCodeSchema })) {}
 class SubscriptionConfirmDto extends createZodDto(
-  z.object({ planCode: planCodeSchema, reference: z.string().trim().min(8).max(128) }),
+  z.object({
+    planCode: planCodeSchema,
+    reference: z.string().trim().min(8).max(128),
+    /**
+     * Development only: how the simulated checkout ends, so the failed-payment
+     * path can be exercised. Harmless in production, where the whole endpoint
+     * refuses until a real platform gateway exists.
+     */
+    outcome: z.enum(['paid', 'failed']).default('paid'),
+  }),
+) {}
+class ProductSuggestionDto extends createZodDto(
+  z.object({
+    /** A key returned by files/confirm or files/upload — already in this store's storage. */
+    objectKey: z.string().trim().min(1).max(512),
+    hint: z.string().trim().max(300).optional(),
+  }),
 ) {}
 class UpsertPaymentConfigDto extends createZodDto(upsertPaymentConfigSchema) {}
 class InviteStaffDto extends createZodDto(inviteStaffSchema) {}
@@ -173,6 +190,7 @@ export class MerchantController {
     private readonly tenantDb: TenantDatabaseService,
     private readonly paymentConfig: PaymentConfigService,
     private readonly billing: BillingService,
+    private readonly ai: AiService,
     private readonly context: RequestContextService,
   ) {}
 
@@ -666,7 +684,38 @@ export class MerchantController {
       'customers and the storefront template are not affected.',
   })
   confirmSubscription(@Body() dto: SubscriptionConfirmDto) {
-    return this.billing.confirm(this.context.requireTenantId(), dto.planCode, dto.reference);
+    return this.billing.confirm(
+      this.context.requireTenantId(),
+      dto.planCode,
+      dto.reference,
+      dto.outcome,
+    );
+  }
+
+  // =================================================================== ai ==
+
+  @Get('ai/usage')
+  @RequirePermissions(Permission.PRODUCTS_READ)
+  @ApiOperation({ summary: "This month's AI generations against the plan allowance" })
+  aiUsage() {
+    return this.ai.usage(this.context.requireTenantId());
+  }
+
+  /**
+   * Smart Product Upload: a draft listing from a product photo.
+   *
+   * Upload the photo first (files/presign + files/confirm), then send its key.
+   * Returns a draft for the merchant to review — nothing is created. Metered
+   * against `ai_generations_per_month`; an identical request is served from
+   * the cache and not charged.
+   */
+  @Post('ai/product-suggestions')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.PRODUCTS_CREATE)
+  @RateLimit({ limit: 20, ttl: 60, bucket: 'ai', by: 'user' })
+  @ApiOperation({ summary: 'Draft a product listing from an uploaded photo' })
+  suggestProduct(@Body() dto: ProductSuggestionDto) {
+    return this.ai.suggestProductFromImage(dto.objectKey, dto.hint);
   }
 
   // ================================================================ staff ==

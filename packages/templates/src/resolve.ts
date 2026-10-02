@@ -20,7 +20,8 @@ export function listTemplates(): TemplateDefinition[] {
   return [...TEMPLATES].sort((a, b) => tierRank(a) - tierRank(b) || a.name.localeCompare(b.name));
 }
 
-const tierRank = (template: TemplateDefinition): number => (template.tier === 'standard' ? 0 : 1);
+const TIER_RANK: Record<TemplateTier, number> = { standard: 0, premium: 1, '3d': 2 };
+const tierRank = (template: TemplateDefinition): number => TIER_RANK[template.tier];
 
 /**
  * Looks a template up by id, honouring a pinned version.

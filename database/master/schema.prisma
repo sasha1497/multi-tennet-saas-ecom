@@ -77,6 +77,19 @@ enum EntitlementSource {
   OVERRIDE
 }
 
+enum InvoiceStatus {
+  PENDING
+  PAID
+  FAILED
+  VOID
+}
+
+enum AiGenerationStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
 enum TokenAudience {
   ADMIN
   CUSTOMER
@@ -213,6 +226,8 @@ model Tenant {
   database         TenantDatabase?
   subscription     Subscription?
   entitlements     FeatureEntitlement[]
+  invoices         SubscriptionInvoice[]
+  aiGenerations    AiGeneration[]
   provisioningJobs TenantProvisioningJob[]
   paymentConfigs TenantPaymentConfig[]
   paymentRoutes    PaymentRoute[]
@@ -421,6 +436,93 @@ model Subscription {
 
   @@index([status, currentPeriodEnd])
   @@map("subscriptions")
+}
+
+/// One charge for one subscription period — what the merchant paid RetailOS.
+///
+/// Never a shopper payment: those live in the tenant database (`payments`).
+/// Plan code, name and amount are copied at charge time rather than joined, so
+/// repricing a plan never rewrites a merchant's billing history.
+model SubscriptionInvoice {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// The checkout reference. Unique so a replayed confirmation is a no-op.
+  reference String        @unique @db.VarChar(128)
+  status    InvoiceStatus @default(PENDING)
+
+  planCode String @map("plan_code") @db.VarChar(32)
+  planName String @map("plan_name") @db.VarChar(80)
+  /// Minor units (paise).
+  amount   Int
+  currency String @default("INR") @db.VarChar(3)
+
+  periodStart   DateTime  @map("period_start") @db.Timestamptz(6)
+  periodEnd     DateTime  @map("period_end") @db.Timestamptz(6)
+  paidAt        DateTime? @map("paid_at") @db.Timestamptz(6)
+  failureReason String?   @map("failure_reason") @db.VarChar(500)
+  /// 'simulated' in development; the platform gateway's name once wired.
+  provider      String    @default("simulated") @db.VarChar(32)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([status, createdAt])
+  @@map("subscription_invoices")
+}
+
+/// Platform-level publish state for a catalogue template.
+///
+/// The catalogue itself is code (`@retailos/templates`); this row only says
+/// whether a super admin has withdrawn one from the gallery. No row means
+/// published. Unpublishing stops *new* adoptions — a store already on the
+/// template keeps rendering it, because withdrawing a design must never take
+/// a live shop down.
+model TemplatePublication {
+  templateId  String   @id @map("template_id") @db.VarChar(64)
+  isPublished Boolean  @default(true) @map("is_published")
+  note        String?  @db.VarChar(500)
+  updatedBy   String?  @map("updated_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("template_publications")
+}
+
+/// One AI generation request, and the metering record for it.
+///
+/// A row is written *before* the provider is called (PENDING) so concurrent
+/// requests cannot both slip under the monthly quota; FAILED rows do not count.
+/// `inputHash` makes an identical request a cache hit: the stored output is
+/// returned and nothing is charged.
+model AiGeneration {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// e.g. 'product_from_image'.
+  kind      String             @db.VarChar(48)
+  /// SHA-256 over the kind, the input bytes and the prompt version.
+  inputHash String             @map("input_hash") @db.VarChar(64)
+  status    AiGenerationStatus @default(PENDING)
+
+  output       Json?
+  provider     String  @db.VarChar(32)
+  model        String  @db.VarChar(64)
+  inputTokens  Int     @default(0) @map("input_tokens")
+  outputTokens Int     @default(0) @map("output_tokens")
+  error        String? @db.VarChar(500)
+  userId       String? @map("user_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, kind, inputHash])
+  @@map("ai_generations")
 }
 
 /// Effective feature flags per tenant. Rows sourced from PLAN are rewritten on

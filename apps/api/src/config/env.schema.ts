@@ -183,6 +183,16 @@ export const envSchema = z
     UPLOAD_MAX_FILE_SIZE: int(5_242_880),
     UPLOAD_ALLOWED_MIME: csv(['image/jpeg', 'image/png', 'image/webp', 'image/avif']),
 
+    // ----------------------------------------------------------------- ai --
+    /**
+     * Which provider Smart Product Upload uses. `anthropic` needs a key (or an
+     * `ant auth login` profile on a dev machine); `mock` returns deterministic
+     * suggestions and is refused in production, like the mock payment gateway.
+     */
+    AI_PROVIDER: z.enum(['anthropic', 'mock']).default('mock'),
+    ANTHROPIC_API_KEY: z.string().optional(),
+    AI_MODEL: z.string().default('claude-opus-5-5'),
+
     // ----------------------------------------------------------- payments --
     PAYMENT_PROVIDER: z.enum(['mock', 'razorpay']).default('mock'),
     PAYMENT_CURRENCY: z.string().length(3).default('INR'),

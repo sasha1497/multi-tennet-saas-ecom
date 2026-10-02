@@ -3,12 +3,18 @@ import { cacheKeys, defaultStoreTheme } from '@retailos/config';
 import {
   defaultTemplateFor,
   getTemplate,
+  isRecommendedFor,
   listTemplates,
   recommendedTemplates,
   sanitiseCustomization,
   type TemplateDefinition,
 } from '@retailos/templates';
-import { AuditAction, type StoreSettings, type StorefrontBootstrap } from '@retailos/types';
+import {
+  AuditAction,
+  type StoreSettings,
+  type StorefrontBootstrap,
+  type TemplateAccess,
+} from '@retailos/types';
 import type { UpdateStoreSettingsInput, UpdateStoreTemplateInput } from '@retailos/validation';
 import { Errors } from '@/common/errors/app.exception';
 import { AppConfigService } from '@/config/config.module';
@@ -19,6 +25,7 @@ import { AuditService } from '@/modules/audit/audit.service';
 import { CategoriesService } from '@/modules/catalog/categories.service';
 import { EntitlementsService } from '@/modules/entitlements/entitlements.service';
 import type { PricingStoreConfig } from '@/modules/cart/pricing.service';
+import { TemplateCatalogService } from './template-catalog.service';
 
 @Injectable()
 export class StoreService {
@@ -30,6 +37,7 @@ export class StoreService {
     private readonly entitlements: EntitlementsService,
     private readonly config: AppConfigService,
     private readonly audit: AuditService,
+    private readonly templateCatalog: TemplateCatalogService,
   ) {}
 
   /**
@@ -94,31 +102,44 @@ export class StoreService {
   // ───────────────────────────────────────────────── presentation layer ──
 
   /**
-   * The template catalogue, ranked for this store.
+   * The template catalogue, ranked for this store, with what it may do with
+   * each one.
    *
-   * Recommendations come from the tenant's business category, but the full
-   * catalogue is always returned — a merchant is guided, never restricted.
+   * Recommendations come from the tenant's business category. Every published
+   * template is returned — including families the plan does not include, so
+   * the gallery can show what an upgrade unlocks — each with an `access`
+   * record the console draws locks from. Unpublished templates are omitted,
+   * except the one the store is currently on, which must stay visible so the
+   * merchant can see what they are running.
    */
   async listTemplatesForTenant(businessCategory: string | null): Promise<{
     templates: TemplateDefinition[];
     recommendedIds: string[];
     active: StoreSettings['template'];
+    access: Record<string, TemplateAccess>;
+    /** False when the store is rendering a template it could not choose today. */
+    activeAllowed: boolean;
   }> {
+    const tenantId = this.tenantDb.tenantId;
     const ranked = recommendedTemplates(businessCategory);
-    const recommended = ranked.filter((t) =>
-      t.businessTypes.some(
-        (type) =>
-          businessCategory != null &&
-          type.toLowerCase().replace(/[^a-z]/g, '') ===
-            businessCategory.toLowerCase().replace(/[^a-z]/g, ''),
-      ),
+    const recommended = ranked.filter((t) => isRecommendedFor(t, businessCategory));
+    const [settings, unpublished] = await Promise.all([
+      this.getSettings(),
+      this.templateCatalog.unpublishedIds(),
+    ]);
+
+    const templates = (ranked.length > 0 ? ranked : listTemplates()).filter(
+      (t) => !unpublished.has(t.id) || t.id === settings.template.templateId,
     );
-    const settings = await this.getSettings();
+    const access = await this.templateCatalog.accessFor(tenantId, templates);
+    const activeAccess = access[settings.template.templateId];
 
     return {
-      templates: ranked.length > 0 ? ranked : listTemplates(),
+      templates,
       recommendedIds: recommended.map((t) => t.id),
       active: settings.template,
+      access,
+      activeAllowed: activeAccess ? activeAccess.allowed : true,
     };
   }
 
@@ -170,9 +191,16 @@ export class StoreService {
       });
     }
 
+    const switching = target.id !== currentId;
+
+    // Entitlement is checked on *activation* only, server-side, every time. A
+    // store already on a template its plan no longer includes keeps it — and
+    // can keep editing its sections — until the merchant chooses another; a
+    // downgrade never resets or deletes anything.
+    if (switching) await this.templateCatalog.assertCanActivate(tenantId, target);
+
     const rawCustomization = (stored.templateCustomization ??
       {}) as StoreSettings['template']['customization'];
-    const switching = target.id !== currentId;
     const customization = input.customization
       ? { ...rawCustomization, ...input.customization }
       : rawCustomization;

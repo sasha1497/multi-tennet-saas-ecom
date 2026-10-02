@@ -137,3 +137,22 @@ export interface UpdateStoreTemplateRequest {
   templateId?: string;
   customization?: StoreTemplate['customization'];
 }
+
+/**
+ * What one store may do with one catalogue template.
+ *
+ * Computed by the API from the store's entitlements and the platform's publish
+ * state. Clients render it (a lock, an upgrade prompt); they never decide it.
+ */
+export interface TemplateAccess {
+  /** 'standard' | 'premium' | '3d'. */
+  family: string;
+  /** The store's plan unlocks this template's family. */
+  allowed: boolean;
+  /** A super admin has not withdrawn it from the gallery. */
+  published: boolean;
+  /** The feature key that unlocks the family, e.g. `templates_premium`. */
+  featureKey: string;
+  /** The cheapest public plan that includes the family — for upgrade copy. */
+  requiredPlan: string;
+}

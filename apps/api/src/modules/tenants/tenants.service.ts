@@ -318,9 +318,15 @@ export class TenantsService {
   }
 
   private async resolvePlan(planCode?: string) {
-    const code = (planCode ?? 'FREE').toUpperCase();
+    // A new store starts on the entry plan's trial. FREE is the lapsed floor,
+    // not something anyone signs up to.
+    const code = (planCode ?? 'STARTER').toUpperCase();
     const plan =
       (await this.master.plan.findUnique({ where: { code } })) ??
+      (await this.master.plan.findFirst({
+        where: { isActive: true, isPublic: true },
+        orderBy: { sortOrder: 'asc' },
+      })) ??
       (await this.master.plan.findFirst({
         where: { isActive: true },
         orderBy: { sortOrder: 'asc' },

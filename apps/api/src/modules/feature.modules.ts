@@ -1,6 +1,11 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { CartController } from './cart/cart.controller';
 import { BillingService } from './billing/billing.service';
+import { AiService } from './ai/ai.service';
+import { PRODUCT_SUGGESTION_PROVIDER } from './ai/ai-provider';
+import { AnthropicProductProvider } from './ai/anthropic.provider';
+import { MockProductProvider } from './ai/mock.provider';
+import { AppConfigService } from '@/config/config.module';
 import { CartService } from './cart/cart.service';
 import { PricingService } from './cart/pricing.service';
 import { CategoriesService } from './catalog/categories.service';
@@ -26,6 +31,7 @@ import { ReviewsService } from './reviews/reviews.service';
 import { StaffService } from './staff/staff.service';
 import { StorefrontController } from './storefront/storefront.controller';
 import { StoreService } from './store/store.service';
+import { TemplateCatalogService } from './store/template-catalog.service';
 
 /**
  * Catalog: products, variants, categories and brands.
@@ -46,8 +52,8 @@ export class InventoryModule {}
 
 @Module({
   imports: [CatalogModule],
-  providers: [StoreService],
-  exports: [StoreService],
+  providers: [StoreService, TemplateCatalogService],
+  exports: [StoreService, TemplateCatalogService],
 })
 export class StoreModule {}
 
@@ -161,9 +167,35 @@ export class StorefrontModule {}
 })
 export class BillingModule {}
 
+/**
+ * AI tools. The provider is chosen once, from configuration, behind
+ * `PRODUCT_SUGGESTION_PROVIDER`; metering and quotas live in `AiService` and
+ * do not change when the provider does.
+ */
+@Module({
+  imports: [CatalogModule, StoreModule],
+  providers: [
+    AiService,
+    AnthropicProductProvider,
+    MockProductProvider,
+    {
+      provide: PRODUCT_SUGGESTION_PROVIDER,
+      inject: [AppConfigService, AnthropicProductProvider, MockProductProvider],
+      useFactory: (
+        config: AppConfigService,
+        anthropic: AnthropicProductProvider,
+        mock: MockProductProvider,
+      ) => (config.ai.provider === 'anthropic' ? anthropic : mock),
+    },
+  ],
+  exports: [AiService],
+})
+export class AiModule {}
+
 /** Merchant console. One controller composing the domain services. */
 @Module({
   imports: [
+    AiModule,
     BillingModule,
     CatalogModule,
     InventoryModule,
@@ -183,6 +215,7 @@ export class MerchantModule {}
 
 /** Platform super-admin console. */
 @Module({
+  imports: [StoreModule, BillingModule],
   controllers: [PlatformController],
   providers: [PlatformService],
   exports: [PlatformService],

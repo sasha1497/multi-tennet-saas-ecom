@@ -129,6 +129,12 @@ export function buildConfig(env: Env) {
       publicRead: env.STORAGE_PUBLIC_READ,
     },
 
+    ai: {
+      provider: env.AI_PROVIDER,
+      apiKey: env.ANTHROPIC_API_KEY,
+      model: env.AI_MODEL,
+    },
+
     payments: {
       provider: env.PAYMENT_PROVIDER,
       currency: env.PAYMENT_CURRENCY,
