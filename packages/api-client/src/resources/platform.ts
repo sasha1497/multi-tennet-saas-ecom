@@ -18,6 +18,78 @@ import type {
 } from '@retailos/types';
 import type { HttpClient } from '../http';
 
+/** Response of `GET /platform/billing/overview`. */
+export interface PlatformBillingOverview {
+  merchants: {
+    total: number;
+    active: number;
+    suspended: number;
+    trialing: number;
+    paying: number;
+    pastDue: number;
+    lapsed: number;
+  };
+  /** Monthly run-rate in minor units, at current plan prices. */
+  mrr: number;
+  currency: string;
+  byPlan: { code: string; name: string; stores: number; paying: number; mrr: number }[];
+  last30Days: {
+    paid: { count: number; amount: number };
+    failed: { count: number; amount: number };
+    upgrades: number;
+    downgrades: number;
+  };
+  recentInvoices: {
+    id: string;
+    tenantName: string;
+    tenantSlug: string;
+    status: string;
+    planCode: string;
+    amount: number;
+    currency: string;
+    failureReason: string | null;
+    createdAt: string;
+  }[];
+}
+
+/** Response of `GET /platform/usage`. */
+export interface PlatformUsageReport {
+  windowStart: string;
+  totals: { aiGenerations: number; aiTokens: number; products: number; orders: number; staff: number };
+  tenants: {
+    tenantId: string;
+    name: string;
+    slug: string;
+    status: string;
+    planCode: string;
+    products: number;
+    productLimit: number | null;
+    orders: number;
+    staff: number;
+    staffLimit: number | null;
+    aiGenerations: number;
+    aiLimit: number;
+    aiTokens: number;
+    statsUpdatedAt: string | null;
+  }[];
+}
+
+/** One row of `GET /platform/templates`. */
+export interface PlatformTemplate {
+  id: string;
+  name: string;
+  family: 'standard' | 'premium' | '3d';
+  group: string;
+  version: number;
+  tagline: string;
+  swatches: readonly [string, string, string];
+  badges: string[];
+  published: boolean;
+  note: string | null;
+  updatedAt: string | null;
+  requiredPlan: string;
+}
+
 /** Super-admin control plane. Every route requires `platform.*` permissions. */
 export class PlatformResource {
   constructor(private readonly http: HttpClient) {}
@@ -93,6 +165,30 @@ export class PlatformResource {
 
   changeSubscription(id: string, planCode: string): Promise<Subscription> {
     return this.http.post(`/platform/tenants/${id}/subscription`, { planCode });
+  }
+
+  // ------------------------------------------------------------- billing --
+
+  billingOverview(): Promise<PlatformBillingOverview> {
+    return this.http.get('/platform/billing/overview');
+  }
+
+  usage(): Promise<PlatformUsageReport> {
+    return this.http.get('/platform/usage');
+  }
+
+  // ----------------------------------------------------------- templates --
+
+  templates(): Promise<PlatformTemplate[]> {
+    return this.http.get('/platform/templates');
+  }
+
+  setTemplatePublished(
+    id: string,
+    isPublished: boolean,
+    note?: string | null,
+  ): Promise<{ id: string; isPublished: boolean }> {
+    return this.http.patch(`/platform/templates/${id}`, { isPublished, note });
   }
 
   // --------------------------------------------------------------- plans --

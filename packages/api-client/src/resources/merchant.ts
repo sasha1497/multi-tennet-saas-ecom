@@ -33,6 +33,7 @@ import type {
   UpdateProductRequest,
   UpdateStoreSettingsRequest,
   UpdateStoreTemplateRequest,
+  TemplateAccess,
 } from '@retailos/types';
 import type { TemplateDefinition } from '@retailos/templates';
 import type { HttpClient } from '../http';
@@ -51,6 +52,30 @@ export interface SubscriptionPlanOption {
   features: Record<string, boolean>;
   limits: Record<string, number>;
   isCurrent: boolean;
+  sortOrder: number;
+  /** Relative to the store's current plan. */
+  direction: 'current' | 'upgrade' | 'downgrade';
+}
+
+export interface UsageMeter {
+  used: number;
+  /** `-1` means unlimited. */
+  limit: number;
+}
+
+export interface SubscriptionInvoice {
+  id: string;
+  reference: string;
+  status: 'PAID' | 'FAILED' | 'VOID' | string;
+  planCode: string;
+  planName: string;
+  amount: number;
+  currency: string;
+  periodStart: string;
+  periodEnd: string;
+  paidAt: string | null;
+  failureReason: string | null;
+  createdAt: string;
 }
 
 /** Response of `GET /merchant/subscription`. */
@@ -70,9 +95,55 @@ export interface SubscriptionOverview {
     /** Days left in the current period; negative once it has lapsed. */
     daysRemaining: number;
     isTrialing: boolean;
+    /** True once the store has dropped to the free floor. */
+    lapsed: boolean;
+    /** When a failed renewal stops being covered (PAST_DUE only). */
+    graceEndsAt: string | null;
   } | null;
+  /** What the store is actually served after lapse and overrides — the source of truth. */
+  effective: {
+    planCode: string;
+    features: Record<string, boolean>;
+    limits: Record<string, number>;
+  };
+  usage: {
+    products: UsageMeter;
+    staff: UsageMeter;
+    aiGenerations: UsageMeter & { resetsAt: string };
+  };
+  templates: {
+    families: ('standard' | 'premium' | '3d')[];
+    counts: Record<'standard' | 'premium' | '3d', number>;
+  };
+  invoices: SubscriptionInvoice[];
   /** False when this deployment cannot take a subscription payment yet. */
   billingAvailable: boolean;
+}
+
+/** Response of `POST /merchant/ai/product-suggestions`. */
+export interface ProductSuggestionResponse {
+  suggestion: {
+    name: string;
+    shortDescription: string;
+    description: string;
+    categoryName: string;
+    /** An existing category id, or null — never a newly invented category. */
+    categoryId: string | null;
+    tags: string[];
+    metaTitle: string;
+    metaDescription: string;
+  };
+  /** True when an identical earlier request was reused at no charge. */
+  cached: boolean;
+  usage: { used: number; limit: number; resetsAt: string };
+}
+
+export interface AiUsage {
+  used: number;
+  limit: number;
+  resetsAt: string;
+  provider: string;
+  available: boolean;
 }
 
 /** Response of `POST /merchant/subscription/checkout`. */
@@ -94,6 +165,10 @@ export interface TemplateCatalogue {
   recommendedIds: string[];
   /** The design the storefront is currently rendering. */
   active: StoreSettings['template'];
+  /** Per template: whether this store's plan allows choosing it. Decided by the API. */
+  access: Record<string, TemplateAccess>;
+  /** False when the store is on a template its plan no longer includes. */
+  activeAllowed: boolean;
 }
 
 export interface StaffMember {
@@ -351,13 +426,30 @@ export class MerchantResource {
     return this.http.post('/merchant/subscription/checkout', { planCode });
   }
 
-  confirmSubscription(planCode: string, reference: string): Promise<{
+  /** `outcome` only matters to the development simulator. */
+  confirmSubscription(
+    planCode: string,
+    reference: string,
+    outcome: 'paid' | 'failed' = 'paid',
+  ): Promise<{
     status: string;
+    invoiceStatus: string;
     planCode: string;
     planName: string;
-    currentPeriodEnd: string;
+    currentPeriodEnd: string | null;
   }> {
-    return this.http.post('/merchant/subscription/confirm', { planCode, reference });
+    return this.http.post('/merchant/subscription/confirm', { planCode, reference, outcome });
+  }
+
+  // ----------------------------------------------------------------- ai --
+
+  aiUsage(): Promise<AiUsage> {
+    return this.http.get('/merchant/ai/usage');
+  }
+
+  /** A draft listing from an already-uploaded photo. Creates nothing. */
+  suggestProduct(objectKey: string, hint?: string): Promise<ProductSuggestionResponse> {
+    return this.http.post('/merchant/ai/product-suggestions', { objectKey, hint });
   }
 
   // -------------------------------------------------------------- staff --

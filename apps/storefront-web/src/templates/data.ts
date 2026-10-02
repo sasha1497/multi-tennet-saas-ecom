@@ -24,6 +24,13 @@ export interface SectionData {
   brands: Brand[];
   coupons: Coupon[];
   products: Record<ProductSource, ProductListItem[]>;
+  /**
+   * Whether 3D variants may upgrade to WebGL on this render: the store is
+   * entitled to the 3D family, or the merchant is previewing a design. A 3D
+   * template on a store without it renders its 2D composition — which is what
+   * keeps a downgrade from breaking or removing anything.
+   */
+  allow3d: boolean;
 }
 
 /**
@@ -37,6 +44,7 @@ export interface SectionData {
 export async function loadSectionData(
   bootstrap: StorefrontBootstrap,
   sections: readonly TemplateSection[],
+  options: { isPreview?: boolean } = {},
 ): Promise<SectionData> {
   const api = serverApi();
 
@@ -44,6 +52,12 @@ export async function loadSectionData(
   const sources = new Set(
     sections.filter((s) => s.kind === 'productRow' && s.source).map((s) => s.source!),
   );
+  // A 3D opening is built from product photographs, so it needs a product list
+  // even when the merchant has hidden every product row.
+  if (sections.some((s) => s.kind === 'hero' && s.variant.endsWith('3d'))) {
+    sources.add('featured');
+    sources.add('newest');
+  }
 
   // The largest limit any row asks for, so one request serves them all.
   const limitFor = (source: ProductSource) =>
@@ -79,6 +93,7 @@ export async function loadSectionData(
     brands,
     coupons,
     products: { featured, popular, newest },
+    allow3d: bootstrap.features.templates_3d === true || options.isPreview === true,
   };
 }
 

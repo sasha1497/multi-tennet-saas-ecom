@@ -20,6 +20,7 @@ import { Errors } from '@/common/errors/app.exception';
 import { AppConfigService } from '@/config/config.module';
 import { CacheService } from '@/core/cache/cache.service';
 import { RequestContextService } from '@/core/context/request-context';
+import { StorageService } from '@/core/storage/storage.service';
 import { TenantDatabaseService } from '@/core/database/tenant-database.service';
 import { AuditService } from '@/modules/audit/audit.service';
 import { CategoriesService } from '@/modules/catalog/categories.service';
@@ -38,6 +39,7 @@ export class StoreService {
     private readonly config: AppConfigService,
     private readonly audit: AuditService,
     private readonly templateCatalog: TemplateCatalogService,
+    private readonly storage: StorageService,
   ) {}
 
   /**
@@ -78,9 +80,34 @@ export class StoreService {
           // Only reachable if provisioning's SEED_DEFAULTS step never ran.
           throw Errors.internal('Store settings are missing for this tenant', { tenantId });
         }
-        return this.toApi(row);
+        // Re-signed inside the cache loader: the env schema guarantees a
+        // presigned URL outlives the catalogue cache TTL by at least 2×.
+        return this.withFreshMedia(this.toApi(row));
       },
     );
+  }
+
+  /**
+   * Re-signs branding images that live in this tenant's own storage.
+   *
+   * Logo, favicon and banner URLs are stored as strings, and in a private
+   * bucket the string an upload returns is a presigned URL that expires —
+   * a merchant's logo used to vanish fifteen minutes after they set it.
+   * Resolving them on read fixes every existing row without a migration.
+   */
+  private async withFreshMedia(settings: StoreSettings): Promise<StoreSettings> {
+    const tenantId = this.tenantDb.tenantId;
+    const [logoUrl, faviconUrl, banners] = await Promise.all([
+      this.storage.refreshUrl(tenantId, settings.logoUrl),
+      this.storage.refreshUrl(tenantId, settings.faviconUrl),
+      Promise.all(
+        settings.banners.map(async (banner) => ({
+          ...banner,
+          imageUrl: (await this.storage.refreshUrl(tenantId, banner.imageUrl)) ?? banner.imageUrl,
+        })),
+      ),
+    ]);
+    return { ...settings, logoUrl, faviconUrl, banners };
   }
 
   /** Pricing-relevant slice, kept separate so the money path has a narrow input. */
@@ -231,7 +258,7 @@ export class StoreService {
       },
     });
 
-    return this.toApi(row);
+    return this.withFreshMedia(this.toApi(row));
   }
 
   async updateSettings(input: UpdateStoreSettingsInput): Promise<StoreSettings> {
@@ -305,7 +332,7 @@ export class StoreService {
       metadata: { fields: Object.keys(input) },
     });
 
-    return this.toApi(row);
+    return this.withFreshMedia(this.toApi(row));
   }
 
   /**

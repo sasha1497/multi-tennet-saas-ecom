@@ -54,15 +54,26 @@ function mix(a: string, b: string, amount: number): string {
  * white or near-black. Cheap WCAG-style check rather than a full contrast
  * calculation — it only ever picks between two known-safe inks.
  */
-function readableInk(hex: string): string {
+function luminance(hex: string): number | null {
   const rgb = parseHex(hex);
-  if (!rgb) return '255 255 255';
+  if (!rgb) return null;
   const [r, g, b] = rgb.map((c) => {
     const s = c / 255;
     return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
   });
-  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return luminance > 0.55 ? '17 17 17' : '255 255 255';
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+}
+
+function readableInk(hex: string): string {
+  const l = luminance(hex);
+  if (l === null) return '255 255 255';
+  return l > 0.55 ? '17 17 17' : '255 255 255';
+}
+
+/** A dark page ground — the template is a dark design, not a light one. */
+export function isDark(hex: string): boolean {
+  const l = luminance(hex);
+  return l !== null && l < 0.18;
 }
 
 const RADIUS_SCALE: Record<TemplateTheme['radius'], string> = {
@@ -119,22 +130,30 @@ export function templateCssVariables(
 
   const ground = templateTheme.surfaceColor;
   const ink = templateTheme.contentColor;
+  const dark = isDark(ground);
 
   return {
     '--color-primary': toRgbChannels(primary),
     '--color-primary-fg': readableInk(primary),
-    '--color-primary-soft': mix(primary, '#ffffff', 0.9),
+    // A tint of the brand colour for selected states and soft panels. On a
+    // dark ground it is mixed towards the ground, not towards white — a
+    // near-white chip on a near-black page is a hole in the design.
+    '--color-primary-soft': mix(primary, dark ? ground : '#ffffff', dark ? 0.82 : 0.9),
     '--color-accent': toRgbChannels(accent),
     '--color-accent-fg': readableInk(accent),
 
-    // Cards sit on white; the page ground carries the template's tint.
-    '--color-surface': toRgbChannels('#ffffff'),
+    // On a light template, cards sit on white and the page ground carries the
+    // tint. On a dark one (Lumen, Orbit) "white" would put light ink on a
+    // white card — unreadable — so cards are the ground lifted a few steps.
+    '--color-surface': dark ? mix(ground, '#ffffff', 0.05) : toRgbChannels('#ffffff'),
     '--color-surface-muted': toRgbChannels(ground),
-    '--color-surface-raised': toRgbChannels('#ffffff'),
-    '--color-border': mix(ground, ink, 0.14),
+    '--color-surface-raised': dark ? mix(ground, '#ffffff', 0.09) : toRgbChannels('#ffffff'),
+    '--color-border': mix(ground, ink, dark ? 0.18 : 0.14),
     '--color-text': toRgbChannels(ink),
-    '--color-text-muted': mix(ink, ground, 0.42),
-    '--color-text-subtle': mix(ink, ground, 0.6),
+    // Secondary ink stays above ~4.5:1 (muted) and ~3:1 (subtle) against the
+    // ground: prices, ratings and captions live in these, so they cannot fade.
+    '--color-text-muted': mix(ink, ground, 0.34),
+    '--color-text-subtle': mix(ink, ground, 0.5),
 
     '--radius': RADIUS_SCALE[radius] ?? '10px',
 

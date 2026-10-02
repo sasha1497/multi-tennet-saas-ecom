@@ -19,7 +19,10 @@ export function PreviewRibbon({ templateName }: { templateName: string }) {
   return (
     <div
       role="status"
-      className="sticky top-0 z-[1400] flex items-center justify-center gap-3 bg-content px-4 py-2 text-center text-[13px] font-medium text-white print:hidden"
+      // A fixed neutral palette, not the template's ink: on a dark design the
+      // ink is near-white, and white text on it disappears. In the flow rather
+      // than sticky, so it never sits on top of the store's own sticky header.
+      className="relative z-[1400] flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-neutral-950 px-4 py-2 text-center text-[13px] font-medium text-white print:hidden"
       data-preview-ribbon
     >
       <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

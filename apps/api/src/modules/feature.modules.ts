@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { CartController } from './cart/cart.controller';
 import { BillingService } from './billing/billing.service';
+import { PublicPlansController } from './billing/public-plans.controller';
 import { AiService } from './ai/ai.service';
 import { PRODUCT_SUGGESTION_PROVIDER } from './ai/ai-provider';
 import { AnthropicProductProvider } from './ai/anthropic.provider';
@@ -162,6 +163,7 @@ export class StorefrontModule {}
  * Two different money flows, two different gateway accounts.
  */
 @Module({
+  controllers: [PublicPlansController],
   providers: [BillingService],
   exports: [BillingService],
 })

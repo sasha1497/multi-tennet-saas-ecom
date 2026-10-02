@@ -20,8 +20,8 @@ export default async function HomePage() {
   const bootstrap = await loadStorefront();
   if (!bootstrap) return null; // The layout already rendered the "no store" page.
 
-  const { sections } = activeTemplate(bootstrap);
-  const data = await loadSectionData(bootstrap, sections);
+  const { sections, isPreview } = activeTemplate(bootstrap);
+  const data = await loadSectionData(bootstrap, sections, { isPreview });
 
   return <TemplateSections sections={sections} data={data} />;
 }

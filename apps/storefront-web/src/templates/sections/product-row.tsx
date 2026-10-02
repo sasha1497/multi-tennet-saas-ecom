@@ -256,9 +256,12 @@ export function ProductRowSection({
           </Reveal>
 
           {rest.length > 0 && (
+            // Centred under the lead and sized to the count, so a store with
+            // two products gets a balanced pair rather than two cards stranded
+            // at the left of a five-column grid.
             <RevealGroup
               as="ul"
-              className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
+              className="mx-auto mt-6 grid max-w-4xl justify-center gap-3 [grid-template-columns:repeat(auto-fit,minmax(9.25rem,13rem))]"
               step={55}
             >
               {rest.slice(0, 5).map((product) => (

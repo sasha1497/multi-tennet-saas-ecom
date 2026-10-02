@@ -479,4 +479,59 @@ describe('Storage isolation and uploads (e2e)', () => {
       expect(res.status).toBe(404);
     });
   });
+
+  // ===================================================================
+  // Branding URLs are re-signed on read, never served expired
+  // ===================================================================
+  describe('store branding images', () => {
+    let originalLogo: string | null = null;
+
+    afterAll(async () => {
+      await onHost(app, TENANTS.kickzone.host)
+        .patch('/merchant/store')
+        .set('Authorization', `Bearer ${kickzoneOwner.token}`)
+        .send({ logoUrl: originalLogo });
+    });
+
+    it('serves a freshly signed logo even when the stored URL has expired', async () => {
+      const before = await onHost(app, TENANTS.kickzone.host)
+        .get('/merchant/store')
+        .set('Authorization', `Bearer ${kickzoneOwner.token}`);
+      originalLogo = before.body.data.logoUrl;
+
+      const stored = await storage.upload({
+        buffer: PNG,
+        originalName: 'logo.png',
+        mimeType: 'image/png',
+        tenantId: kickzoneTenantId,
+        folder: 'branding',
+      });
+      // What a merchant's browser saved after an upload: a presigned URL, here
+      // made unmistakably stale.
+      const stale = `${(await storage.signedUrl(kickzoneTenantId, stored.key, 1)).split('?')[0]}?X-Amz-Date=20200101T000000Z&X-Amz-Expires=1`;
+
+      await onHost(app, TENANTS.kickzone.host)
+        .patch('/merchant/store')
+        .set('Authorization', `Bearer ${kickzoneOwner.token}`)
+        .send({ logoUrl: stale })
+        .expect(200);
+
+      const res = await onHost(app, TENANTS.kickzone.host).get('/store');
+      const logo = res.body.data.store.logoUrl as string;
+      expect(logo).not.toBe(stale);
+      expect(logo).toContain(stored.key);
+    });
+
+    it("never re-signs a URL that points at another tenant's object", async () => {
+      const theirs = `http://localhost:9100/retailos-media/tenants/${kumarTenantId}/branding/x.png?X-Amz-Date=20200101T000000Z`;
+      await onHost(app, TENANTS.kickzone.host)
+        .patch('/merchant/store')
+        .set('Authorization', `Bearer ${kickzoneOwner.token}`)
+        .send({ logoUrl: theirs })
+        .expect(200);
+
+      const res = await onHost(app, TENANTS.kickzone.host).get('/store');
+      expect(res.body.data.store.logoUrl).toBe(theirs);
+    });
+  });
 });

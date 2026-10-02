@@ -10,6 +10,7 @@ import { Badge, Button, cn, useToast } from '@retailos/ui';
 import { api } from '@/lib/api';
 import { useStore } from '@/lib/store-context';
 import { useTemplate } from '@/templates/context';
+import { Turntable } from '@/templates/three/turntable';
 
 /**
  * Gallery + variant selection + add to bag, in four arrangements.
@@ -30,8 +31,8 @@ export function ProductPurchasePanel({
   currency: string;
   store: StoreSettings;
 }) {
-  const { addToCart, customer } = useStore();
-  const { layout } = useTemplate();
+  const { addToCart, customer, bootstrap } = useStore();
+  const { layout, isPreview } = useTemplate();
   const toast = useToast();
   const router = useRouter();
 
@@ -106,6 +107,12 @@ export function ProductPurchasePanel({
   const variant = layout.productDetail;
   const stacked = variant === 'stackedGallery';
   const immersive = variant === 'immersive';
+  // The turntable is the 3D family's product page. It upgrades the ordinary
+  // image only for a store entitled to 3D (or a merchant previewing one).
+  const turntable = variant === 'turntable';
+  const allow3d = bootstrap.features.templates_3d === true || isPreview;
+  const [aw, ah] = layout.productAspect.split('/').map((n) => Number(n.trim()));
+  const aspect = aw && ah ? aw / ah : 1;
 
   // ── Gallery ─────────────────────────────────────────────────────────────
   const gallery = (
@@ -119,7 +126,21 @@ export function ProductPurchasePanel({
         )}
       >
         <div style={{ aspectRatio: immersive ? '4 / 3' : layout.productAspect }}>
-          {activeImage ? (
+          {turntable && images.length > 0 ? (
+            <Turntable
+              images={images.map((image) => image.url)}
+              index={imageIndex}
+              aspect={aspect}
+              enabled={allow3d}
+            >
+              <img
+                src={activeImage ?? images[0]!.url}
+                alt={product.name}
+                className="h-full w-full object-cover"
+                fetchPriority="high"
+              />
+            </Turntable>
+          ) : activeImage ? (
             <img
               src={activeImage}
               alt={product.name}
@@ -373,11 +394,21 @@ export function ProductPurchasePanel({
   // floats over its lower third on a wide screen. The premium templates' detail
   // layout. On a phone it falls back to the ordinary stack, because a panel
   // overlaying a 375px-wide image would cover the product entirely.
+  //
+  // The bleed is exactly the page container's own gutter (`px-4`): anything
+  // wider pushes the document into horizontal scroll at laptop widths, where
+  // the container already fills the viewport. The panel sits above the
+  // thumbnail strip rather than on top of it.
   if (variant === 'immersive') {
     return (
       <div className="lg:relative">
-        <div className="lg:-mx-6 xl:-mx-12">{gallery}</div>
-        <div className="mt-8 lg:absolute lg:inset-x-0 lg:bottom-0 lg:mt-0 lg:flex lg:justify-end lg:px-6 xl:px-12">
+        <div className="lg:-mx-4">{gallery}</div>
+        <div
+          className={cn(
+            'mt-8 lg:absolute lg:inset-x-0 lg:mt-0 lg:flex lg:justify-end lg:px-6',
+            images.length > 1 ? 'lg:bottom-[5.75rem]' : 'lg:bottom-6',
+          )}
+        >
           <div className="lg:w-[26rem] lg:rounded-[calc(var(--radius)*1.5)] lg:bg-surface/95 lg:p-8 lg:shadow-2xl lg:backdrop-blur">
             {buyBox}
           </div>

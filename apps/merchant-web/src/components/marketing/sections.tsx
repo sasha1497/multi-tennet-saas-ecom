@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   ArrowRight,
   BadgePercent,
@@ -32,7 +33,8 @@ import { TEMPLATES } from '@retailos/templates';
 import { cn } from '@retailos/ui';
 import { Section, SectionHead } from './chrome';
 import { BrowserFrame, ConsolePreview, TemplateThumb } from './previews';
-import { MARKETING_PLANS, formatLimit, formatStorage } from './plans';
+import { PLAN_COPY, formatLimit, formatStorage } from './plans';
+import { api } from '@/lib/api';
 
 /* ===========================================================================
  * Hero
@@ -493,13 +495,19 @@ export function Features() {
 
 export function Pricing() {
   const [yearly, setYearly] = useState(false);
+  // Prices come from the plans table, never from this file.
+  const { data: plans, isError } = useQuery({
+    queryKey: ['public-plans'],
+    queryFn: () => api().plans.list(),
+    staleTime: 5 * 60_000,
+  });
 
   return (
     <Section id="pricing" tone="muted">
       <SectionHead
         eyebrow="Pricing"
-        title="Start free. Pay when it pays for itself."
-        description="Every plan includes the storefront, the catalogue, orders and the console. The difference is how much room you have."
+        title="Pick a plan. Try it free for two weeks."
+        description="Every plan includes the storefront, the catalogue, orders and the console. Move up or down whenever you like — your shop stays exactly as it is."
       />
 
       <div className="mt-8 flex justify-center">
@@ -533,8 +541,32 @@ export function Pricing() {
         </div>
       </div>
 
-      <div className="mt-10 grid gap-5 lg:grid-cols-4">
-        {MARKETING_PLANS.map((plan) => {
+      {!plans && !isError && (
+        <div className="mt-10 grid gap-5 lg:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-[520px] animate-pulse rounded-2xl border border-line bg-surface" />
+          ))}
+        </div>
+      )}
+      {isError && (
+        <p className="mt-10 text-center text-sm text-content-muted">
+          Prices could not be loaded just now.{' '}
+          <Link href="/register" className="font-semibold text-primary">
+            Start your free trial
+          </Link>{' '}
+          and see every plan inside the console.
+        </p>
+      )}
+
+      <div className="mt-10 grid gap-5 lg:grid-cols-3">
+        {(plans ?? []).map((row) => {
+          const copy = PLAN_COPY[row.code];
+          const plan = {
+            ...row,
+            pitch: copy?.pitch ?? row.description ?? '',
+            highlights: copy?.highlights ?? [],
+            featured: copy?.featured ?? false,
+          };
           const price = yearly ? plan.priceYearly : plan.priceMonthly;
           return (
             <article
@@ -576,26 +608,26 @@ export function Pricing() {
                     : 'border border-line text-content hover:bg-surface-muted',
                 )}
               >
-                {plan.code === 'ENTERPRISE' ? 'Get started' : 'Create your store'}
+                {plan.trialDays > 0 ? 'Start free trial' : 'Create your store'}
               </Link>
 
               <dl className="mt-6 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-line pt-5 text-sm">
                 <div>
                   <dt className="text-content-subtle">Products</dt>
-                  <dd className="nums font-medium text-content">{formatLimit(plan.limits.products)}</dd>
+                  <dd className="nums font-medium text-content">{formatLimit(plan.limits.max_products)}</dd>
                 </div>
                 <div>
                   <dt className="text-content-subtle">Orders / month</dt>
-                  <dd className="nums font-medium text-content">{formatLimit(plan.limits.orders)}</dd>
+                  <dd className="nums font-medium text-content">{formatLimit(plan.limits.max_orders_per_month)}</dd>
                 </div>
                 <div>
                   <dt className="text-content-subtle">Staff</dt>
-                  <dd className="nums font-medium text-content">{formatLimit(plan.limits.staff)}</dd>
+                  <dd className="nums font-medium text-content">{formatLimit(plan.limits.max_staff)}</dd>
                 </div>
                 <div>
                   <dt className="text-content-subtle">Storage</dt>
                   <dd className="nums font-medium text-content">
-                    {formatStorage(plan.limits.storageMb)}
+                    {formatStorage(plan.limits.max_storage_mb)}
                   </dd>
                 </div>
               </dl>

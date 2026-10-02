@@ -117,7 +117,7 @@ export function SiteHeader() {
       <span
         className={cn(
           'heading truncate',
-          solid ? 'text-content' : 'text-white',
+          solid ? 'text-content' : 'text-content lg:text-white',
           minimal
             ? 'text-lg tracking-[0.2em] sm:text-xl'
             : stacked
@@ -200,7 +200,7 @@ export function SiteHeader() {
     'rounded-[var(--radius)] p-2 transition-colors',
     solid
       ? 'text-content-muted hover:bg-surface-muted hover:text-content'
-      : 'text-white/85 hover:bg-white/10 hover:text-white',
+      : 'text-content-muted hover:bg-surface-muted hover:text-content lg:text-white/85 lg:hover:bg-white/10 lg:hover:text-white',
   );
 
   const actions = (
@@ -278,8 +278,11 @@ export function SiteHeader() {
           masthead ? 'relative border-b' : floating ? 'sticky' : 'sticky border-b',
           solid
             ? 'border-line bg-surface/95 backdrop-blur'
-            : // Transparent over the hero: no border, no blur, nothing to see.
-              'border-transparent bg-transparent',
+            : // Transparent over the hero — from `lg` only. Below that the
+              // header carries its own search row and sits *above* the hero,
+              // not on it, so "transparent with white icons" would be white
+              // icons on the page ground: an invisible menu and bag.
+              'border-line bg-surface/95 backdrop-blur lg:border-transparent lg:bg-transparent lg:backdrop-blur-none',
           floating && scrolled && 'border-b border-line shadow-sm',
         )}
       >
@@ -400,7 +403,7 @@ export function SiteHeader() {
               onClick={() => setMobileOpen(true)}
               className={cn(
                 'flex items-center gap-2.5 text-[11px] uppercase tracking-[0.25em] transition-opacity hover:opacity-60',
-                solid ? 'text-content' : 'text-white',
+                solid ? 'text-content' : 'text-content lg:text-white',
               )}
             >
               <Menu className="h-4 w-4" aria-hidden="true" />
@@ -412,7 +415,7 @@ export function SiteHeader() {
                 href={customer ? '/account' : '/login'}
                 className={cn(
                   'hidden p-2 transition-opacity hover:opacity-60 sm:block',
-                  solid ? 'text-content' : 'text-white',
+                  solid ? 'text-content' : 'text-content lg:text-white',
                 )}
                 aria-label={customer ? 'Your account' : 'Sign in'}
               >
@@ -422,7 +425,7 @@ export function SiteHeader() {
                 href="/cart"
                 className={cn(
                   'relative p-2 transition-opacity hover:opacity-60',
-                  solid ? 'text-content' : 'text-white',
+                  solid ? 'text-content' : 'text-content lg:text-white',
                 )}
                 aria-label={`Bag, ${itemCount} item${itemCount === 1 ? '' : 's'}`}
               >

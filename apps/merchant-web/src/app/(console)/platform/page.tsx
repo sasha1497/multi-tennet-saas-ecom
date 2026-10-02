@@ -234,7 +234,13 @@ function CreateTenantModal({ open, onClose }: { open: boolean; onClose: () => vo
     ownerEmail: '',
     ownerFirstName: '',
     ownerLastName: '',
-    planCode: 'FREE',
+    planCode: 'STARTER',
+  });
+  // The plan list is the plans table, not a copy of it in the console.
+  const { data: plans } = useQuery({
+    queryKey: ['platform-plans'],
+    queryFn: () => api().platform.plans(),
+    enabled: open,
   });
   const [tempPassword, setTempPassword] = useState<string | null>(null);
 
@@ -262,7 +268,7 @@ function CreateTenantModal({ open, onClose }: { open: boolean; onClose: () => vo
 
   const close = () => {
     setTempPassword(null);
-    setForm({ name: '', slug: '', ownerEmail: '', ownerFirstName: '', ownerLastName: '', planCode: 'FREE' });
+    setForm({ name: '', slug: '', ownerEmail: '', ownerFirstName: '', ownerLastName: '', planCode: 'STARTER' });
     onClose();
   };
 
@@ -342,12 +348,12 @@ function CreateTenantModal({ open, onClose }: { open: boolean; onClose: () => vo
           label="Plan"
           value={form.planCode}
           onChange={(e) => setForm({ ...form, planCode: e.target.value })}
-          options={[
-            { value: 'FREE', label: 'Free' },
-            { value: 'STARTER', label: 'Starter' },
-            { value: 'PRO', label: 'Pro' },
-            { value: 'ENTERPRISE', label: 'Enterprise' },
-          ]}
+          options={(plans ?? [])
+            .filter((plan) => plan.isActive)
+            .map((plan) => ({
+              value: plan.code,
+              label: plan.isPublic ? plan.name : `${plan.name} (not on sale)`,
+            }))}
         />
         <p className="text-xs text-content-subtle">
           Creating a store provisions a dedicated PostgreSQL database, runs the tenant migrations and

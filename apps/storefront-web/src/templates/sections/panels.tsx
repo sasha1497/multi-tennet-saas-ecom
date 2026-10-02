@@ -283,7 +283,7 @@ export function CollectionBannerSection({
     case 'splitFrame':
       return (
         <Section>
-          <div className="grid overflow-hidden rounded-[var(--radius)] bg-content text-white lg:grid-cols-2">
+          <div className="grid overflow-hidden rounded-[var(--radius)] bg-neutral-950 text-white lg:grid-cols-2">
             <div className="relative min-h-[220px] lg:min-h-[340px]">
               <img
                 src={banner.imageUrl}

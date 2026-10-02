@@ -375,6 +375,37 @@ export class StorageService {
     return this.provider.signedUrl(key, this.config.storage.presignedUrlExpiry);
   }
 
+  /**
+   * A display URL that is still valid, for a URL that may have been stored.
+   *
+   * Store branding (logo, favicon, banners) is saved as a URL string, and in a
+   * private bucket the URL an upload hands back is *presigned* — so a stored
+   * one stops working `PRESIGNED_URL_EXPIRY` seconds later. When `url` points
+   * at an object under this tenant's own prefix, this returns a freshly
+   * minted `readUrl` for it; any other URL (a CDN, an external image) comes
+   * back unchanged. Never resolves another tenant's object: the prefix check
+   * is the same one `assertOwnership` applies.
+   */
+  async refreshUrl(tenantId: string, url: string | null): Promise<string | null> {
+    if (!url) return url;
+    const key = this.ownKeyFromUrl(tenantId, url);
+    return key ? this.readUrl(tenantId, key) : url;
+  }
+
+  private ownKeyFromUrl(tenantId: string, url: string): string | null {
+    let path: string;
+    try {
+      path = decodeURIComponent(new URL(url).pathname);
+    } catch {
+      return null;
+    }
+    const prefix = `tenants/${tenantId}/`;
+    const at = path.indexOf(`/${prefix}`);
+    if (at === -1) return null;
+    const key = path.slice(at + 1);
+    return key.split('/').includes('..') ? null : key;
+  }
+
   /** `readUrl` for many keys at once, preserving order. */
   async readUrls(tenantId: string, keys: readonly string[]): Promise<string[]> {
     return Promise.all(keys.map((key) => this.readUrl(tenantId, key)));

@@ -31,12 +31,13 @@ export function CategoriesSection({
       return (
         <Section>
           <SectionHeading title={section.title ?? 'Categories'} subtitle={section.subtitle} />
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Two up on a phone: six full-width 4:3 tiles is a 1,800px stack. */}
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3">
             {categories.slice(0, 6).map((category) => (
               <Link
                 key={category.id}
                 href={`/products?category=${category.slug}`}
-                className="group relative isolate flex aspect-[4/3] items-end overflow-hidden bg-content"
+                className="group relative isolate flex aspect-[4/5] min-w-0 items-end overflow-hidden bg-neutral-900 sm:aspect-[4/3]"
               >
                 {/* Absolutely positioned: the tile is a flex container whose
                     caption sits at the bottom, so the artwork has to be taken
@@ -52,8 +53,10 @@ export function CategoriesSection({
                   aria-hidden="true"
                   className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"
                 />
-                <span className="relative w-full p-5">
-                  <span className="heading block text-lg text-white">{category.name}</span>
+                <span className="relative w-full min-w-0 p-3.5 sm:p-5">
+                  <span className="heading block break-words text-[15px] text-white sm:text-lg">
+                    {category.name}
+                  </span>
                   {typeof category.productCount === 'number' && (
                     <span className="mt-0.5 block text-xs text-white/70 tabular">
                       {category.productCount} items
@@ -290,7 +293,7 @@ export function CategoriesSection({
                 <Reveal delay={Math.min(i, 4) * 80}>
                   <Link
                     href={`/products?category=${category.slug}`}
-                    className="group relative block aspect-[4/5] overflow-hidden rounded-[var(--radius)] bg-content"
+                    className="group relative block aspect-[4/5] overflow-hidden rounded-[var(--radius)] bg-neutral-900"
                   >
                     <span className="absolute inset-0">
                       <CategoryImage
@@ -503,12 +506,26 @@ function CategoryImage({
   // gradient: a saturated two-colour ramp behind every un-photographed category
   // reads as decoration a designer did not choose, and it fights the scrim that
   // the caption needs to stay legible.
+  //
+  // It is always a *dark* wash, tinted towards the brand colour: every large
+  // tile captions in white over a scrim, and on a dark template the ink is
+  // near-white — a wash of the ink there was a blank pale tile with white
+  // text on it. A faint hairline monogram keeps a row of them from reading as
+  // empty boxes.
   if (fill) {
     return (
       <span
-        className={cn('block h-full w-full bg-content/10', className)}
+        className={cn('relative block h-full w-full overflow-hidden', className)}
+        style={{ backgroundColor: 'color-mix(in srgb, rgb(var(--color-primary)) 28%, #101012)' }}
         aria-hidden="true"
-      />
+      >
+        <span
+          className="heading absolute -right-[0.08em] -top-[0.18em] select-none text-[clamp(6rem,22vw,11rem)] leading-none text-transparent"
+          style={{ WebkitTextStroke: '1px rgb(255 255 255 / 0.14)' }}
+        >
+          {category.name.charAt(0).toUpperCase()}
+        </span>
+      </span>
     );
   }
 

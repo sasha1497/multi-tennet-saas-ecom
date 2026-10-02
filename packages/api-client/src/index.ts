@@ -18,3 +18,4 @@ export * from './resources/auth';
 export * from './resources/storefront';
 export * from './resources/merchant';
 export * from './resources/platform';
+export * from './resources/plans';

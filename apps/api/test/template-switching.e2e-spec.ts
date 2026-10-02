@@ -98,7 +98,28 @@ describe('Template switching (e2e)', () => {
       inventory: items<{ variantId: string; available: number }>(inventory.body)
         .map((i) => ({ variantId: i.variantId, available: i.available }))
         .sort((a, b) => a.variantId.localeCompare(b.variantId)),
-      settings: businessSettings,
+      settings: withStableMedia(businessSettings),
+    };
+  }
+
+  /**
+   * Branding images in the store's own storage are served as presigned URLs,
+   * re-signed on read so they never expire. The signature carries a timestamp,
+   * so the same unchanged logo has a new query string after any cache refresh.
+   * What must not change is *which object* it is — so compare without the
+   * signature.
+   */
+  function withStableMedia(settings: Record<string, unknown>): Record<string, unknown> {
+    const strip = (url: unknown) =>
+      typeof url === 'string' && url.includes('X-Amz-Signature') ? url.split('?')[0] : url;
+    return {
+      ...settings,
+      logoUrl: strip(settings.logoUrl),
+      faviconUrl: strip(settings.faviconUrl),
+      banners: ((settings.banners as { imageUrl?: string }[] | undefined) ?? []).map((b) => ({
+        ...b,
+        imageUrl: strip(b.imageUrl),
+      })),
     };
   }
 

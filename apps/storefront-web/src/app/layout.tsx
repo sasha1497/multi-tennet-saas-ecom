@@ -5,7 +5,7 @@ import { StorefrontFrame } from '@/components/frame';
 import { StoreClosed } from '@/components/store-closed';
 import { currentHost, loadStorefront } from '@/lib/server-api';
 import { activeTemplate } from '@/templates/resolve-server';
-import { templateCssVariables } from '@/templates/theme';
+import { isDark, templateCssVariables } from '@/templates/theme';
 
 /**
  * The type palette every template draws from.
@@ -58,7 +58,9 @@ export async function generateMetadata(): Promise<Metadata> {
     description: store.tagline ?? store.description ?? `Shop online at ${store.storeName}.`,
     // A store that is not published yet must not be indexed.
     robots: store.isPublished ? { index: true, follow: true } : { index: false, follow: false },
-    icons: store.faviconUrl ? { icon: store.faviconUrl } : undefined,
+    // A store without its own favicon gets a neutral bag mark rather than a
+    // 404 on every page view.
+    icons: { icon: store.faviconUrl ?? '/favicon.svg' },
     openGraph: {
       title: store.storeName,
       description: store.tagline ?? undefined,
@@ -105,7 +107,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       // the root element, which every component already reads. One deployment,
       // N designs, no rebuild, and server-rendered, so there is no flash of the
       // wrong design on first paint.
-      style={templateCssVariables(template.theme, data.store) as React.CSSProperties}
+      style={
+        {
+          ...templateCssVariables(template.theme, data.store),
+          // Native controls, scrollbars and autofill follow the design's ground.
+          colorScheme: isDark(template.theme.surfaceColor) ? 'dark' : 'light',
+        } as React.CSSProperties
+      }
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-surface-muted antialiased">

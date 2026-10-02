@@ -17,6 +17,7 @@ import {
 } from '@retailos/ui';
 import { api } from '@/lib/api';
 import { paiseToRupees, rupeesToPaise, useErrorToast } from '@/lib/hooks';
+import { AiProductAssist } from './ai-product-assist';
 import { ProductImageEditor, toEditorImages, type EditorImage } from './product-images';
 
 interface VariantRow {
@@ -61,6 +62,8 @@ export function ProductForm({ product }: { product?: Product }) {
     taxRateBps: product?.taxRateBps != null ? String(product.taxRateBps / 100) : '',
     hsnCode: product?.hsnCode ?? '',
     tags: (product?.tags ?? []).join(', '),
+    metaTitle: product?.metaTitle ?? '',
+    metaDescription: product?.metaDescription ?? '',
   });
 
   const [images, setImages] = useState<EditorImage[]>(
@@ -105,6 +108,8 @@ export function ProductForm({ product }: { product?: Product }) {
     // The form takes a percentage; the API stores basis points.
     taxRateBps: basics.taxRateBps ? Math.round(Number(basics.taxRateBps) * 100) : null,
     hsnCode: basics.hsnCode.trim() || null,
+    metaTitle: basics.metaTitle.trim() || null,
+    metaDescription: basics.metaDescription.trim() || null,
     tags: basics.tags
       .split(',')
       .map((t) => t.trim())
@@ -282,6 +287,48 @@ export function ProductForm({ product }: { product?: Product }) {
         />
         <CardBody>
           <ProductImageEditor images={images} onChange={setImages} productId={product?.id} />
+          <AiProductAssist
+            objectKey={images.find((image) => image.objectKey)?.objectKey ?? null}
+            onApply={(draft) => {
+              // A draft fills the form; the merchant is still the one who saves.
+              // The category is only ever one the store already has.
+              setBasics((prev) => ({
+                ...prev,
+                name: draft.name || prev.name,
+                shortDescription: draft.shortDescription || prev.shortDescription,
+                description: draft.description || prev.description,
+                categoryId: draft.categoryId ?? prev.categoryId,
+                tags: draft.tags.length ? draft.tags.join(', ') : prev.tags,
+                metaTitle: draft.metaTitle || prev.metaTitle,
+                metaDescription: draft.metaDescription || prev.metaDescription,
+              }));
+              toast.success('Details drafted from your photo', 'Review the fields before saving.');
+            }}
+          />
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Search engine listing"
+          description="How this product appears on Google. Left blank, the name and short description are used."
+        />
+        <CardBody className="space-y-4">
+          <Input
+            label="Page title"
+            value={basics.metaTitle}
+            onChange={(e) => setBasics({ ...basics, metaTitle: e.target.value })}
+            maxLength={160}
+            hint={`${basics.metaTitle.length}/60 recommended`}
+          />
+          <Textarea
+            label="Meta description"
+            rows={2}
+            value={basics.metaDescription}
+            onChange={(e) => setBasics({ ...basics, metaDescription: e.target.value })}
+            maxLength={320}
+            hint={`${basics.metaDescription.length}/155 recommended`}
+          />
         </CardBody>
       </Card>
 

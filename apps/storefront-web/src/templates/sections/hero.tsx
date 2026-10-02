@@ -5,6 +5,7 @@ import { cn } from '@retailos/ui';
 import { primaryBanner, type SectionData } from '../data';
 import { Parallax, Reveal, RevealWords } from '../motion';
 import { GridField, Ornament, Paw, PawField, StageGlow } from '../components/decor';
+import { OrbitHero, PrismHero, type HeroProduct } from '../three/heroes';
 
 /**
  * The opening statement, in eleven voices.
@@ -34,13 +35,29 @@ export function HeroSection({ section, data }: { section: TemplateSection; data:
   const image = banner?.imageUrl ?? null;
 
   switch (section.variant) {
+    // ── 3D family: a complete 2D composition, upgraded to WebGL client-side
+    //    where the store is entitled and the device can carry it. ─────────────
+    case 'orbit3d':
+    case 'prism3d': {
+      const props = {
+        title,
+        subtitle,
+        ctaLabel,
+        ctaHref,
+        storeName: store.storeName,
+        products: heroProducts(data),
+        allow3d: data.allow3d,
+      };
+      return section.variant === 'orbit3d' ? <OrbitHero {...props} /> : <PrismHero {...props} />;
+    }
+
     // ── Full bleed: image behind, type on top. Urban Luxe. ─────────────────
     case 'fullBleed':
       return (
         // Height is clamped rather than a bare `vh`: the same markup renders in
         // a phone, a laptop and the console's 375px preview frame, and a hero
         // that is two thirds of a very tall window is just a wall.
-        <section className="relative isolate min-h-[clamp(440px,66vh,700px)] overflow-hidden bg-content text-white">
+        <section className="relative isolate min-h-[clamp(440px,66vh,700px)] overflow-hidden bg-neutral-950 text-white">
           {image ? (
             <img
               src={image}
@@ -577,7 +594,7 @@ export function HeroSection({ section, data }: { section: TemplateSection; data:
     // ── Manifesto: one held image, one sentence, nothing else. Maison. ─────
     case 'manifesto':
       return (
-        <section className="relative isolate flex min-h-[clamp(600px,92vh,940px)] items-center justify-center overflow-hidden bg-content text-white">
+        <section className="relative isolate flex min-h-[clamp(600px,92vh,940px)] items-center justify-center overflow-hidden bg-neutral-950 text-white">
           <Parallax strength={0.1} className="absolute inset-0 scale-105">
             {image ? (
               <img src={image} alt="" fetchPriority="high" className="h-full w-full object-cover" />
@@ -712,7 +729,7 @@ export function HeroSection({ section, data }: { section: TemplateSection; data:
                 the whole page into horizontal scroll with it. */}
             <div className="grid gap-3 sm:grid-cols-6 sm:grid-rows-[auto_auto] sm:gap-4 lg:h-[34rem] lg:grid-rows-2">
               {/* Statement tile */}
-              <div className="flex min-w-0 flex-col justify-between rounded-[calc(var(--radius)*1.6)] bg-content p-6 text-white sm:col-span-4 sm:row-span-1 sm:p-8 lg:p-10">
+              <div className="flex min-w-0 flex-col justify-between rounded-[calc(var(--radius)*1.6)] bg-neutral-950 p-6 text-white sm:col-span-4 sm:row-span-1 sm:p-8 lg:p-10">
                 <div className="min-w-0">
                   <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/80">
                     <Sparkles className="h-3 w-3" aria-hidden="true" />
@@ -848,4 +865,17 @@ export function HeroSection({ section, data }: { section: TemplateSection; data:
         </section>
       );
   }
+}
+
+/** Photographed products for a 3D opening: featured first, then newest, no repeats. */
+function heroProducts(data: SectionData): HeroProduct[] {
+  const seen = new Set<string>();
+  const out: HeroProduct[] = [];
+  for (const product of [...data.products.featured, ...data.products.newest, ...data.products.popular]) {
+    if (!product.primaryImageUrl || seen.has(product.id)) continue;
+    seen.add(product.id);
+    out.push({ name: product.name, href: `/products/${product.slug}`, image: product.primaryImageUrl });
+    if (out.length === 10) break;
+  }
+  return out;
 }

@@ -2,6 +2,7 @@ import { HttpClient, HttpClientConfig } from './http';
 import { AuthResource } from './resources/auth';
 import { MerchantResource } from './resources/merchant';
 import { PlatformResource } from './resources/platform';
+import { PlansResource } from './resources/plans';
 import { StorefrontResource } from './resources/storefront';
 
 /**
@@ -14,6 +15,7 @@ export class RetailOSClient {
   readonly storefront: StorefrontResource;
   readonly merchant: MerchantResource;
   readonly platform: PlatformResource;
+  readonly plans: PlansResource;
 
   constructor(config: HttpClientConfig) {
     this.http = new HttpClient(config);
@@ -21,6 +23,7 @@ export class RetailOSClient {
     this.storefront = new StorefrontResource(this.http);
     this.merchant = new MerchantResource(this.http);
     this.platform = new PlatformResource(this.http);
+    this.plans = new PlansResource(this.http);
   }
 }
 

@@ -1,106 +1,68 @@
 /**
- * Public pricing.
+ * Public pricing — the words only.
  *
- * These four plans mirror the `plans` table exactly — codes, prices (in minor
- * units), trial lengths and the `limits` JSON each one carries. They are stated
- * here rather than fetched because the plans endpoint is authenticated: the
- * platform exposes plans to a signed-in merchant and to a super admin, and
- * nothing unauthenticated. Inventing a public endpoint to feed a marketing page
- * would be an API change, which this work does not make.
+ * Prices, trial lengths and limits come from `GET /plans`, which reads the
+ * plans table: a super admin repricing a plan changes this page with no
+ * deploy, and nothing here can drift from what a merchant is actually charged.
  *
- * The trade-off is that this file has to be kept honest by hand. Everything in
- * it is checkable against the seeded plan rows, and nothing is claimed that a
- * plan's feature flags do not actually grant.
+ * What lives here is the copy a database row should not hold: one line of
+ * positioning per plan and the capabilities it leads with. Keyed by plan code;
+ * a plan with no entry still renders, from its own description.
  */
 
-export interface MarketingPlan {
-  code: string;
-  name: string;
-  /** Minor units, as stored. Rendered through `formatMoney`. */
-  priceMonthly: number;
-  priceYearly: number;
-  trialDays: number;
+export interface PlanCopy {
   /** One line of positioning — who the plan is for. */
   pitch: string;
-  /** Straight from the plan's `limits`. `-1` means unlimited. */
-  limits: { products: number; orders: number; staff: number; storageMb: number };
-  /** Capabilities this plan's feature flags actually switch on. */
+  /** What the plan leads with. Every line is something its feature flags grant. */
   highlights: string[];
   featured?: boolean;
 }
 
-export const MARKETING_PLANS: MarketingPlan[] = [
-  {
-    code: 'FREE',
-    name: 'Free',
-    priceMonthly: 0,
-    priceYearly: 0,
-    trialDays: 0,
-    pitch: 'Put a shop online and see how it goes.',
-    limits: { products: 25, orders: 100, staff: 1, storageMb: 100 },
+export const PLAN_COPY: Record<string, PlanCopy> = {
+  STARTER: {
+    pitch: 'Get your shop online with a fast, clean storefront.',
     highlights: [
-      'Your own storefront address',
-      'Product catalogue and orders',
-      'Customer accounts and checkout',
+      'Six standard storefront designs',
+      'Products, categories and stock',
+      'Orders, customers and cash on delivery',
+      'Your own store address with SSL',
+      'AI product upload — 10 a month',
     ],
   },
-  {
-    code: 'STARTER',
-    name: 'Starter',
-    priceMonthly: 49900,
-    priceYearly: 499900,
-    trialDays: 14,
-    pitch: 'For a shop that has started selling every week.',
-    limits: { products: 300, orders: 1000, staff: 3, storageMb: 1000 },
+  GROWTH: {
+    pitch: 'For a shop that sells every day and has a team.',
     highlights: [
-      'Everything in Free',
-      'Coupons and discount codes',
-      'Sales, customer and stock reports',
-      'Up to 3 staff accounts',
+      'Everything in Starter',
+      'All premium storefront designs',
+      'Coupons, marketing and loyalty',
+      'Customer CRM and advanced analytics',
+      'Advanced inventory and push notifications',
+      'AI product upload — 50 a month',
     ],
     featured: true,
   },
-  {
-    code: 'PRO',
-    name: 'Pro',
-    priceMonthly: 149900,
-    priceYearly: 1499900,
-    trialDays: 14,
-    pitch: 'For a growing brand that wants its own address.',
-    limits: { products: 5000, orders: 20000, staff: 15, storageMb: 10000 },
+  PRO: {
+    pitch: 'For a brand that wants to stand out, online and at the counter.',
     highlights: [
-      'Everything in Starter',
-      'Your own custom domain',
-      'Advanced analytics',
-      'Delivery and marketing tools',
-      'Up to 15 staff accounts',
+      'Everything in Growth',
+      '3D storefront designs',
+      'Point of sale and barcode scanning',
+      'Advanced reports and your own domain',
+      'AI business assistant',
+      'AI product upload — 200 a month',
     ],
   },
-  {
-    code: 'ENTERPRISE',
-    name: 'Enterprise',
-    priceMonthly: 499900,
-    priceYearly: 4999900,
-    trialDays: 0,
-    pitch: 'For multi-branch retailers and chains.',
-    limits: { products: -1, orders: -1, staff: -1, storageMb: -1 },
-    highlights: [
-      'Everything in Pro',
-      'Multiple branches',
-      'Point of sale and loyalty',
-      'White-label mobile app',
-      'Unlimited products, orders and staff',
-    ],
-  },
-];
+};
 
 /** `-1` in the plan limits means "no ceiling". */
-export function formatLimit(value: number): string {
+export function formatLimit(value: number | undefined): string {
+  if (value === undefined) return '—';
   return value === -1 ? 'Unlimited' : value.toLocaleString('en-IN');
 }
 
 /** Storage is stored in megabytes; below a gigabyte, say so rather than "0.1 GB". */
-export function formatStorage(megabytes: number): string {
+export function formatStorage(megabytes: number | undefined): string {
+  if (megabytes === undefined) return '—';
   if (megabytes === -1) return 'Unlimited';
   return megabytes < 1000 ? `${megabytes} MB` : `${Math.round(megabytes / 1000)} GB`;
 }

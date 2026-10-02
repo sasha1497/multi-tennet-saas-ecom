@@ -65,7 +65,8 @@ other.
 
 ## The templates
 
-Twelve design languages, not twelve colour schemes. They differ in header
+Fourteen design languages in three families — six standard, six premium and
+the 3D family — not fourteen colour schemes. They differ in header
 arrangement, type, density, grid, card shape, product-detail layout, which
 sections exist at all, and how — or whether — the page moves as you scroll.
 
@@ -115,6 +116,58 @@ A store **never starts** on a premium template. Provisioning picks the highest
 standard match for the business category; premium is a choice made in the
 gallery. A cinematic opening is the wrong first impression for a store that has
 not uploaded a photograph yet.
+
+### 3D
+
+| Id      | Name  | For                                     | The idea                                                                                                                       |
+| ------- | ----- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `orbit` | Orbit | Footwear, streetwear, sport             | The store's own product photos on a ring beneath the headline. Drag to spin, tap to open. Dark, kinetic.                       |
+| `prism` | Prism | Jewellery, cosmetics, fine accessories  | Product plates suspended in soft light; the arrangement leans towards the pointer and a highlight follows it. Pale and quiet. |
+
+Both use the `turntable` product page: the product's photographs on a plate the
+shopper drags to turn.
+
+**3D is a layer over a finished 2D design, never a replacement for one.** Every
+3D variant server-renders a complete 2D composition (a fanned arc, a still
+constellation, the ordinary product image). `templates/three/use-three-scene.ts`
+upgrades it to WebGL only when *all* of these hold:
+
+- the store is entitled to the 3D family (`templates_3d`), or the merchant is previewing
+- a WebGL context can be created
+- no `prefers-reduced-motion`, no Save-Data, no 2G connection
+- not a phone-width screen; `deviceMemory` ≥ 4 and ≥ 4 cores where reported
+- the island has scrolled near the viewport and the main thread is idle
+
+three.js is then fetched by dynamic import — its own chunk, never downloaded by
+a 2D visitor. Scenes are built from the merchant's photographs (no models, no
+stock assets), cap the pixel ratio at 2 and textures at 1024px, pause off-screen
+and in hidden tabs, and dispose every GPU resource on unmount. Any failure —
+a blocked texture, a lost context — leaves the 2D composition in place.
+
+## Families and entitlement
+
+Access is granted **per family, never per template**:
+
+| Family   | Feature key          | First plan |
+| -------- | -------------------- | ---------- |
+| standard | `templates_standard` | Starter    |
+| premium  | `templates_premium`  | Growth     |
+| 3d       | `templates_3d`       | Pro        |
+
+A template added to a family reaches every entitled store at once. The mapping
+lives in `@retailos/templates` (`entitlement.ts`); the rule is enforced by
+`TemplateCatalogService.assertCanActivate`, called from
+`StoreService.updateTemplate` — the console only draws the locks.
+
+**Only activation is gated.** A store already on a template its plan no longer
+includes — after a downgrade, a lapsed payment, or the template being withdrawn
+— keeps rendering it and can keep editing its sections. Nothing is reset. The
+gallery tells the merchant and offers an upgrade; a 3D template on a store
+without `templates_3d` simply renders its 2D composition.
+
+**Publishing.** A super admin can withdraw a template (`PATCH
+/platform/templates/:id`, stored in `template_publications`). It disappears from
+galleries and cannot be newly adopted; stores already on it are untouched.
 
 ### Motion
 
@@ -287,6 +340,7 @@ the real databases:
 | Preview never changes the stored template                                                          | `never changes the stored template`                          |
 | A → B → C → A returns the store to exactly where it started                                        | `returns the store to exactly where it started`              |
 | A merchant's layout survives a round trip                                                          | `remembers a merchant's section layout`                      |
+| A family the plan lacks is refused server-side; a downgrade keeps the live template and all data   | `entitlements-billing.e2e-spec.ts`                           |
 | An unknown template is rejected rather than stored                                                 | `are rejected rather than stored`                            |
 
 `packages/templates/src/resolve.spec.ts` covers the resolver: version pinning,

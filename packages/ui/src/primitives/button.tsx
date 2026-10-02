@@ -16,8 +16,9 @@ export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg' | 'icon';
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
     'bg-primary text-primary-fg hover:brightness-110 active:brightness-95 shadow-xs disabled:hover:brightness-100',
-  secondary:
-    'bg-neutral-100 text-content hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700',
+  // A tint of the ink rather than a fixed grey: a fixed light grey under
+  // theme ink turned into light-on-light on a dark storefront template.
+  secondary: 'bg-content/[0.07] text-content hover:bg-content/[0.12]',
   outline:
     'border border-line bg-surface text-content hover:bg-surface-muted',
   ghost: 'text-content-muted hover:bg-surface-muted hover:text-content',
