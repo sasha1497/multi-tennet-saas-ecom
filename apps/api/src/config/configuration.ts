@@ -142,6 +142,15 @@ export function buildConfig(env: Env) {
         keyId: env.RAZORPAY_KEY_ID,
         keySecret: env.RAZORPAY_KEY_SECRET,
         webhookSecret: env.RAZORPAY_WEBHOOK_SECRET,
+        apiBase: env.RAZORPAY_API_BASE,
+        authBase: env.RAZORPAY_AUTH_BASE,
+        oauth: {
+          clientId: env.RAZORPAY_OAUTH_CLIENT_ID,
+          clientSecret: env.RAZORPAY_OAUTH_CLIENT_SECRET,
+          redirectUri: env.RAZORPAY_OAUTH_REDIRECT_URI,
+          webhookSecret: env.RAZORPAY_OAUTH_WEBHOOK_SECRET,
+          mode: env.RAZORPAY_OAUTH_MODE,
+        },
       },
       mock: {
         webhookSecret: env.MOCK_PAYMENT_WEBHOOK_SECRET,

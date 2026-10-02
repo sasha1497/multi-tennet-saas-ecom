@@ -27,6 +27,7 @@ import { CategoriesService } from '@/modules/catalog/categories.service';
 import { EntitlementsService } from '@/modules/entitlements/entitlements.service';
 import type { PricingStoreConfig } from '@/modules/cart/pricing.service';
 import { TemplateCatalogService } from './template-catalog.service';
+import { PaymentConfigService } from '@/modules/payments/payment-config.service';
 
 @Injectable()
 export class StoreService {
@@ -40,6 +41,7 @@ export class StoreService {
     private readonly audit: AuditService,
     private readonly templateCatalog: TemplateCatalogService,
     private readonly storage: StorageService,
+    private readonly paymentConfig: PaymentConfigService,
   ) {}
 
   /**
@@ -48,10 +50,11 @@ export class StoreService {
    */
   async bootstrap(): Promise<StorefrontBootstrap> {
     const tenant = this.context.requireTenant();
-    const [store, categories, entitlements] = await Promise.all([
+    const [store, categories, entitlements, gatewayReady] = await Promise.all([
       this.getSettings(),
       this.categories.tree(),
       this.entitlements.get(tenant.tenantId),
+      this.paymentConfig.onlineReady(tenant.tenantId),
     ]);
 
     return {
@@ -64,6 +67,9 @@ export class StoreService {
       store,
       categories,
       features: entitlements.features,
+      // The merchant's switch AND a connected gateway: checkout only offers
+      // what will actually work. Never says why — that is for the merchant.
+      onlinePaymentAvailable: store.onlinePaymentEnabled && gatewayReady,
     };
   }
 

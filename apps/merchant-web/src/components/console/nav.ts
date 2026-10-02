@@ -18,6 +18,7 @@ import {
   Tags,
   Users,
   UsersRound,
+  Wallet,
   Wand2,
   type LucideIcon,
 } from 'lucide-react';
@@ -203,8 +204,17 @@ export const NAV_SECTIONS: NavSection[] = [
         keywords: ['billing', 'plan', 'payment', 'upgrade'],
       },
       {
+        href: '/settings/payments',
+        label: 'Payments',
+        icon: Wallet,
+        hint: 'Connect Razorpay — how your customers pay you',
+        permission: Permission.STORE_MANAGE,
+        keywords: ['razorpay', 'gateway', 'upi', 'refund', 'settlement', 'online payment'],
+      },
+      {
         href: '/settings',
         label: 'Account',
+        exact: true,
         icon: Settings,
         hint: 'Your profile and password',
         keywords: ['profile', 'password', 'preferences'],

@@ -37,6 +37,23 @@ export interface RefundParams {
   idempotencyKey: string;
 }
 
+/** Untrusted identifiers read from a webhook body, used only to pick a verification key. */
+export interface WebhookReference {
+  event: string | null;
+  providerOrderId: string | null;
+  providerPaymentId: string | null;
+  accountId: string | null;
+}
+
+export interface GatewayPayment {
+  id: string;
+  /** e.g. created | authorized | captured | refunded | failed. */
+  status: string;
+  orderId: string | null;
+  amount: number;
+  currency: string;
+}
+
 export interface RefundResult {
   providerRefundId: string;
   amount: Money;
@@ -85,7 +102,16 @@ export interface PaymentProviderAdapter {
    * look up a payment route and thereby learn which tenant's secret to verify
    * with — never to authorise anything on its own.
    */
-  extractOrderReference(rawBody: Buffer): string | null;
+  extractReference(rawBody: Buffer): WebhookReference | null;
+
+  /**
+   * Reads a payment back from the gateway, server to server.
+   *
+   * Used after a Checkout callback as a second, independent check: the payment
+   * must exist on THIS store's account, belong to the order we created, and be
+   * for the amount we charged. Optional — the mock gateway has no server.
+   */
+  fetchPayment?(providerPaymentId: string, credentials: PaymentCredentials): Promise<GatewayPayment>;
 
   /**
    * Verifies and normalises a webhook against one tenant's webhook secret.

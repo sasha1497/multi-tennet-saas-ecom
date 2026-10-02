@@ -1,5 +1,63 @@
 # Payments
 
+## Who gets paid
+
+Two money flows that never mix:
+
+| Flow | Payer → payee | Where | Gateway account |
+| --- | --- | --- | --- |
+| Store order payment | shopper → **store** | `modules/payments`, tenant `payments` table | the **store's own** Razorpay account |
+| Subscription | store → retailos | `modules/billing`, master `subscription_invoices` | retailos's account |
+
+A customer's payment is created on the store's Razorpay account, so Razorpay
+settles it to the store's bank. retailos never collects it and takes no share.
+There is no platform commission: Razorpay Partner OAuth has no mechanism for
+one, and inventing a deduction would be fake settlement. retailos earns from
+the subscription.
+
+## Connecting a store: Razorpay Partner OAuth
+
+The default. The merchant clicks **Settings → Payments → Connect Razorpay**,
+approves retailos on Razorpay's own page, and is sent back to the console.
+Endpoints as documented for Technology Partners
+([integration steps](https://razorpay.com/docs/partners/technology-partners/onboard-businesses/integrate-oauth/integration-steps/)):
+
+```
+GET  auth.razorpay.com/authorize   client_id, response_type=code, redirect_uri, scope=read_write, state
+POST auth.razorpay.com/token       authorization_code | refresh_token
+POST auth.razorpay.com/revoke
+```
+
+- `state` is single-use, held in Redis for 10 minutes, and bound to the tenant
+  **and** the user who started it. The callback takes the tenant from it, so a
+  code cannot be attached to another store.
+- We store only the merchant's `razorpay_account_id`, the `public_token`
+  (Checkout key) and the access/refresh tokens, encrypted with the same
+  AES-256-GCM cipher as every credential. **No merchant API secret.**
+- Orders and refunds are created with `Authorization: Bearer <store token>`.
+  Access tokens (90 days) are refreshed 7 days early; a refused refresh moves
+  the store to `ACTION_REQUIRED` and checkout simply stops offering online
+  payment.
+- One Razorpay account can back one store.
+- `account.app.authorization_revoked` (or Disconnect in the console) stops
+  online payment at once. Orders and payments already taken are untouched.
+
+Status shown to the merchant: `NOT_CONNECTED`, `CONNECTED`, `ACTION_REQUIRED`,
+`REVOKED`.
+
+### Manual keys (fallback)
+
+Stores that already pasted their own key id/secret keep working
+(`connection_type = 'keys'`). New stores should connect via OAuth. A store
+connected via OAuth cannot have keys pasted over it without disconnecting.
+
+### The platform fallback is development-only, and never after setup
+
+With no configuration of its own, a store falls back to the platform gateway
+(the mock, locally). That fallback is refused in production, and refused
+everywhere for a store that has **ever** configured its own gateway — a store
+that disconnected must not have its customers pay retailos.
+
 ## Provider abstraction
 
 Payments go through an adapter interface
@@ -81,6 +139,14 @@ payload. A client that edits the price in a request body changes nothing.
 
 This is the check that stops a shopper from marking their own order paid.
 
+- Checkout callback: HMAC-SHA256 of `order_id|payment_id`, keyed by the store's
+  key secret — or, for an OAuth store, by the partner app's `client_secret`, as
+  Razorpay documents for OAuth partners.
+- Then, independently, the payment is **read back from Razorpay** as the store:
+  it must exist on that account, belong to the order we created, match the
+  amount and currency, and be `captured`. An `authorized` payment is recorded
+  as such and confirmed by the `payment.captured` webhook.
+
 - Comparison is constant-time.
 - Malformed input fails closed — a missing or truncated signature is a
   rejection, never a pass.
@@ -99,6 +165,13 @@ This is the check that stops a shopper from marking their own order paid.
 - Unverified webhooks are rejected and logged, not processed.
 - Handling is idempotent: applying a `payment.captured` event twice leaves the
   order in the same state.
+- Payment events are routed by Razorpay order id; refund events carry only the
+  payment id, so `payment_routes.provider_payment_id` is recorded at capture.
+- OAuth stores share one app-level webhook secret
+  (`RAZORPAY_OAUTH_WEBHOOK_SECRET`), so the payload's `account_id` must equal
+  the account the order was created on, or the event is discarded.
+- Handled: `payment.captured`, `order.paid`, `payment.failed`,
+  `refund.processed`, `refund.failed`, `account.app.authorization_revoked`.
 
 Webhooks are the authority, not the client callback. A customer who closes the
 tab after paying still gets a confirmed order, because the webhook arrives
@@ -131,10 +204,21 @@ available.
 
 ## Refunds
 
-`orders.refund` permission required. A refund calls the provider adapter,
-records the result, moves the order to `REFUNDED` and returns reserved or sold
-stock to inventory. `DELIVERED → REFUNDED` and `CANCELLED → REFUNDED` are the
-only legal paths into it.
+`POST /merchant/orders/:id/refund { amount?, reason }`, `orders.refund`
+permission. Full or partial.
+
+1. A `payment_refunds` row is written PENDING *before* Razorpay is called, with
+   an idempotency key Razorpay honours.
+2. The refund is created on the store's account; the row records Razorpay's
+   refund id.
+3. `refund.processed` / `refund.failed` webhooks settle the row; the payment's
+   refunded total is recomputed from the rows, so a failed refund is not
+   counted. Refunds issued from the Razorpay dashboard are recorded too.
+4. A full refund moves the order to `REFUNDED` (and restocks) where the order's
+   lifecycle allows it (`DELIVERED`/`CANCELLED → REFUNDED`).
+
+Marking a paid online order `REFUNDED` through the status endpoint is refused:
+it would record a refund the customer never received.
 
 ## Money
 
@@ -149,16 +233,24 @@ see [ADR-010](DECISION_LOG.md#adr-010).
 ## Configuration
 
 ```bash
-PAYMENT_PROVIDER=razorpay          # or 'mock' in development
+PAYMENT_PROVIDER=mock                  # platform fallback; development only
 PAYMENT_CURRENCY=INR
-RAZORPAY_KEY_ID=...
+RAZORPAY_KEY_ID=...                    # platform fallback keys (dev only)
 RAZORPAY_KEY_SECRET=...
 RAZORPAY_WEBHOOK_SECRET=...
+
+# Razorpay Partner OAuth (retailos as a Technology Partner)
+RAZORPAY_OAUTH_CLIENT_ID=...
+RAZORPAY_OAUTH_CLIENT_SECRET=...
+RAZORPAY_OAUTH_REDIRECT_URI=https://console.example.com/settings/payments/razorpay/callback
+RAZORPAY_OAUTH_WEBHOOK_SECRET=...      # secret of the webhook on the OAuth app
+RAZORPAY_OAUTH_MODE=test               # test | live
 ```
 
-Per-tenant provider configuration lives in `payment_routes` in the master
-database, so a merchant can eventually use their own gateway account and receive
-settlements directly. Keys there are encrypted like any other credential.
+Point the OAuth app's webhook (and any manual-key store's webhook) at
+`POST /api/v1/webhooks/payments/razorpay`. Secrets live in the environment
+only, never in Git; per-store tokens and keys are encrypted in
+`tenant_payment_configs`.
 
 ## Testing locally
 
@@ -181,7 +273,9 @@ curl -s -X POST $API/payments/mock/$PAYID/success | jq -r '.data.status'
 
 ## What is not implemented
 
-- Partial refunds (the model supports the amount; the flow assumes full).
+- A platform commission on store payments (not offered by Partner OAuth; see
+  "Who gets paid").
+- "Pay again" for a pending order after the Checkout window was closed.
 - Saved cards / tokenisation — deliberately out of scope, since it moves the
   system into PCI territory.
 - Subscription billing for merchants is modelled (`plans`, `subscriptions`) but

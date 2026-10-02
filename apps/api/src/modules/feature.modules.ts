@@ -22,6 +22,7 @@ import { OrdersService } from './orders/orders.service';
 import { PaymentsController } from './payments/payments.controller';
 import { PaymentsService } from './payments/payments.service';
 import { PaymentConfigService } from './payments/payment-config.service';
+import { RazorpayOAuthClient } from './payments/razorpay-oauth.client';
 import { PaymentProviderRegistry } from './payments/payment-provider.registry';
 import { MockPaymentProvider } from './payments/providers/mock.provider';
 import { RazorpayProvider } from './payments/providers/razorpay.provider';
@@ -53,7 +54,9 @@ export class InventoryModule {}
 
 @Module({
   imports: [CatalogModule],
-  providers: [StoreService, TemplateCatalogService],
+  // PaymentConfigService is stateless; the storefront bootstrap asks it one
+  // question — can this store take an online payment right now?
+  providers: [StoreService, TemplateCatalogService, PaymentConfigService, RazorpayOAuthClient],
   exports: [StoreService, TemplateCatalogService],
 })
 export class StoreModule {}
@@ -112,6 +115,7 @@ export class NotificationsModule {}
   providers: [
     PaymentsService,
     PaymentConfigService,
+    RazorpayOAuthClient,
     PaymentProviderRegistry,
     MockPaymentProvider,
     RazorpayProvider,

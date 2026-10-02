@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Banknote, CreditCard, MapPin, Plus, Smartphone } from 'lucide-react';
+import { Banknote, CreditCard, Info, Landmark, MapPin, Plus, Smartphone } from 'lucide-react';
 import { formatMoney, INDIAN_STATES } from '@retailos/config';
 import type { Address, PaymentMethod } from '@retailos/types';
 import {
@@ -20,6 +20,7 @@ import {
   useToast,
 } from '@retailos/ui';
 import { api } from '@/lib/api';
+import { openRazorpayCheckout } from '@/lib/razorpay-checkout';
 import { useStore } from '@/lib/store-context';
 
 /** Stable per-attempt key so a double submit cannot create two orders. */
@@ -33,6 +34,8 @@ export default function CheckoutPage() {
   const toast = useToast();
 
   const store = bootstrap.store;
+  // Decided by the server: the store's switch AND a connected gateway.
+  const onlineAvailable = bootstrap.onlinePaymentAvailable;
   const currency = store.currency;
   const money = (v: number) => formatMoney(v, currency);
 
@@ -49,7 +52,7 @@ export default function CheckoutPage() {
     postalCode: '',
   });
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
-    store.codEnabled ? 'COD' : 'UPI',
+    store.codEnabled || !onlineAvailable ? 'COD' : 'UPI',
   );
   const [notes, setNotes] = useState('');
   const [placing, setPlacing] = useState(false);
@@ -139,17 +142,56 @@ export default function CheckoutPage() {
       });
 
       await refreshCart();
+      const orderNumber = result.order.orderNumber;
 
       // COD is confirmed server-side straight away; online payments hand off to
-      // the gateway (locally, the mock checkout page) before confirmation.
+      // the gateway before confirmation. Locally that is the mock checkout page.
       if (result.payment?.checkoutUrl) {
-        router.push(
-          `${result.payment.checkoutUrl}&orderNumber=${encodeURIComponent(result.order.orderNumber)}`,
-        );
+        router.push(`${result.payment.checkoutUrl}&orderNumber=${encodeURIComponent(orderNumber)}`);
         return;
       }
 
-      router.push(`/order-confirmed/${result.order.orderNumber}`);
+      // Razorpay: the order was created on the store's own Razorpay account;
+      // Checkout opens with the store's public key from the server.
+      if (result.payment?.provider === 'razorpay' && result.payment.providerOrderId && result.payment.publicKey) {
+        const outcome = await openRazorpayCheckout({
+          key: result.payment.publicKey,
+          orderId: result.payment.providerOrderId,
+          amount: result.payment.amount,
+          currency: result.payment.currency,
+          storeName: store.storeName,
+          description: `Order ${orderNumber}`,
+          logoUrl: store.logoUrl,
+          prefill: {
+            name: `${customer?.firstName ?? ''} ${customer?.lastName ?? ''}`.trim() || undefined,
+            email: customer?.email ?? null,
+            contact: customer?.phone ?? null,
+          },
+        });
+
+        if (outcome.kind === 'success') {
+          // The server verifies the signature and reads the payment back from
+          // Razorpay; only then is the order confirmed.
+          try {
+            await api().storefront.verifyPayment({
+              paymentId: result.payment.paymentId,
+              providerOrderId: outcome.response.razorpay_order_id,
+              providerPaymentId: outcome.response.razorpay_payment_id,
+              signature: outcome.response.razorpay_signature,
+            });
+          } catch {
+            // Money may still have moved; the webhook reconciles it. Never
+            // tell a customer who paid that their payment failed.
+            toast.info('We are confirming your payment', 'Your order page will update in a moment.');
+          }
+        } else if (outcome.kind === 'failed') {
+          toast.error('The payment did not go through', outcome.reason);
+        } else {
+          toast.info('Payment not completed', 'Your order is saved. You can pay or choose another method.');
+        }
+      }
+
+      router.push(`/order-confirmed/${orderNumber}`);
     } catch (err) {
       // A fresh key on failure prevents a stale key from returning a partially
       // created order on the next attempt.
@@ -171,7 +213,7 @@ export default function CheckoutPage() {
             },
           ]
         : []),
-      ...(store.onlinePaymentEnabled
+      ...(onlineAvailable
         ? [
             {
               value: 'UPI' as PaymentMethod,
@@ -184,6 +226,12 @@ export default function CheckoutPage() {
               label: 'Card',
               description: 'Credit or debit card',
               icon: <CreditCard className="h-4.5 w-4.5" />,
+            },
+            {
+              value: 'NETBANKING' as PaymentMethod,
+              label: 'Net banking',
+              description: 'All major Indian banks',
+              icon: <Landmark className="h-4.5 w-4.5" />,
             },
           ]
         : []),
@@ -344,6 +392,19 @@ export default function CheckoutPage() {
                   </span>
                 </label>
               ))}
+              {/* The store offers online payment but cannot take one right
+                  now. Never says why — that is the merchant's business. */}
+              {store.onlinePaymentEnabled && !onlineAvailable && (
+                <p className="flex items-start gap-2 rounded-lg border border-line bg-surface-muted px-3 py-2.5 text-sm text-content-muted">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  Online payment is temporarily unavailable. Please choose another payment method.
+                </p>
+              )}
+              {methods.length === 0 && (
+                <p className="text-sm text-content-muted">
+                  This store is not taking orders online right now. Please contact the store.
+                </p>
+              )}
             </CardBody>
           </Card>
 

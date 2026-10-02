@@ -64,6 +64,7 @@ import { StorageService } from '@/core/storage/storage.service';
 import { AiService } from '@/modules/ai/ai.service';
 import { BillingService } from '@/modules/billing/billing.service';
 import { PaymentConfigService } from '@/modules/payments/payment-config.service';
+import { PaymentsService } from '@/modules/payments/payments.service';
 import { CategoriesService } from '@/modules/catalog/categories.service';
 import { ProductsService } from '@/modules/catalog/products.service';
 import { CouponsService } from '@/modules/coupons/coupons.service';
@@ -145,6 +146,19 @@ class ProductSuggestionDto extends createZodDto(
   }),
 ) {}
 class UpsertPaymentConfigDto extends createZodDto(upsertPaymentConfigSchema) {}
+class RazorpayCallbackDto extends createZodDto(
+  z.object({
+    code: z.string().trim().min(1).max(512),
+    state: z.string().trim().min(16).max(128),
+  }),
+) {}
+class RefundDto extends createZodDto(
+  z.object({
+    /** Minor units. Omitted = refund everything still refundable. */
+    amount: z.number().int().positive().optional(),
+    reason: z.string().trim().min(2).max(300),
+  }),
+) {}
 class InviteStaffDto extends createZodDto(inviteStaffSchema) {}
 class UpdateStaffDto extends createZodDto(updateStaffSchema) {}
 class ReportQueryDto extends createZodDto(reportQuerySchema) {}
@@ -189,6 +203,7 @@ export class MerchantController {
     private readonly memberships: MembershipService,
     private readonly tenantDb: TenantDatabaseService,
     private readonly paymentConfig: PaymentConfigService,
+    private readonly payments: PaymentsService,
     private readonly billing: BillingService,
     private readonly ai: AiService,
     private readonly context: RequestContextService,
@@ -645,6 +660,83 @@ export class MerchantController {
   async disablePaymentConfig(@Param('provider') provider: string) {
     await this.paymentConfig.disable(this.tenantDb.tenantId, provider);
     return { disabled: true };
+  }
+
+  /** The signed-in user. Every merchant route is authenticated, so this always holds. */
+  private actorId(): string {
+    const userId = this.context.userId;
+    if (!userId) throw Errors.unauthenticated();
+    return userId;
+  }
+
+  // ===================================================== store payments ==
+  //
+  // How THIS store gets paid by its own customers — through its own Razorpay
+  // account. Separate from `subscription` below, which is what the store pays
+  // retailos. Owner-only (STORE_MANAGE): staff do not reconnect the account
+  // money settles into.
+
+  @Get('payments/setup')
+  @RequirePermissions(Permission.STORE_MANAGE)
+  @ApiOperation({ summary: 'Payment setup status for this store (connected, action required, …)' })
+  async paymentSetup() {
+    const settings = await this.store.getSettings();
+    return this.paymentConfig.setupStatus(this.tenantDb.tenantId, settings.onlinePaymentEnabled);
+  }
+
+  @Post('payments/razorpay/connect')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.STORE_MANAGE)
+  @RateLimit({ limit: 10, ttl: 300, bucket: 'razorpay-connect', by: 'user' })
+  @ApiOperation({
+    summary: 'Start connecting this store’s own Razorpay account',
+    description: 'Returns the Razorpay authorisation URL. The merchant approves on Razorpay’s own page.',
+  })
+  connectRazorpay() {
+    return this.paymentConfig.startOAuth(this.tenantDb.tenantId, this.actorId());
+  }
+
+  @Post('payments/razorpay/callback')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.STORE_MANAGE)
+  @RateLimit({ limit: 10, ttl: 300, bucket: 'razorpay-connect', by: 'user' })
+  @ApiOperation({
+    summary: 'Finish connecting Razorpay with the code from its redirect',
+    description:
+      'The `state` must be the one this store and user started with; the tenant is taken from it, ' +
+      'never from the request.',
+  })
+  completeRazorpay(@Body() dto: RazorpayCallbackDto) {
+    return this.paymentConfig.completeOAuth(this.tenantDb.tenantId, this.actorId(), dto);
+  }
+
+  @Post('payments/razorpay/disconnect')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.STORE_MANAGE)
+  @ApiOperation({ summary: 'Disconnect Razorpay — online payments stop; existing orders are untouched' })
+  async disconnectRazorpay() {
+    await this.paymentConfig.disconnectOAuth(this.tenantDb.tenantId);
+    return { disconnected: true };
+  }
+
+  @Get('payments')
+  @RequirePermissions(Permission.ORDERS_READ)
+  @ApiOperation({ summary: 'Recent online payments and their refunds — this store only' })
+  recentPayments(@Query('limit') limit?: string) {
+    return this.payments.recentPayments(limit ? Number(limit) : 20);
+  }
+
+  @Post('orders/:id/refund')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.ORDERS_REFUND)
+  @ApiOperation({
+    summary: 'Refund an order through the gateway it was paid on',
+    description:
+      'Full or partial. Money goes back from this store’s own Razorpay account; the refund is ' +
+      'recorded before the gateway is called and settled by its webhook.',
+  })
+  refundOrder(@Param('id') id: string, @Body() dto: RefundDto) {
+    return this.payments.refund(id, dto.amount, dto.reason);
   }
 
   // ========================================================= subscription ==

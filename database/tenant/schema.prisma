@@ -683,13 +683,44 @@ model Payment {
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  refunds PaymentRefund[]
 
   @@index([orderId])
   @@index([status])
   @@index([providerOrderId])
   @@index([providerPaymentId])
   @@map("payments")
+}
+
+/// One refund sent back through the gateway, and how it ended.
+///
+/// Created PENDING before the gateway is called, so a crash mid-request leaves
+/// a record to reconcile rather than money with no trace. The gateway's
+/// `refund.processed` / `refund.failed` webhook settles it.
+model PaymentRefund {
+  id        String @id @default(uuid()) @db.Uuid
+  paymentId String @map("payment_id") @db.Uuid
+
+  /// PENDING | PROCESSED | FAILED.
+  status           String  @default("PENDING") @db.VarChar(16)
+  amount           Int
+  reason           String? @db.VarChar(300)
+  providerRefundId String? @unique @map("provider_refund_id") @db.VarChar(128)
+  /// Sent to the gateway, so a retried refund cannot pay out twice.
+  idempotencyKey   String  @unique @map("idempotency_key") @db.VarChar(128)
+  failureReason    String? @map("failure_reason") @db.VarChar(500)
+  /// Staff member who issued it. Null for a gateway-initiated refund.
+  createdBy        String? @map("created_by") @db.Uuid
+
+  processedAt DateTime? @map("processed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@map("payment_refunds")
 }
 
 // ---------------------------------------------------------------- reviews --

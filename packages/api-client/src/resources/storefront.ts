@@ -77,33 +77,39 @@ export class StorefrontResource {
   }
 
   // ---------------------------------------------------------------- cart --
+  //
+  // Cart calls carry the shopper's session when there is one. The API keys a
+  // signed-in shopper's cart by customer, and an anonymous one by the guest
+  // token — so these must not be `anonymous`, or a signed-in shopper's bag
+  // lands in a guest cart that checkout (which reads the customer's cart)
+  // never sees.
 
   getCart(): Promise<Cart> {
-    return this.http.get('/cart', { anonymous: true });
+    return this.http.get('/cart');
   }
 
   addToCart(body: AddCartItemRequest): Promise<Cart> {
-    return this.http.post('/cart/items', body, { anonymous: true });
+    return this.http.post('/cart/items', body);
   }
 
   updateCartItem(itemId: string, quantity: number): Promise<Cart> {
-    return this.http.patch(`/cart/items/${itemId}`, { quantity }, { anonymous: true });
+    return this.http.patch(`/cart/items/${itemId}`, { quantity });
   }
 
   removeCartItem(itemId: string): Promise<Cart> {
-    return this.http.delete(`/cart/items/${itemId}`, { anonymous: true });
+    return this.http.delete(`/cart/items/${itemId}`);
   }
 
   clearCart(): Promise<Cart> {
-    return this.http.delete('/cart', { anonymous: true });
+    return this.http.delete('/cart');
   }
 
   applyCoupon(code: string): Promise<Cart> {
-    return this.http.post('/cart/coupon', { code }, { anonymous: true });
+    return this.http.post('/cart/coupon', { code });
   }
 
   removeCoupon(): Promise<Cart> {
-    return this.http.delete('/cart/coupon', { anonymous: true });
+    return this.http.delete('/cart/coupon');
   }
 
   /** Merges the anonymous cart into the customer's cart after login. */

@@ -21,3 +21,15 @@ process.env.RATE_LIMIT_LIMIT = process.env.RATE_LIMIT_LIMIT ?? '10000';
 // The suite exercises metering and caching, not a vendor: never spend real AI
 // credits from a test run, whatever the developer's .env says.
 process.env.AI_PROVIDER = 'mock';
+
+// Razorpay Partner OAuth, pointed at the local stub in
+// `test/support/razorpay-stub.ts`, which implements the documented token,
+// revoke, orders, payments and refunds responses. The suite therefore tests
+// retailos's side of the contract — never live Razorpay.
+process.env.RAZORPAY_OAUTH_CLIENT_ID = 'test_oauth_client';
+process.env.RAZORPAY_OAUTH_CLIENT_SECRET = 'test_oauth_client_secret';
+process.env.RAZORPAY_OAUTH_REDIRECT_URI = 'http://localhost:3001/settings/payments/razorpay/callback';
+process.env.RAZORPAY_OAUTH_WEBHOOK_SECRET = 'test_oauth_webhook_secret';
+process.env.RAZORPAY_OAUTH_MODE = 'test';
+process.env.RAZORPAY_API_BASE = 'http://127.0.0.1:47990/v1';
+process.env.RAZORPAY_AUTH_BASE = 'http://127.0.0.1:47990';

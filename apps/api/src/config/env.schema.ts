@@ -199,6 +199,23 @@ export const envSchema = z
     RAZORPAY_KEY_ID: z.string().optional(),
     RAZORPAY_KEY_SECRET: z.string().optional(),
     RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+    /**
+     * Razorpay Partner OAuth — how a store connects its OWN Razorpay account.
+     * Issued to retailos as a Razorpay Technology Partner (one OAuth app;
+     * Razorpay generates separate test and live clients). Customer payments are
+     * created with each store's access token and settle to that store, never
+     * to retailos. Left unset, "Connect Razorpay" is simply unavailable.
+     */
+    RAZORPAY_OAUTH_CLIENT_ID: z.string().optional(),
+    RAZORPAY_OAUTH_CLIENT_SECRET: z.string().optional(),
+    /** Must be whitelisted on the OAuth app. The console's callback page. */
+    RAZORPAY_OAUTH_REDIRECT_URI: z.string().url().optional(),
+    /** Secret of the webhook configured on the OAuth app (signs every connected store's events). */
+    RAZORPAY_OAUTH_WEBHOOK_SECRET: z.string().optional(),
+    RAZORPAY_OAUTH_MODE: z.enum(['test', 'live']).default('test'),
+    /** Overridable only so tests can point at a local stub of the documented API. */
+    RAZORPAY_API_BASE: z.string().url().default('https://api.razorpay.com/v1'),
+    RAZORPAY_AUTH_BASE: z.string().url().default('https://auth.razorpay.com'),
     MOCK_PAYMENT_WEBHOOK_SECRET: z.string().default('dev_mock_webhook_secret'),
 
     // ------------------------------------------------------ notifications --

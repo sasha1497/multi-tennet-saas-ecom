@@ -59,9 +59,20 @@ export interface RefundRequest {
 /** Normalised webhook event, after signature verification. */
 export interface NormalisedPaymentEvent {
   eventId: string;
-  type: 'payment.captured' | 'payment.failed' | 'refund.processed' | 'unknown';
+  type:
+    | 'payment.captured'
+    | 'payment.failed'
+    | 'refund.processed'
+    | 'refund.failed'
+    /** The merchant removed the platform's access from their gateway dashboard. */
+    | 'account.revoked'
+    | 'unknown';
   providerOrderId: string | null;
   providerPaymentId: string | null;
+  /** Refund events only. */
+  providerRefundId?: string | null;
+  /** The merchant's gateway account the event belongs to, when the gateway says. */
+  accountId?: string | null;
   amount: Money | null;
   currency: string | null;
   failureReason?: string | null;

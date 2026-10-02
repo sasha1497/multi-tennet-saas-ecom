@@ -121,6 +121,12 @@ export class OrdersService {
     if (input.paymentMethod !== 'COD' && !settings.onlinePaymentEnabled) {
       throw Errors.badRequest('Online payment is not available for this store');
     }
+    // Before anything is reserved: a store whose gateway is not connected
+    // (or was disconnected) must not take an order it cannot charge. The
+    // destination is resolved from the tenant, server-side — never the client.
+    if (input.paymentMethod !== 'COD') {
+      await this.payments.assertOnlineReady(tenant.tenantId);
+    }
 
     const created = await this.tenantDb.transaction(
       async (tx) => {
@@ -561,6 +567,19 @@ export class OrdersService {
           }
         }
         await this.coupons.release(tx, orderId);
+      }
+
+      // An online payment that was actually captured goes back through the
+      // gateway, via the refund endpoint — never by flipping a status, which
+      // would tell the books the customer was repaid when they were not.
+      if (to === 'REFUNDED' && order.paymentMethod !== 'COD') {
+        const owed = await tx.payment.findFirst({
+          where: { orderId, status: { in: ['PAID', 'PARTIALLY_REFUNDED'] }, providerPaymentId: { not: null } },
+          select: { id: true },
+        });
+        if (owed) {
+          throw Errors.badRequest('Refund this order from its payment so the money is returned to the customer.');
+        }
       }
 
       if (to === 'REFUNDED' && current !== 'CANCELLED') {

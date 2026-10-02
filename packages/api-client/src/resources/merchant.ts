@@ -120,6 +120,49 @@ export interface SubscriptionOverview {
   billingAvailable: boolean;
 }
 
+/** Response of `GET /merchant/payments/setup` — how this store gets paid. */
+export interface PaymentSetupStatus {
+  status: 'NOT_CONNECTED' | 'CONNECTED' | 'ACTION_REQUIRED' | 'REVOKED';
+  connectionType: 'keys' | 'oauth' | 'platform' | null;
+  provider: string | null;
+  environment: 'test' | 'live';
+  /** The store's own Razorpay account id (`acc_…`). */
+  accountId: string | null;
+  connectedAt: string | null;
+  onlinePaymentsAvailable: boolean;
+  onlinePaymentsSwitchedOn: boolean;
+  reason: string | null;
+  /** Whether "Connect Razorpay" is offered on this deployment. */
+  oauthAvailable: boolean;
+}
+
+/** One gateway's configuration — the safe view; secrets are never returned. */
+export interface PaymentGatewayConfig {
+  provider: string;
+  enabled: boolean;
+  environment: 'test' | 'live';
+  publicKey: string | null;
+  currency: string;
+  configured: boolean;
+}
+
+export interface StorePayment {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  provider: string;
+  method: string;
+  status: string;
+  amount: number;
+  refundedAmount: number;
+  currency: string;
+  providerPaymentId: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  refunds: { id: string; status: string; amount: number; providerRefundId: string | null; createdAt: string }[];
+}
+
 /** Response of `POST /merchant/ai/product-suggestions`. */
 export interface ProductSuggestionResponse {
   suggestion: {
@@ -439,6 +482,54 @@ export class MerchantResource {
     currentPeriodEnd: string | null;
   }> {
     return this.http.post('/merchant/subscription/confirm', { planCode, reference, outcome });
+  }
+
+  // ------------------------------------------------------ store payments --
+  // How this store's customers pay it. Not the RetailOS subscription.
+
+  paymentSetup(): Promise<PaymentSetupStatus> {
+    return this.http.get('/merchant/payments/setup');
+  }
+
+  /** Returns Razorpay's authorisation URL; the browser goes there next. */
+  connectRazorpay(): Promise<{ authorizeUrl: string }> {
+    return this.http.post('/merchant/payments/razorpay/connect', {});
+  }
+
+  completeRazorpay(code: string, state: string): Promise<PaymentSetupStatus> {
+    return this.http.post('/merchant/payments/razorpay/callback', { code, state });
+  }
+
+  disconnectRazorpay(): Promise<{ disconnected: boolean }> {
+    return this.http.post('/merchant/payments/razorpay/disconnect', {});
+  }
+
+  paymentGateways(): Promise<PaymentGatewayConfig[]> {
+    return this.http.get('/merchant/payments/config');
+  }
+
+  /** Manual keys (fallback). Secrets are write-only: omit to keep the stored one. */
+  savePaymentGateway(body: {
+    provider: string;
+    enabled: boolean;
+    environment: 'test' | 'live';
+    publicKey?: string | null;
+    secretKey?: string | null;
+    webhookSecret?: string | null;
+  }): Promise<PaymentGatewayConfig> {
+    return this.http.put('/merchant/payments/config', body);
+  }
+
+  storePayments(limit = 20): Promise<StorePayment[]> {
+    return this.http.get('/merchant/payments', { query: { limit } });
+  }
+
+  /** Full refund when `amount` is omitted. Money returns from the store's own gateway account. */
+  refundOrder(
+    orderId: string,
+    body: { amount?: number; reason: string },
+  ): Promise<{ refundId: string; status: string; amount: number; orderStatus: string }> {
+    return this.http.post(`/merchant/orders/${orderId}/refund`, body);
   }
 
   // ----------------------------------------------------------------- ai --

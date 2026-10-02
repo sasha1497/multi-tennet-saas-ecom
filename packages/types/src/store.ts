@@ -116,6 +116,8 @@ export interface StorefrontBootstrap {
   store: StoreSettings;
   categories: import('./catalog').CategoryTreeNode[];
   features: Record<string, boolean>;
+  /** Online payment will work at checkout right now (switched on and gateway connected). */
+  onlinePaymentAvailable: boolean;
 }
 
 /**

@@ -587,12 +587,33 @@ model TenantPaymentConfig {
   /// Overrides the platform default when the merchant trades in another currency.
   currency String @default("INR") @db.VarChar(3)
 
+  /// How the store is connected: 'keys' (the merchant pasted their own API
+  /// keys — the original flow, kept as a fallback) or 'oauth' (connected
+  /// through Razorpay Partner OAuth; no merchant secret is ever held).
+  connectionType String @default("keys") @map("connection_type") @db.VarChar(16)
+  /// NOT_CONNECTED | CONNECTED | ACTION_REQUIRED | REVOKED.
+  onboardingStatus String @default("NOT_CONNECTED") @map("onboarding_status") @db.VarChar(24)
+  /// The merchant's own gateway account (Razorpay `acc_…`). Money settles here.
+  providerAccountId String? @map("provider_account_id") @db.VarChar(64)
+
+  /// OAuth tokens, AES-256-GCM like every other credential. Revocable by the
+  /// merchant from their Razorpay dashboard at any time.
+  encryptedAccessToken  String?   @map("encrypted_access_token")
+  encryptedRefreshToken String?   @map("encrypted_refresh_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(6)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(6)
+
+  connectedAt DateTime? @map("connected_at") @db.Timestamptz(6)
+  /// A safe, merchant-readable reason when status is ACTION_REQUIRED/REVOKED.
+  statusReason String? @map("status_reason") @db.VarChar(300)
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, provider])
+  @@unique([provider, providerAccountId])
   @@index([tenantId])
   @@map("tenant_payment_configs")
 }
@@ -605,11 +626,15 @@ model PaymentRoute {
   /// Payment row id inside the tenant database.
   paymentId       String   @map("payment_id") @db.Uuid
   orderId         String   @map("order_id") @db.Uuid
+  /// Set once the payment is captured. Refund webhooks carry the payment id,
+  /// not the order id, so this is what lets them find their tenant.
+  providerPaymentId String? @map("provider_payment_id") @db.VarChar(128)
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerOrderId])
+  @@index([provider, providerPaymentId])
   @@index([tenantId])
   @@map("payment_routes")
 }

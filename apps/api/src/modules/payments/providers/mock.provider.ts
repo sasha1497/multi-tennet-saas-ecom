@@ -11,6 +11,7 @@ import type {
   RefundParams,
   RefundResult,
   VerifySignatureParams,
+  WebhookReference,
 } from '../payment-provider.interface';
 
 /**
@@ -69,10 +70,11 @@ export class MockPaymentProvider implements PaymentProviderAdapter {
   }
 
   /** Mock order ids are self-describing; no verification happens here. */
-  extractOrderReference(rawBody: Buffer): string | null {
+  extractReference(rawBody: Buffer): WebhookReference | null {
     try {
-      const payload = JSON.parse(rawBody.toString('utf8')) as { orderId?: string };
-      return payload.orderId ?? null;
+      const payload = JSON.parse(rawBody.toString('utf8')) as { orderId?: string; event?: string };
+      if (!payload.orderId) return null;
+      return { event: payload.event ?? null, providerOrderId: payload.orderId, providerPaymentId: null, accountId: null };
     } catch {
       return null;
     }
